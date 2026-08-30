@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 import './globals.css'
 
@@ -7,7 +7,39 @@ import { AppShell } from '@/components/follow-up/app-shell'
 
 export const metadata: Metadata = {
   title: 'Follow Up | Michigan Cru',
+  applicationName: 'Follow Up',
   description: 'Michigan Cru Follow Up',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      {
+        url: '/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        url: '/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+    ],
+    apple: [
+      {
+        url: '/apple-touch-icon.png',
+        sizes: '180x180',
+        type: 'image/png',
+      },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'Follow Up',
+    statusBarStyle: 'default',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#00274c',
 }
 
 export default async function RootLayout({

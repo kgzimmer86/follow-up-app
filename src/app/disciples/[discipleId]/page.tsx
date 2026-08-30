@@ -236,6 +236,11 @@ export default async function DiscipleDetailPage({
               attention={
                 needsAttention > 0
               }
+              href={
+                needsAttention > 0
+                  ? '#needs-attention'
+                  : undefined
+              }
             />
           </div>
 
@@ -274,7 +279,10 @@ export default async function DiscipleDetailPage({
         </div>
 
         <div className="grid gap-4 p-5 md:p-6">
-          <Panel title="Needs attention">
+          <Panel
+            title="Needs attention"
+            id="needs-attention"
+          >
             <p className="mb-4 text-xs leading-5 text-[#667085]">
               These are the exact contacts in
               this discipleship branch that may
@@ -518,12 +526,17 @@ export default async function DiscipleDetailPage({
 function Panel({
   title,
   children,
+  id,
 }: {
   title: string
   children: React.ReactNode
+  id?: string
 }) {
   return (
-    <section className="rounded-[20px] border border-[#e4e7ec] bg-white p-4 md:p-5">
+    <section
+      id={id}
+      className="scroll-mt-24 rounded-[20px] border border-[#e4e7ec] bg-white p-4 md:p-5"
+    >
       <h2 className="text-base font-extrabold tracking-[-0.02em] text-[#15223a]">
         {title}
       </h2>
@@ -539,20 +552,25 @@ function Metric({
   value,
   label,
   attention = false,
+  href,
 }: {
   value: number
   label: string
   attention?: boolean
+  href?: string
 }) {
-  return (
-    <div
-      className={[
-        'rounded-[13px] border px-3 py-3',
-        attention
-          ? 'border-[#fedf89] bg-[#fff8eb]'
-          : 'border-[#eef0f3] bg-[#f9fafb]',
-      ].join(' ')}
-    >
+  const className = [
+    'rounded-[13px] border px-3 py-3',
+    attention
+      ? 'border-[#fedf89] bg-[#fff8eb]'
+      : 'border-[#eef0f3] bg-[#f9fafb]',
+    href
+      ? 'block cursor-pointer transition hover:border-[#fdb022] hover:bg-[#fff4dc] focus:outline-none focus:ring-2 focus:ring-[#fdb022] focus:ring-offset-2'
+      : '',
+  ].join(' ')
+
+  const content = (
+    <>
       <div
         className={[
           'text-xl font-black leading-none',
@@ -567,6 +585,24 @@ function Metric({
       <div className="mt-1.5 text-[10px] font-bold leading-4 text-[#667085]">
         {label}
       </div>
+    </>
+  )
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        className={className}
+        aria-label={`${label}: ${value}. Jump to section.`}
+      >
+        {content}
+      </a>
+    )
+  }
+
+  return (
+    <div className={className}>
+      {content}
     </div>
   )
 }

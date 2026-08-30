@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
+import { ManageTabs } from '@/components/follow-up/manage-tabs'
 
 type PageProps = {
   params: Promise<{
@@ -149,7 +150,7 @@ export default async function ManageAreaPage({
             </p>
           </div>
 
-          <ManageTabs role={profile.role} />
+          <ManageTabs role={profile.role} active="areas" />
         </div>
 
         <div className="space-y-7 p-5 md:p-6">
@@ -291,52 +292,6 @@ export default async function ManageAreaPage({
   )
 }
 
-function ManageTabs({
-  role,
-}: {
-  role: string
-}) {
-  return (
-    <nav className="mt-5 flex gap-1 overflow-x-auto rounded-[14px] border border-[#e4e7ec] bg-[#f9fafb] p-1.5">
-      <Link
-        href="/manage"
-        className="shrink-0 rounded-[10px] bg-[#00274c] px-3.5 py-2.5 text-xs font-extrabold text-white"
-      >
-        Ministry Areas
-      </Link>
-
-      <Link
-        href="/manage/leaders"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Leaders
-      </Link>
-
-      <Link
-        href="/assign-contacts"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Assign Contacts
-      </Link>
-
-      <Link
-        href="/manage/import-survey"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Import Survey
-      </Link>
-
-      {role === 'admin' && (
-        <Link
-          href="/admin/users"
-          className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-        >
-          Users
-        </Link>
-      )}
-    </nav>
-  )
-}
 
 function LocationCard({
   location,

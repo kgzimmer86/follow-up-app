@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
+import { ManageTabs } from '@/components/follow-up/manage-tabs'
 
 type PageProps = {
   searchParams: Promise<{
@@ -284,7 +285,7 @@ export default async function ManageLeadersPage({
             attention needs across the movement.
           </p>
 
-          <ManageTabs role={profile.role} />
+          <ManageTabs role={profile.role} active="leaders" />
         </div>
 
         <div className="p-5 md:p-6">
@@ -516,49 +517,6 @@ export default async function ManageLeadersPage({
   )
 }
 
-function ManageTabs({
-  role,
-}: {
-  role: string
-}) {
-  return (
-    <nav className="mt-5 flex gap-1 overflow-x-auto rounded-[14px] border border-[#e4e7ec] bg-[#f9fafb] p-1.5">
-      <Link
-        href="/manage"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Ministry Areas
-      </Link>
-
-      <span className="shrink-0 rounded-[10px] bg-[#00274c] px-3.5 py-2.5 text-xs font-extrabold text-white">
-        Leaders
-      </span>
-
-      <Link
-        href="/assign-contacts"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Assign Contacts
-      </Link>
-
-      <Link
-        href="/manage/import-survey"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Import Survey
-      </Link>
-
-      {role === 'admin' && (
-        <Link
-          href="/admin/users"
-          className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-        >
-          Users
-        </Link>
-      )}
-    </nav>
-  )
-}
 
 function LeaderCard({
   leader,

@@ -1,8 +1,8 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { UserManagement } from '@/components/admin/user-management'
 import { createClient } from '@/lib/supabase/server'
+import { ManageTabs } from '@/components/follow-up/manage-tabs'
 
 type FollowUpUser = {
   user_id: string
@@ -114,7 +114,7 @@ export default async function AdminUsersPage() {
             ministry areas, and discipleship relationships.
           </p>
 
-          <ManageTabs />
+          <ManageTabs role={profile.role} active="users" />
         </div>
 
         <div className="p-5 md:p-6">
@@ -142,43 +142,5 @@ export default async function AdminUsersPage() {
         </div>
       </section>
     </main>
-  )
-}
-
-function ManageTabs() {
-  return (
-    <nav className="mt-5 flex gap-1 overflow-x-auto rounded-[14px] border border-[#e4e7ec] bg-[#f9fafb] p-1.5">
-      <Link
-        href="/manage"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Ministry Areas
-      </Link>
-
-      <Link
-        href="/manage/leaders"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Leaders
-      </Link>
-
-      <Link
-        href="/assign-contacts"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Assign Contacts
-      </Link>
-
-      <Link
-        href="/manage/import-survey"
-        className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-      >
-        Import Survey
-      </Link>
-
-      <span className="shrink-0 rounded-[10px] bg-[#00274c] px-3.5 py-2.5 text-xs font-extrabold text-white">
-        Users
-      </span>
-    </nav>
   )
 }

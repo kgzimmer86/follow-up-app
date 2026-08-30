@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { ContactAssignmentWorkspace } from '@/components/follow-up/contact-assignment-workspace'
 import { DiscipleBackButton } from '@/components/follow-up/disciple-back-button'
 import { createClient } from '@/lib/supabase/server'
+import { ManageTabs } from '@/components/follow-up/manage-tabs'
 
 type AssignmentWorkspace = {
   role: string
@@ -202,6 +203,11 @@ export default async function AssignContactsPage({
       <div className="mb-3">
         <DiscipleBackButton />
       </div>
+
+      <ManageTabs
+        role={profile.role}
+        active="assign"
+      />
 
       <ContactAssignmentWorkspace
         initialWorkspace={workspace}

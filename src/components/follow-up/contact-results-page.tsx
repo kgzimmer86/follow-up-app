@@ -21,9 +21,9 @@ export type ContactResultsSearchParams = {
   location?: string
   gender?: string
   status?: string
-  jesus?: string
-  community?: string
-  interview?: string
+  jesus?: string | string[]
+  community?: string | string[]
+  interview?: string | string[]
   kgp?: string
   interviewDone?: string
   affinity?: string
@@ -109,6 +109,28 @@ type ContactResultsResponse = {
 
 const RESULTS_PAGE_SIZE = 50
 
+function normalizeMultiFilter(
+  value: string | string[] | undefined
+) {
+  const rawValues = Array.isArray(value)
+    ? value
+    : value
+      ? [value]
+      : []
+
+  const normalized = rawValues
+    .flatMap((item) =>
+      item
+        .split(',')
+        .map((part) =>
+          part.trim().toLowerCase()
+        )
+    )
+    .filter(Boolean)
+
+  return [...new Set(normalized)].join(',')
+}
+
 function parsePage(
   value: string | undefined
 ) {
@@ -149,11 +171,15 @@ export async function ContactResultsPage({
     location: searchParams.location ?? '',
     gender: searchParams.gender ?? '',
     status: searchParams.status ?? '',
-    jesus: searchParams.jesus ?? '',
-    community:
-      searchParams.community ?? '',
-    interview:
-      searchParams.interview ?? '',
+    jesus: normalizeMultiFilter(
+      searchParams.jesus
+    ),
+    community: normalizeMultiFilter(
+      searchParams.community
+    ),
+    interview: normalizeMultiFilter(
+      searchParams.interview
+    ),
     kgp: searchParams.kgp ?? '',
     interviewDone:
       searchParams.interviewDone ?? '',
@@ -596,71 +622,42 @@ export async function ContactResultsPage({
               </option>
             </FilterSelect>
 
-            <FilterSelect
+            <MultiFilterGroup
               label="Jesus"
               name="jesus"
-              value={
-                filters.jesus
-              }
-            >
-              <option value="">
-                Any
-              </option>
-              <option value="yes">
-                Yes
-              </option>
-              <option value="maybe">
-                Maybe
-              </option>
-              <option value="no">
-                No
-              </option>
-              <option value="already_have_one">
-                Already have one
-              </option>
-            </FilterSelect>
+              value={filters.jesus}
+              options={[
+                { value: 'yes', label: 'Yes' },
+                { value: 'maybe', label: 'Maybe' },
+                { value: 'no', label: 'No' },
+                {
+                  value: 'already_have_one',
+                  label: 'Already have one',
+                },
+              ]}
+            />
 
-            <FilterSelect
+            <MultiFilterGroup
               label="Community"
               name="community"
-              value={
-                filters.community
-              }
-            >
-              <option value="">
-                Any
-              </option>
-              <option value="yes">
-                Yes
-              </option>
-              <option value="maybe">
-                Maybe
-              </option>
-              <option value="no">
-                No
-              </option>
-            </FilterSelect>
+              value={filters.community}
+              options={[
+                { value: 'yes', label: 'Yes' },
+                { value: 'maybe', label: 'Maybe' },
+                { value: 'no', label: 'No' },
+              ]}
+            />
 
-            <FilterSelect
+            <MultiFilterGroup
               label="Interview"
               name="interview"
-              value={
-                filters.interview
-              }
-            >
-              <option value="">
-                Any
-              </option>
-              <option value="yes">
-                Yes
-              </option>
-              <option value="maybe">
-                Maybe
-              </option>
-              <option value="no">
-                No
-              </option>
-            </FilterSelect>
+              value={filters.interview}
+              options={[
+                { value: 'yes', label: 'Yes' },
+                { value: 'maybe', label: 'Maybe' },
+                { value: 'no', label: 'No' },
+              ]}
+            />
 
             <FilterSelect
               label="KGP shared"
@@ -1331,6 +1328,63 @@ function FilterSelect({
   )
 }
 
+function MultiFilterGroup({
+  label,
+  name,
+  value,
+  options,
+}: {
+  label: string
+  name: string
+  value: string
+  options: {
+    value: string
+    label: string
+  }[]
+}) {
+  const selected = new Set(
+    value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  )
+
+  return (
+    <fieldset>
+      <legend className="mb-1 text-[11px] font-extrabold text-[#667085]">
+        {label}
+      </legend>
+
+      <div className="rounded-[11px] border border-[#e4e7ec] bg-white px-2.5 py-2">
+        <div className="mb-1.5 text-[10px] font-bold text-[#98a2b3]">
+          Any if none selected
+        </div>
+
+        <div className="grid gap-1.5">
+          {options.map((option) => (
+            <label
+              key={option.value}
+              className="flex items-center gap-2 text-xs font-bold text-[#475467]"
+            >
+              <input
+                type="checkbox"
+                name={name}
+                value={option.value}
+                defaultChecked={selected.has(
+                  option.value
+                )}
+                className="h-4 w-4 rounded border-[#d0d5dd]"
+              />
+
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </fieldset>
+  )
+}
+
 function SortLink({
   label,
   active,
@@ -1670,3 +1724,4 @@ function phoneHref(
     ? `+${digits}`
     : digits
 }
+

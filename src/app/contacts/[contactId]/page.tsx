@@ -1597,6 +1597,7 @@ function DetailTabLink({
   return (
     <Link
       href={`/contacts/${contactId}?${params.toString()}`}
+      scroll={false}
       aria-current={
         active ? 'page' : undefined
       }

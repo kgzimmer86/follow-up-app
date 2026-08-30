@@ -78,7 +78,8 @@ type AffinityRow = {
 type EventRow = {
   id: string
   contact_id: string
-  performed_by: string
+  performed_by: string | null
+  performed_by_name: string | null
   event_type: string
   occurred_at: string
   notes: string | null
@@ -301,6 +302,7 @@ export default async function ContactDetailPage({
       id,
       contact_id,
       performed_by,
+      performed_by_name,
       event_type,
       occurred_at,
       notes,
@@ -321,10 +323,15 @@ export default async function ContactDetailPage({
     (eventsData ?? []) as EventRow[]
 
   const profileIds = unique([
-    ...events.map(
-      (event) =>
-        event.performed_by
-    ),
+    ...events
+      .map(
+        (event) =>
+          event.performed_by
+      )
+      .filter(
+        (id): id is string =>
+          Boolean(id)
+      ),
 
     ...(contact.primary_owner_id
       ? [
@@ -370,10 +377,13 @@ export default async function ContactDetailPage({
       ...event,
 
       performerName:
-        profileMap.get(
-          event.performed_by
-        ) ||
-        'Follow Up leader',
+        (event.performed_by
+          ? profileMap.get(
+              event.performed_by
+            )
+          : null) ||
+        event.performed_by_name ||
+        'Former user',
     }))
 
   const interactions =

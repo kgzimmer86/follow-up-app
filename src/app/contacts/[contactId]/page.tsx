@@ -84,6 +84,11 @@ type EventRow = {
   occurred_at: string
   notes: string | null
   found_home: boolean
+  had_spiritual_conversation: boolean
+  interview_completed: boolean
+  kgp_shared: boolean
+  received_christ: boolean
+  invited_to_community_group: boolean
 }
 
 type ProfileRow = {
@@ -306,7 +311,12 @@ export default async function ContactDetailPage({
       event_type,
       occurred_at,
       notes,
-      found_home
+      found_home,
+      had_spiritual_conversation,
+      interview_completed,
+      kgp_shared,
+      received_christ,
+      invited_to_community_group
     `)
     .eq('contact_id', contactId)
     .order('occurred_at', {
@@ -1317,6 +1327,12 @@ function HistoryTab({
                       }
                     </div>
 
+                    {!isKnock && (
+                      <MinistryActionIndicators
+                        event={event}
+                      />
+                    )}
+
                     {event.notes && (
                       <p className="mt-2 text-sm leading-6 text-[#475467]">
                         {event.notes}
@@ -1330,6 +1346,50 @@ function HistoryTab({
         </div>
       )}
     </Panel>
+  )
+}
+
+function MinistryActionIndicators({
+  event,
+}: {
+  event: DisplayEvent
+}) {
+  const actions = [
+    event.had_spiritual_conversation
+      ? 'Spiritual conversation'
+      : null,
+    event.interview_completed
+      ? 'Interview completed'
+      : null,
+    event.kgp_shared
+      ? 'KGP shared'
+      : null,
+    event.invited_to_community_group
+      ? 'Invited to CG'
+      : null,
+    event.received_christ
+      ? 'Received Christ'
+      : null,
+  ].filter(
+    (action): action is string =>
+      Boolean(action)
+  )
+
+  if (actions.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {actions.map((action) => (
+        <span
+          key={action}
+          className="rounded-full border border-[#d0d5dd] bg-white px-2 py-1 text-[10px] font-extrabold text-[#475467]"
+        >
+          {action}
+        </span>
+      ))}
+    </div>
   )
 }
 

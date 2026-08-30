@@ -101,6 +101,7 @@ export function UserManagement({
 }) {
   const [users, setUsers] = useState(initialUsers)
   const [saving, setSaving] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const possibleDisciplers = users.filter(
     (user) =>
@@ -284,6 +285,92 @@ export function UserManagement({
     setSaving(null)
   }
 
+  async function deleteUser(target: FollowUpUser) {
+    if (deleting || saving) {
+      return
+    }
+
+    const label =
+      target.display_name ||
+      target.email ||
+      'this user'
+
+    const typed = window.prompt(
+      `Permanently delete ${label} from Follow Up?\n\n` +
+        `This will:\n` +
+        `• return all contacts assigned to them to Unassigned\n` +
+        `• end their current discipleship relationships\n` +
+        `• remove their Follow Up login/account\n` +
+        `• keep historical interactions and attribution\n\n` +
+        `This cannot be undone.\n\n` +
+        `Type DELETE to continue.`
+    )
+
+    if (typed !== 'DELETE') {
+      return
+    }
+
+    setDeleting(target.user_id)
+
+    const supabase = createClient()
+
+    const { data, error } =
+      await supabase.functions.invoke(
+        'admin-delete-follow-up-user',
+        {
+          body: {
+            userId: target.user_id,
+          },
+        }
+      )
+
+    if (error || !data?.ok) {
+      let message =
+        data?.error ||
+        error?.message ||
+        'Follow Up could not permanently delete this user.'
+
+      if (
+        error &&
+        'context' in error &&
+        error.context instanceof Response
+      ) {
+        const responseBody = await error.context
+          .clone()
+          .json()
+          .catch(() => null)
+
+        if (responseBody?.error) {
+          message = responseBody.error
+        }
+      }
+
+      alert(message)
+      setDeleting(null)
+      return
+    }
+
+    const unassignedContacts = Number(
+      data?.preparation?.unassigned_contacts ?? 0
+    )
+
+    setUsers((current) =>
+      current.filter(
+        (user) => user.user_id !== target.user_id
+      )
+    )
+
+    setDeleting(null)
+
+    alert(
+      unassignedContacts > 0
+        ? `${label} was permanently deleted. ${unassignedContacts} contact${
+            unassignedContacts === 1 ? '' : 's'
+          } returned to Unassigned.`
+        : `${label} was permanently deleted.`
+    )
+  }
+
   const pending = users.filter(
     (user) => user.role === 'pending'
   )
@@ -318,12 +405,14 @@ export function UserManagement({
                 ministryAreas={ministryAreas}
                 possibleDisciplers={possibleDisciplers}
                 saving={saving === user.user_id}
+                deleting={deleting === user.user_id}
                 onRoleChange={changeRole}
                 onMinistryAreaChange={
                   changeMinistryArea
                 }
                 onDisciplerChange={changeDiscipler}
                 onActiveChange={toggleActive}
+                onDelete={deleteUser}
               />
             ))}
           </div>
@@ -355,12 +444,14 @@ export function UserManagement({
                 ministryAreas={ministryAreas}
                 possibleDisciplers={possibleDisciplers}
                 saving={saving === user.user_id}
+                deleting={deleting === user.user_id}
                 onRoleChange={changeRole}
                 onMinistryAreaChange={
                   changeMinistryArea
                 }
                 onDisciplerChange={changeDiscipler}
                 onActiveChange={toggleActive}
+                onDelete={deleteUser}
               />
             ))}
           </div>
@@ -375,15 +466,18 @@ function UserCard({
   ministryAreas,
   possibleDisciplers,
   saving,
+  deleting,
   onRoleChange,
   onMinistryAreaChange,
   onDisciplerChange,
   onActiveChange,
+  onDelete,
 }: {
   user: FollowUpUser
   ministryAreas: MinistryArea[]
   possibleDisciplers: FollowUpUser[]
   saving: boolean
+  deleting: boolean
   onRoleChange: (
     userId: string,
     role: UserRole
@@ -400,6 +494,7 @@ function UserCard({
     userId: string,
     active: boolean
   ) => void
+  onDelete: (user: FollowUpUser) => void
 }) {
   const isPending = user.role === 'pending'
 
@@ -431,23 +526,34 @@ function UserCard({
             </div>
           </div>
 
-          {!isPending && (
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {!isPending && (
+              <button
+                type="button"
+                disabled={saving || deleting}
+                onClick={() =>
+                  onActiveChange(
+                    user.user_id,
+                    !user.is_active
+                  )
+                }
+                className="self-start rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {user.is_active
+                  ? 'Deactivate'
+                  : 'Reactivate'}
+              </button>
+            )}
+
             <button
               type="button"
-              disabled={saving}
-              onClick={() =>
-                onActiveChange(
-                  user.user_id,
-                  !user.is_active
-                )
-              }
-              className="self-start rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              disabled={saving || deleting}
+              onClick={() => onDelete(user)}
+              className="self-start rounded-xl border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-50 disabled:opacity-50"
             >
-              {user.is_active
-                ? 'Deactivate'
-                : 'Reactivate'}
+              {deleting ? 'Deleting...' : 'Delete User'}
             </button>
-          )}
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -458,7 +564,7 @@ function UserCard({
 
             <select
               value={user.role}
-              disabled={saving}
+              disabled={saving || deleting}
               onChange={(event) =>
                 onRoleChange(
                   user.user_id,
@@ -491,7 +597,7 @@ function UserCard({
                 user.default_ministry_area_id ?? ''
               }
               ministryAreas={ministryAreas}
-              disabled={saving || isPending}
+              disabled={saving || deleting || isPending}
               onChange={(ministryAreaId) =>
                 onMinistryAreaChange(
                   user.user_id,
@@ -508,7 +614,7 @@ function UserCard({
 
             <select
               value={user.discipler_id ?? ''}
-              disabled={saving || isPending}
+              disabled={saving || deleting || isPending}
               onChange={(event) =>
                 onDisciplerChange(
                   user.user_id,
@@ -540,7 +646,13 @@ function UserCard({
           </div>
         </div>
 
-        {saving && (
+        {deleting && (
+          <div className="text-sm font-semibold text-red-700">
+            Permanently deleting user...
+          </div>
+        )}
+
+        {!deleting && saving && (
           <div className="text-sm font-semibold text-blue-700">
             Saving...
           </div>

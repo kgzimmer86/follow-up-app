@@ -11,6 +11,20 @@ import { createClient } from '@/lib/supabase/client'
 
 type CsvRow = Record<string, string>
 
+export type ImportCampaign = {
+  id: string
+  academic_year: string
+  label: string
+  starts_on: string
+  ends_on: string
+  status: 'active' | 'draft'
+}
+
+type SurveyImportPreviewProps = {
+  initialCampaigns: ImportCampaign[]
+  role: string
+}
+
 type AppField = {
   key: string
   label: string
@@ -365,7 +379,29 @@ const LOCATION_ALIASES: Record<string, string> = {
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_ROWS = 15000
 
-export function SurveyImportPreview() {
+export function SurveyImportPreview({
+  initialCampaigns,
+  role,
+}: SurveyImportPreviewProps) {
+  const [campaigns, setCampaigns] = useState<ImportCampaign[]>(initialCampaigns)
+  const initialCampaign =
+    initialCampaigns.find((campaign) => campaign.status === 'active') ??
+    initialCampaigns[0] ??
+    null
+  const [selectedCampaignId, setSelectedCampaignId] = useState(
+    initialCampaign?.id ?? ''
+  )
+  const [campaignMemberStudentIds, setCampaignMemberStudentIds] =
+    useState<Set<string>>(new Set())
+  const [checkedCampaignId, setCheckedCampaignId] = useState<string | null>(null)
+  const [showCreateCampaign, setShowCreateCampaign] = useState(false)
+  const [newAcademicYear, setNewAcademicYear] = useState('')
+  const [newCampaignLabel, setNewCampaignLabel] = useState('')
+  const [newStartsOn, setNewStartsOn] = useState('')
+  const [newEndsOn, setNewEndsOn] = useState('')
+  const [creatingCampaign, setCreatingCampaign] = useState(false)
+  const [campaignCreateError, setCampaignCreateError] = useState<string | null>(null)
+
   const [fileName, setFileName] = useState<string | null>(null)
   const [headers, setHeaders] = useState<string[]>([])
   const [rows, setRows] = useState<CsvRow[]>([])
@@ -485,6 +521,38 @@ export function SurveyImportPreview() {
     [matchResults]
   )
 
+  const selectedCampaign =
+    campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null
+
+  const alreadyInCampaignRowNumbers = useMemo(() => {
+    const rowNumbers = new Set<number>()
+
+    for (const row of importRows) {
+      const matchedStudentId =
+        matchMap.get(row.rowNumber)?.matched_student_id ?? null
+
+      if (
+        matchedStudentId &&
+        campaignMemberStudentIds.has(matchedStudentId)
+      ) {
+        rowNumbers.add(row.rowNumber)
+      }
+    }
+
+    return rowNumbers
+  }, [importRows, matchMap, campaignMemberStudentIds])
+
+  const rowsToAdd = useMemo(
+    () =>
+      importRows.filter(
+        (row) => !alreadyInCampaignRowNumbers.has(row.rowNumber)
+      ),
+    [importRows, alreadyInCampaignRowNumbers]
+  )
+
+  const alreadyInCampaignCount =
+    importRows.length - rowsToAdd.length
+
   const counts = useMemo(() => {
     const existing = importRows.filter((row) =>
       isExistingStatus(
@@ -569,17 +637,40 @@ export function SurveyImportPreview() {
   const nonBlockingWarningCount =
     useMemo(
       () =>
-        importRows.filter(
+        rowsToAdd.filter(
           (row) =>
             row.issues.length > 0 &&
             !rowHasBlockingCsvIssue(
               row
             )
         ).length,
-      [importRows]
+      [rowsToAdd]
     )
 
+  const actionableBlockingCsvCount = useMemo(
+    () => rowsToAdd.filter(rowHasBlockingCsvIssue).length,
+    [rowsToAdd]
+  )
+
+  const actionableNeedsReview = useMemo(
+    () =>
+      rowsToAdd.filter((row) =>
+        rowNeedsDatabaseReview(
+          matchMap.get(row.rowNumber)?.status,
+          row
+        )
+      ).length,
+    [rowsToAdd, matchMap]
+  )
+
+  const actionableSuggestedExclusions = useMemo(
+    () => rowsToAdd.filter(shouldSuggestExclusion).length,
+    [rowsToAdd]
+  )
+
   const databaseCheckCurrent =
+    Boolean(selectedCampaignId) &&
+    checkedCampaignId === selectedCampaignId &&
     importRows.length > 0 &&
     matchResults.length ===
       importRows.length &&
@@ -591,11 +682,13 @@ export function SurveyImportPreview() {
     )
 
   const canImport =
+    Boolean(selectedCampaignId) &&
     requiredMapped &&
     databaseCheckCurrent &&
-    counts.needsReview === 0 &&
-    blockingCsvCount === 0 &&
-    counts.suggestedExclusions === 0 &&
+    rowsToAdd.length > 0 &&
+    actionableNeedsReview === 0 &&
+    actionableBlockingCsvCount === 0 &&
+    actionableSuggestedExclusions === 0 &&
     editingRow === null &&
     !importing &&
     !importResult
@@ -897,6 +990,63 @@ export function SurveyImportPreview() {
     setCheckingMatches(false)
     setShowConfirm(false)
     setImportError(null)
+    setCampaignMemberStudentIds(new Set())
+    setCheckedCampaignId(null)
+  }
+
+  function changeCampaign(campaignId: string) {
+    setSelectedCampaignId(campaignId)
+    clearMatchResults()
+  }
+
+  async function createDraftCampaign() {
+    if (role !== 'admin') return
+
+    if (
+      !newAcademicYear.trim() ||
+      !newCampaignLabel.trim() ||
+      !newStartsOn ||
+      !newEndsOn
+    ) {
+      setCampaignCreateError(
+        'Academic year, campaign name, start date, and end date are required.'
+      )
+      return
+    }
+
+    setCreatingCampaign(true)
+    setCampaignCreateError(null)
+
+    const supabase = createClient()
+    const { data, error: rpcError } = await supabase.rpc(
+      'admin_create_follow_up_campaign',
+      {
+        p_academic_year: newAcademicYear.trim(),
+        p_label: newCampaignLabel.trim(),
+        p_starts_on: newStartsOn,
+        p_ends_on: newEndsOn,
+      }
+    )
+
+    if (rpcError) {
+      setCampaignCreateError(rpcError.message)
+      setCreatingCampaign(false)
+      return
+    }
+
+    const campaign = data as ImportCampaign
+    setCampaigns((current) => [
+      campaign,
+      ...current.filter((item) => item.id !== campaign.id),
+    ])
+    setSelectedCampaignId(campaign.id)
+    setShowCreateCampaign(false)
+    setNewAcademicYear('')
+    setNewCampaignLabel('')
+    setNewStartsOn('')
+    setNewEndsOn('')
+    setCreatingCampaign(false)
+    clearMatchResults()
   }
 
   function changeMapping(appField: string, csvColumn: string) {
@@ -1018,10 +1168,12 @@ export function SurveyImportPreview() {
   }
 
   async function checkExistingStudents() {
-    if (!requiredMapped) return
+    if (!requiredMapped || !selectedCampaignId) return
 
     setCheckingMatches(true)
     setMatchError(null)
+    setCampaignMemberStudentIds(new Set())
+    setCheckedCampaignId(null)
 
     const supabase = createClient()
 
@@ -1046,12 +1198,49 @@ export function SurveyImportPreview() {
       return
     }
 
-    setMatchResults((data ?? []) as MatchResult[])
+    const nextMatches = (data ?? []) as MatchResult[]
+    const matchedStudentIds = Array.from(
+      new Set(
+        nextMatches
+          .map((result) => result.matched_student_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    )
+
+    let nextCampaignMembers = new Set<string>()
+
+    if (matchedStudentIds.length > 0) {
+      const { data: membershipData, error: membershipError } =
+        await supabase.rpc(
+          'preview_survey_import_campaign_membership',
+          {
+            p_campaign_id: selectedCampaignId,
+            p_student_ids: matchedStudentIds,
+          }
+        )
+
+      if (membershipError) {
+        setMatchError(membershipError.message)
+        setMatchResults([])
+        setCheckingMatches(false)
+        return
+      }
+
+      nextCampaignMembers = new Set(
+        ((membershipData ?? []) as { student_id: string }[]).map(
+          (row) => row.student_id
+        )
+      )
+    }
+
+    setMatchResults(nextMatches)
+    setCampaignMemberStudentIds(nextCampaignMembers)
+    setCheckedCampaignId(selectedCampaignId)
     setCheckingMatches(false)
   }
 
   async function confirmImport() {
-    if (!canImport || !fileName) {
+    if (!canImport || !fileName || !selectedCampaignId) {
       return
     }
 
@@ -1074,9 +1263,13 @@ export function SurveyImportPreview() {
               row.rowNumber
             )
 
+          const alreadyInCampaign =
+            alreadyInCampaignRowNumbers.has(row.rowNumber)
+
           const action =
             duplicate?.skip ||
-            isExcluded
+            isExcluded ||
+            alreadyInCampaign
               ? 'skip'
               : 'import'
 
@@ -1085,7 +1278,9 @@ export function SurveyImportPreview() {
               ? `Repeat submission; kept row ${duplicate.winnerRowNumber}`
               : isExcluded
                 ? 'Excluded during import review'
-                : null
+                : alreadyInCampaign
+                  ? 'Already in selected campaign; existing contact left unchanged'
+                  : null
 
           return {
             row_number:
@@ -1151,6 +1346,8 @@ export function SurveyImportPreview() {
     } = await supabase.rpc(
       'import_survey_rows',
       {
+        p_campaign_id:
+          selectedCampaignId,
         p_filename:
           fileName,
         p_source_headers:
@@ -1201,6 +1398,142 @@ export function SurveyImportPreview() {
         </span>
       </div>
 
+      <section className="mt-5 rounded-[18px] border border-[#dbe8f8] bg-[#f8fbff] p-4 md:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#667085]">
+              Destination campaign
+            </p>
+            <h3 className="mt-1 text-base font-extrabold text-[#15223a]">
+              Choose where these contacts belong
+            </h3>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-[#667085]">
+              Imports add new contacts only. Existing contacts in the selected campaign are left unchanged and skipped. Archived campaigns cannot receive imports.
+            </p>
+          </div>
+
+          {selectedCampaign && (
+            <span
+              className={[
+                'rounded-full px-3 py-1.5 text-[10px] font-extrabold',
+                selectedCampaign.status === 'active'
+                  ? 'bg-[#ecfdf3] text-[#027a48]'
+                  : 'bg-[#fff8eb] text-[#b54708]',
+              ].join(' ')}
+            >
+              {selectedCampaign.status === 'active' ? 'Active' : 'Draft'}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="min-w-[260px] flex-1">
+            <span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">
+              Campaign
+            </span>
+            <select
+              value={selectedCampaignId}
+              onChange={(event) => changeCampaign(event.target.value)}
+              className="w-full rounded-[11px] border border-[#d0d5dd] bg-white px-3 py-2.5 text-sm font-semibold text-[#344054]"
+            >
+              {campaigns.length === 0 && (
+                <option value="">No active or draft campaigns</option>
+              )}
+              {campaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.label} — {campaign.academic_year}
+                  {campaign.status === 'active' ? ' (Active)' : ' (Draft)'}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {role === 'admin' && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowCreateCampaign((current) => !current)
+                setCampaignCreateError(null)
+              }}
+              className="rounded-[11px] border border-[#98a2b3] bg-white px-4 py-2.5 text-xs font-extrabold text-[#475467] hover:border-[#667085]"
+            >
+              {showCreateCampaign ? 'Cancel new campaign' : 'Create new campaign'}
+            </button>
+          )}
+        </div>
+
+        {campaigns.length === 0 && role !== 'admin' && (
+          <div className="mt-3 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold text-[#b54708]">
+            There is no active or draft campaign available. Ask an Admin to create one before importing.
+          </div>
+        )}
+
+        {showCreateCampaign && role === 'admin' && (
+          <div className="mt-4 rounded-[14px] border border-[#e4e7ec] bg-white p-4">
+            <div className="text-sm font-extrabold text-[#15223a]">
+              Create a draft campaign
+            </div>
+            <p className="mt-1 text-xs leading-5 text-[#667085]">
+              Creating it does not make it live. You can import into the draft now and activate it later from Campaigns.
+            </p>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label>
+                <span className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">Academic year</span>
+                <input
+                  value={newAcademicYear}
+                  onChange={(event) => setNewAcademicYear(event.target.value)}
+                  placeholder="2027–28"
+                  className="w-full rounded-[10px] border border-[#d0d5dd] px-3 py-2.5 text-sm"
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">Campaign name</span>
+                <input
+                  value={newCampaignLabel}
+                  onChange={(event) => setNewCampaignLabel(event.target.value)}
+                  placeholder="2027–28 Follow Up"
+                  className="w-full rounded-[10px] border border-[#d0d5dd] px-3 py-2.5 text-sm"
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">Starts</span>
+                <input
+                  type="date"
+                  value={newStartsOn}
+                  onChange={(event) => setNewStartsOn(event.target.value)}
+                  className="w-full rounded-[10px] border border-[#d0d5dd] px-3 py-2.5 text-sm"
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">Ends</span>
+                <input
+                  type="date"
+                  value={newEndsOn}
+                  onChange={(event) => setNewEndsOn(event.target.value)}
+                  className="w-full rounded-[10px] border border-[#d0d5dd] px-3 py-2.5 text-sm"
+                />
+              </label>
+            </div>
+
+            {campaignCreateError && (
+              <div className="mt-3 rounded-[11px] border border-[#fecdca] bg-[#fef3f2] px-3 py-2.5 text-xs font-semibold text-[#b42318]">
+                {campaignCreateError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={creatingCampaign}
+              onClick={createDraftCampaign}
+              className="mt-4 rounded-[11px] bg-[#00274c] px-4 py-2.5 text-xs font-extrabold text-white hover:bg-[#113a67] disabled:cursor-wait disabled:bg-[#667085]"
+            >
+              {creatingCampaign ? 'Creating…' : 'Create draft campaign'}
+            </button>
+          </div>
+        )}
+      </section>
+
       {!fileName && (
         <section className="mt-5 rounded-[20px] border border-dashed border-[#98a2b3] bg-white p-6 text-center md:p-9">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-[14px] bg-[#eef4ff] text-2xl font-black text-[#175cd3]">
@@ -1216,12 +1549,20 @@ export function SurveyImportPreview() {
             Nothing will be saved from this screen.
           </p>
 
-          <label className="mt-5 inline-flex cursor-pointer rounded-[12px] bg-[#00274c] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#113a67]">
+          <label
+            className={[
+              'mt-5 inline-flex rounded-[12px] px-4 py-3 text-sm font-extrabold text-white transition',
+              selectedCampaignId
+                ? 'cursor-pointer bg-[#00274c] hover:bg-[#113a67]'
+                : 'cursor-not-allowed bg-[#98a2b3]',
+            ].join(' ')}
+          >
             Choose CSV
             <input
               type="file"
               accept=".csv,text/csv"
               className="sr-only"
+              disabled={!selectedCampaignId}
               onChange={handleFile}
             />
           </label>
@@ -1370,14 +1711,14 @@ export function SurveyImportPreview() {
                 </div>
 
                 <p className="mt-1 max-w-2xl text-xs leading-5 text-[#667085]">
-                  Follow Up looks for an existing student by U-M uniqname first,
-                  then by phone when needed.
+                  Follow Up identifies the student by U-M uniqname first, then by phone when needed, and checks whether that student is already in {selectedCampaign?.label ?? 'the selected campaign'}.
                 </p>
               </div>
 
               <button
                 type="button"
                 disabled={
+                  !selectedCampaignId ||
                   !requiredMapped ||
                   checkingMatches ||
                   importRows.length === 0
@@ -1420,6 +1761,12 @@ export function SurveyImportPreview() {
                     tone="warn"
                   />
                 </div>
+
+                {alreadyInCampaignCount > 0 && (
+                  <div className="mt-3 rounded-[12px] border border-[#b2ccff] bg-[#eef4ff] px-3 py-3 text-xs font-semibold leading-5 text-[#3538cd]">
+                    {alreadyInCampaignCount.toLocaleString()} {alreadyInCampaignCount === 1 ? 'student is' : 'students are'} already in {selectedCampaign?.label ?? 'this campaign'}. {alreadyInCampaignCount === 1 ? 'That contact' : 'Those contacts'} will be skipped and left unchanged.
+                  </div>
+                )}
 
                 {reviewBreakdown.length > 0 && (
                   <div className="mt-3 rounded-[12px] border border-[#fedf89] bg-white px-3 py-3">
@@ -1727,6 +2074,7 @@ export function SurveyImportPreview() {
                                 <DatabaseMatchBadge
                                   row={row}
                                   result={matchMap.get(row.rowNumber)}
+                                  alreadyInCampaign={alreadyInCampaignRowNumbers.has(row.rowNumber)}
                                 />
                               )}
                             </td>
@@ -1852,8 +2200,8 @@ export function SurveyImportPreview() {
                   label="Contacts created"
                 />
                 <FinalStat
-                  value={importResult.contacts_updated}
-                  label="Contacts updated"
+                  value={alreadyInCampaignCount}
+                  label="Already in campaign"
                 />
               </div>
 
@@ -1884,7 +2232,7 @@ export function SurveyImportPreview() {
                   </h3>
 
                   <p className="mt-1 max-w-2xl text-xs leading-5 text-[#667085]">
-                    Nothing has been written to the database yet. Confirming will import the selected contacts into the active follow-up campaign and record the skipped source rows in import history.
+                    Nothing has been written to the database yet. Confirming will add new contacts to {selectedCampaign?.label ?? 'the selected campaign'} without changing contacts already there. Skipped source rows remain in import history.
                   </p>
                 </div>
 
@@ -1904,28 +2252,28 @@ export function SurveyImportPreview() {
 
               <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <FinalStat
-                  value={importRows.length}
-                  label="Will import"
+                  value={rowsToAdd.length}
+                  label="New contacts to add"
                 />
                 <FinalStat
-                  value={excludedPreviewRows.length}
-                  label="Excluded"
+                  value={alreadyInCampaignCount}
+                  label="Already in campaign"
                 />
                 <FinalStat
                   value={duplicatesSkipped}
                   label="Repeat submissions skipped"
                 />
                 <FinalStat
-                  value={nonBlockingWarningCount}
-                  label="Non-blocking warnings"
+                  value={excludedPreviewRows.length}
+                  label="Excluded"
                 />
               </div>
 
-              {blockingCsvCount > 0 ||
-              counts.needsReview > 0 ||
-              counts.suggestedExclusions > 0 ? (
+              {actionableBlockingCsvCount > 0 ||
+              actionableNeedsReview > 0 ||
+              actionableSuggestedExclusions > 0 ? (
                 <div className="mt-4 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold leading-5 text-[#b54708]">
-                  Import is still blocked: {blockingCsvCount} blocking CSV {blockingCsvCount === 1 ? 'issue' : 'issues'}, {counts.needsReview} database {counts.needsReview === 1 ? 'review' : 'reviews'}, and {counts.suggestedExclusions} suggested {counts.suggestedExclusions === 1 ? 'exclusion' : 'exclusions'} remain.
+                  Import is still blocked for new contacts: {actionableBlockingCsvCount} blocking CSV {actionableBlockingCsvCount === 1 ? 'issue' : 'issues'}, {actionableNeedsReview} database {actionableNeedsReview === 1 ? 'review' : 'reviews'}, and {actionableSuggestedExclusions} suggested {actionableSuggestedExclusions === 1 ? 'exclusion' : 'exclusions'} remain.
                 </div>
               ) : !databaseCheckCurrent ? (
                 <div className="mt-4 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold leading-5 text-[#b54708]">
@@ -1985,11 +2333,11 @@ export function SurveyImportPreview() {
                   id="confirm-import-title"
                   className="mt-1 text-xl font-extrabold text-[#15223a]"
                 >
-                  Import {importRows.length.toLocaleString()} contacts?
+                  Add {rowsToAdd.length.toLocaleString()} contacts to {selectedCampaign?.label ?? 'this campaign'}?
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Follow Up will write these reviewed responses to the active campaign. It will also record {excludedPreviewRows.length.toLocaleString()} excluded rows and {duplicatesSkipped.toLocaleString()} repeat submissions as skipped in the import history.
+                  Follow Up will add only contacts who are not already in the selected campaign. {alreadyInCampaignCount.toLocaleString()} already-present {alreadyInCampaignCount === 1 ? 'contact' : 'contacts'}, {excludedPreviewRows.length.toLocaleString()} excluded rows, and {duplicatesSkipped.toLocaleString()} repeat submissions will be recorded as skipped in import history.
                 </p>
 
                 {nonBlockingWarningCount > 0 && (
@@ -2025,7 +2373,7 @@ export function SurveyImportPreview() {
                   >
                     {importing
                       ? 'Importing…'
-                      : `Import ${importRows.length.toLocaleString()} contacts`}
+                      : `Add ${rowsToAdd.length.toLocaleString()} contacts`}
                   </button>
                 </div>
               </div>
@@ -2443,15 +2791,33 @@ function MatchSummary({
 function DatabaseMatchBadge({
   row,
   result,
+  alreadyInCampaign,
 }: {
   row: PreviewRow
   result: MatchResult | undefined
+  alreadyInCampaign: boolean
 }) {
   if (!result) {
     return (
       <span className="text-[10px] font-bold text-[#98a2b3]">
         Not checked
       </span>
+    )
+  }
+
+  if (alreadyInCampaign) {
+    return (
+      <div className="max-w-[220px]">
+        <span className="inline-flex rounded-full bg-[#eef4ff] px-2.5 py-1 text-[9px] font-extrabold text-[#3538cd]">
+          Already in campaign • skip
+        </span>
+        {result.matched_student_name && (
+          <div className="mt-1.5 text-[10px] font-semibold leading-4 text-[#667085]">
+            Existing: {result.matched_student_name}
+            {result.existing_uniqname ? ` • ${result.existing_uniqname}` : ''}
+          </div>
+        )}
+      </div>
     )
   }
 

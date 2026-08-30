@@ -7,6 +7,7 @@ import { ManageTabs } from '@/components/follow-up/manage-tabs'
 type PageProps = {
   searchParams: Promise<{
     archived?: string
+    activated?: string
     error?: string
   }>
 }
@@ -113,6 +114,12 @@ export default async function ManageCampaignsPage({
               Campaign archived successfully. Its
               Follow Up history is preserved and is
               no longer part of the live campaign.
+            </div>
+          )}
+
+          {params.activated === '1' && (
+            <div className="mb-5 rounded-[16px] border border-[#abefc6] bg-[#ecfdf3] px-4 py-3 text-sm font-semibold text-[#027a48]">
+              Draft campaign activated successfully. It is now the live Follow Up campaign.
             </div>
           )}
 
@@ -267,6 +274,7 @@ export default async function ManageCampaignsPage({
                     <CampaignHistoryCard
                       key={campaign.id}
                       campaign={campaign}
+                      canActivate={!activeCampaign}
                     />
                   )
                 )}
@@ -302,6 +310,7 @@ export default async function ManageCampaignsPage({
                     <CampaignHistoryCard
                       key={campaign.id}
                       campaign={campaign}
+                      canActivate={false}
                     />
                   )
                 )}
@@ -355,11 +364,55 @@ async function archiveCampaign(
   redirect('/manage/campaigns?archived=1')
 }
 
+async function activateCampaign(
+  formData: FormData
+) {
+  'use server'
+
+  const campaignId = String(
+    formData.get('campaignId') ?? ''
+  ).trim()
+
+  if (!campaignId) {
+    redirect(
+      '/manage/campaigns?error=Campaign%20ID%20is%20missing.'
+    )
+  }
+
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc(
+    'admin_activate_follow_up_campaign',
+    {
+      p_campaign_id: campaignId,
+    }
+  )
+
+  if (error) {
+    redirect(
+      `/manage/campaigns?error=${encodeURIComponent(
+        error.message
+      )}`
+    )
+  }
+
+  revalidatePath('/')
+  revalidatePath('/manage')
+  revalidatePath('/manage/campaigns')
+  revalidatePath('/manage/import-survey')
+  revalidatePath('/contacts')
+  revalidatePath('/assign-contacts')
+
+  redirect('/manage/campaigns?activated=1')
+}
+
 
 function CampaignHistoryCard({
   campaign,
+  canActivate,
 }: {
   campaign: CampaignRow
+  canActivate: boolean
 }) {
   return (
     <div className="rounded-[18px] border border-[#e4e7ec] bg-white p-4 md:p-5">
@@ -395,6 +448,33 @@ function CampaignHistoryCard({
           )}
         </div>
       </div>
+
+      {campaign.status === 'draft' && (
+        <div className="mt-4 border-t border-[#eef0f3] pt-4">
+          {canActivate ? (
+            <form action={activateCampaign}>
+              <input
+                type="hidden"
+                name="campaignId"
+                value={campaign.id}
+              />
+              <button
+                type="submit"
+                className="rounded-[11px] bg-[#00274c] px-4 py-2.5 text-xs font-extrabold text-white transition hover:bg-[#113a67]"
+              >
+                Activate {campaign.academic_year}
+              </button>
+              <p className="mt-2 text-[10px] leading-4 text-[#667085]">
+                This makes the draft the live Follow Up campaign.
+              </p>
+            </form>
+          ) : (
+            <div className="rounded-[12px] bg-[#fff8eb] px-3 py-2.5 text-[10px] font-semibold leading-4 text-[#b54708]">
+              Archive the current active campaign before activating this draft. You can still import survey contacts into this draft now.
+            </div>
+          )}
+        </div>
+      )}
 
       {campaign.status === 'archived' && (
         <div className="mt-3 rounded-[12px] bg-[#f9fafb] px-3 py-2.5 text-[10px] font-semibold text-[#667085]">

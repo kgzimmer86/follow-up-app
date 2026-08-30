@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
-import { SurveyImportPreview } from '@/components/follow-up/survey-import-preview'
+import {
+  SurveyImportPreview,
+  type ImportCampaign,
+} from '@/components/follow-up/survey-import-preview'
 import { ManageTabs } from '@/components/follow-up/manage-tabs'
 
 export default async function ImportSurveyPage() {
@@ -36,6 +39,20 @@ export default async function ImportSurveyPage() {
     redirect('/')
   }
 
+  const {
+    data: campaignData,
+    error: campaignError,
+  } = await supabase.rpc(
+    'list_importable_follow_up_campaigns'
+  )
+
+  if (campaignError) {
+    throw new Error(campaignError.message)
+  }
+
+  const campaigns =
+    (campaignData ?? []) as ImportCampaign[]
+
   return (
     <main className="mx-auto max-w-[1080px] px-[18px] py-[18px] md:px-7 md:pb-12 md:pt-6">
       <section className="overflow-hidden rounded-[24px] border border-[#dbe8f8] bg-[#fbfdff] shadow-[0_2px_12px_rgba(16,24,40,0.05)]">
@@ -49,14 +66,20 @@ export default async function ImportSurveyPage() {
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[#667085]">
-            Preview survey responses and verify the column mapping before anything is imported.
+            Add survey responses to the right Follow Up campaign without replacing existing contacts.
           </p>
 
-          <ManageTabs role={profile.role} active="import" />
+          <ManageTabs
+            role={profile.role}
+            active="import"
+          />
         </div>
 
         <div className="p-5 md:p-6">
-          <SurveyImportPreview />
+          <SurveyImportPreview
+            initialCampaigns={campaigns}
+            role={profile.role}
+          />
         </div>
       </section>
     </main>

@@ -484,7 +484,18 @@ export default async function ContactDetailPage({
 
     revalidatePath('/contacts')
     revalidatePath('/')
+
+    const redirectParams =
+      new URLSearchParams({
+        tab: 'overview',
+        from: returnTo,
+      })
+
+    redirect(
+      `/contacts/${submittedContactId}?${redirectParams.toString()}`
+    )
   }
+
 
   async function claimContact(
     formData: FormData

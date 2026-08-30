@@ -298,12 +298,21 @@ function ManageTabs({
       </Link>
 
       {role === 'admin' && (
-        <Link
-          href="/admin/users"
-          className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
-        >
-          Users
-        </Link>
+        <>
+          <Link
+            href="/manage/campaigns"
+            className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
+          >
+            Campaigns
+          </Link>
+
+          <Link
+            href="/admin/users"
+            className="shrink-0 rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold text-[#475467] transition hover:bg-white hover:text-[#15223a]"
+          >
+            Users
+          </Link>
+        </>
       )}
     </nav>
   )

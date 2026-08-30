@@ -438,15 +438,21 @@ export async function ContactResultsPage({
           {viewInfo.description}
         </p>
 
-        {view !== 'mine' &&
-          view !== 'area' && (
-            <Link
-              href="/"
-              className="mt-3 inline-flex items-center gap-1 text-xs font-extrabold text-[#175cd3] hover:underline"
-            >
-              ← Choose a different step of faith
-            </Link>
-          )}
+        {view === 'area' ? (
+          <Link
+            href="/"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-extrabold text-[#175cd3] hover:underline"
+          >
+            ← Back to Home
+          </Link>
+        ) : view !== 'mine' ? (
+          <Link
+            href="/"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-extrabold text-[#175cd3] hover:underline"
+          >
+            ← Choose a different step of faith
+          </Link>
+        ) : null}
       </section>
 
       <details
@@ -1724,4 +1730,3 @@ function phoneHref(
     ? `+${digits}`
     : digits
 }
-

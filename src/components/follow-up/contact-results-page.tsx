@@ -849,10 +849,14 @@ export async function ContactResultsPage({
             return (
               <article
                 key={contact.id}
-                className={cardClass(
-                  contact.gender_raw,
-                  contact.status
-                )}
+                id={`contact-${contact.id}`}
+                className={[
+                  cardClass(
+                    contact.gender_raw,
+                    contact.status
+                  ),
+                  'scroll-mt-24',
+                ].join(' ')}
               >
                 <div
                   className={[
@@ -870,7 +874,7 @@ export async function ContactResultsPage({
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
                           href={`/contacts/${contact.id}?from=${encodeURIComponent(
-                            returnToResults
+                            `${returnToResults}#contact-${contact.id}`
                           )}`}
                           className="block truncate text-[19px] font-extrabold tracking-[-0.02em] text-[#15223a] hover:text-[#175cd3]"
                         >

@@ -1,3 +1,4 @@
+// FOLLOW UP IMPORTER — existing campaign contact choice v4 (2026-08-30)
 'use client'
 
 import {
@@ -87,6 +88,31 @@ type MatchResult = {
   matched_student_id: string | null
   matched_student_name: string | null
   existing_uniqname: string | null
+}
+
+type CampaignContactSnapshot = {
+  student_id: string
+  contact_id: string
+  display_name: string | null
+  uniqname: string | null
+  survey_submitted_at: string | null
+  year_at_um: string | null
+  gender_raw: string | null
+  phone: string | null
+  jesus_interest: string | null
+  community_interest: string | null
+  interview_interest: string | null
+  location_name: string | null
+  room_or_address: string | null
+  affinities: string[] | null
+}
+
+type ExistingContactChoice = 'keep' | 'update'
+
+type ExistingContactChange = {
+  label: string
+  currentValue: string
+  nextValue: string
 }
 
 type ReviewFilter =
@@ -393,6 +419,10 @@ export function SurveyImportPreview({
   )
   const [campaignMemberStudentIds, setCampaignMemberStudentIds] =
     useState<Set<string>>(new Set())
+  const [campaignContacts, setCampaignContacts] =
+    useState<CampaignContactSnapshot[]>([])
+  const [existingContactChoices, setExistingContactChoices] =
+    useState<Record<number, ExistingContactChoice>>({})
   const [checkedCampaignId, setCheckedCampaignId] = useState<string | null>(null)
   const [showCreateCampaign, setShowCreateCampaign] = useState(false)
   const [newAcademicYear, setNewAcademicYear] = useState('')
@@ -524,6 +554,17 @@ export function SurveyImportPreview({
   const selectedCampaign =
     campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null
 
+  const campaignContactMap = useMemo(
+    () =>
+      new Map(
+        campaignContacts.map((contact) => [
+          contact.student_id,
+          contact,
+        ])
+      ),
+    [campaignContacts]
+  )
+
   const alreadyInCampaignRowNumbers = useMemo(() => {
     const rowNumbers = new Set<number>()
 
@@ -550,8 +591,30 @@ export function SurveyImportPreview({
     [importRows, alreadyInCampaignRowNumbers]
   )
 
+  const rowsToUpdate = useMemo(
+    () =>
+      importRows.filter(
+        (row) =>
+          alreadyInCampaignRowNumbers.has(row.rowNumber) &&
+          existingContactChoices[row.rowNumber] === 'update'
+      ),
+    [
+      importRows,
+      alreadyInCampaignRowNumbers,
+      existingContactChoices,
+    ]
+  )
+
+  const rowsToWrite = useMemo(
+    () => [...rowsToAdd, ...rowsToUpdate],
+    [rowsToAdd, rowsToUpdate]
+  )
+
   const alreadyInCampaignCount =
     importRows.length - rowsToAdd.length
+
+  const existingContactsKeptCount =
+    alreadyInCampaignCount - rowsToUpdate.length
 
   const counts = useMemo(() => {
     const existing = importRows.filter((row) =>
@@ -637,35 +700,35 @@ export function SurveyImportPreview({
   const nonBlockingWarningCount =
     useMemo(
       () =>
-        rowsToAdd.filter(
+        rowsToWrite.filter(
           (row) =>
             row.issues.length > 0 &&
             !rowHasBlockingCsvIssue(
               row
             )
         ).length,
-      [rowsToAdd]
+      [rowsToWrite]
     )
 
   const actionableBlockingCsvCount = useMemo(
-    () => rowsToAdd.filter(rowHasBlockingCsvIssue).length,
-    [rowsToAdd]
+    () => rowsToWrite.filter(rowHasBlockingCsvIssue).length,
+    [rowsToWrite]
   )
 
   const actionableNeedsReview = useMemo(
     () =>
-      rowsToAdd.filter((row) =>
+      rowsToWrite.filter((row) =>
         rowNeedsDatabaseReview(
           matchMap.get(row.rowNumber)?.status,
           row
         )
       ).length,
-    [rowsToAdd, matchMap]
+    [rowsToWrite, matchMap]
   )
 
   const actionableSuggestedExclusions = useMemo(
-    () => rowsToAdd.filter(shouldSuggestExclusion).length,
-    [rowsToAdd]
+    () => rowsToWrite.filter(shouldSuggestExclusion).length,
+    [rowsToWrite]
   )
 
   const databaseCheckCurrent =
@@ -685,7 +748,7 @@ export function SurveyImportPreview({
     Boolean(selectedCampaignId) &&
     requiredMapped &&
     databaseCheckCurrent &&
-    rowsToAdd.length > 0 &&
+    rowsToWrite.length > 0 &&
     actionableNeedsReview === 0 &&
     actionableBlockingCsvCount === 0 &&
     actionableSuggestedExclusions === 0 &&
@@ -991,6 +1054,8 @@ export function SurveyImportPreview({
     setShowConfirm(false)
     setImportError(null)
     setCampaignMemberStudentIds(new Set())
+    setCampaignContacts([])
+    setExistingContactChoices({})
     setCheckedCampaignId(null)
   }
 
@@ -1167,12 +1232,26 @@ export function SurveyImportPreview({
     clearMatchResults()
   }
 
+  function chooseExistingContactVersion(
+    rowNumber: number,
+    choice: ExistingContactChoice
+  ) {
+    setExistingContactChoices((current) => ({
+      ...current,
+      [rowNumber]: choice,
+    }))
+    setShowConfirm(false)
+    setImportError(null)
+  }
+
   async function checkExistingStudents() {
     if (!requiredMapped || !selectedCampaignId) return
 
     setCheckingMatches(true)
     setMatchError(null)
     setCampaignMemberStudentIds(new Set())
+    setCampaignContacts([])
+    setExistingContactChoices({})
     setCheckedCampaignId(null)
 
     const supabase = createClient()
@@ -1208,33 +1287,36 @@ export function SurveyImportPreview({
     )
 
     let nextCampaignMembers = new Set<string>()
+    let nextCampaignContacts: CampaignContactSnapshot[] = []
 
     if (matchedStudentIds.length > 0) {
-      const { data: membershipData, error: membershipError } =
+      const { data: campaignContactData, error: campaignContactError } =
         await supabase.rpc(
-          'preview_survey_import_campaign_membership',
+          'preview_survey_import_campaign_contacts',
           {
             p_campaign_id: selectedCampaignId,
             p_student_ids: matchedStudentIds,
           }
         )
 
-      if (membershipError) {
-        setMatchError(membershipError.message)
+      if (campaignContactError) {
+        setMatchError(campaignContactError.message)
         setMatchResults([])
         setCheckingMatches(false)
         return
       }
 
+      nextCampaignContacts =
+        (campaignContactData ?? []) as CampaignContactSnapshot[]
+
       nextCampaignMembers = new Set(
-        ((membershipData ?? []) as { student_id: string }[]).map(
-          (row) => row.student_id
-        )
+        nextCampaignContacts.map((row) => row.student_id)
       )
     }
 
     setMatchResults(nextMatches)
     setCampaignMemberStudentIds(nextCampaignMembers)
+    setCampaignContacts(nextCampaignContacts)
     setCheckedCampaignId(selectedCampaignId)
     setCheckingMatches(false)
   }
@@ -1266,20 +1348,26 @@ export function SurveyImportPreview({
           const alreadyInCampaign =
             alreadyInCampaignRowNumbers.has(row.rowNumber)
 
+          const useNewerSurvey =
+            alreadyInCampaign &&
+            existingContactChoices[row.rowNumber] === 'update'
+
           const action =
             duplicate?.skip ||
             isExcluded ||
-            alreadyInCampaign
+            (alreadyInCampaign && !useNewerSurvey)
               ? 'skip'
-              : 'import'
+              : useNewerSurvey
+                ? 'update_existing'
+                : 'import'
 
           const skipReason =
             duplicate?.skip
               ? `Repeat submission; kept row ${duplicate.winnerRowNumber}`
               : isExcluded
                 ? 'Excluded during import review'
-                : alreadyInCampaign
-                  ? 'Already in selected campaign; existing contact left unchanged'
+                : alreadyInCampaign && !useNewerSurvey
+                  ? 'Already in selected campaign; existing contact kept unchanged'
                   : null
 
           return {
@@ -1334,6 +1422,8 @@ export function SurveyImportPreview({
               normalizeTimestampForImport(
                 row.submittedAt
               ),
+            affinities_supplied:
+              Boolean(mapping.affinities),
             affinities:
               row.affinities,
           }
@@ -1408,7 +1498,7 @@ export function SurveyImportPreview({
               Choose where these contacts belong
             </h3>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-[#667085]">
-              Imports add new contacts only. Existing contacts in the selected campaign are left unchanged and skipped. Archived campaigns cannot receive imports.
+              Imports add new contacts without replacing a campaign. When a student is already in the selected campaign, you can keep the current survey version or deliberately use the newer CSV response. Archived campaigns cannot receive imports.
             </p>
           </div>
 
@@ -1764,7 +1854,7 @@ export function SurveyImportPreview({
 
                 {alreadyInCampaignCount > 0 && (
                   <div className="mt-3 rounded-[12px] border border-[#b2ccff] bg-[#eef4ff] px-3 py-3 text-xs font-semibold leading-5 text-[#3538cd]">
-                    {alreadyInCampaignCount.toLocaleString()} {alreadyInCampaignCount === 1 ? 'student is' : 'students are'} already in {selectedCampaign?.label ?? 'this campaign'}. {alreadyInCampaignCount === 1 ? 'That contact' : 'Those contacts'} will be skipped and left unchanged.
+                    {alreadyInCampaignCount.toLocaleString()} {alreadyInCampaignCount === 1 ? 'student is' : 'students are'} already in {selectedCampaign?.label ?? 'this campaign'}. Review {alreadyInCampaignCount === 1 ? 'that row' : 'those rows'} below and choose <strong>Keep current</strong> or <strong>Use newer survey</strong>. Keep current is the default.
                   </div>
                 )}
 
@@ -2075,6 +2165,21 @@ export function SurveyImportPreview({
                                   row={row}
                                   result={matchMap.get(row.rowNumber)}
                                   alreadyInCampaign={alreadyInCampaignRowNumbers.has(row.rowNumber)}
+                                  campaignContact={
+                                    matchMap.get(row.rowNumber)?.matched_student_id
+                                      ? campaignContactMap.get(
+                                          matchMap.get(row.rowNumber)!.matched_student_id!
+                                        )
+                                      : undefined
+                                  }
+                                  choice={existingContactChoices[row.rowNumber] ?? 'keep'}
+                                  affinitiesMapped={Boolean(mapping.affinities)}
+                                  onChoice={(choice) =>
+                                    chooseExistingContactVersion(
+                                      row.rowNumber,
+                                      choice
+                                    )
+                                  }
                                 />
                               )}
                             </td>
@@ -2200,8 +2305,8 @@ export function SurveyImportPreview({
                   label="Contacts created"
                 />
                 <FinalStat
-                  value={alreadyInCampaignCount}
-                  label="Already in campaign"
+                  value={importResult.contacts_updated}
+                  label="Existing refreshed"
                 />
               </div>
 
@@ -2232,7 +2337,7 @@ export function SurveyImportPreview({
                   </h3>
 
                   <p className="mt-1 max-w-2xl text-xs leading-5 text-[#667085]">
-                    Nothing has been written to the database yet. Confirming will add new contacts to {selectedCampaign?.label ?? 'the selected campaign'} without changing contacts already there. Skipped source rows remain in import history.
+                    Nothing has been written to the database yet. Confirming will add new contacts to {selectedCampaign?.label ?? 'the selected campaign'} and refresh only the existing contacts where you explicitly chose <strong>Use newer survey</strong>. Follow Up status, assignment, knocks, interactions, and history are preserved.
                   </p>
                 </div>
 
@@ -2250,14 +2355,18 @@ export function SurveyImportPreview({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 <FinalStat
                   value={rowsToAdd.length}
                   label="New contacts to add"
                 />
                 <FinalStat
-                  value={alreadyInCampaignCount}
-                  label="Already in campaign"
+                  value={rowsToUpdate.length}
+                  label="Existing to refresh"
+                />
+                <FinalStat
+                  value={existingContactsKeptCount}
+                  label="Existing kept"
                 />
                 <FinalStat
                   value={duplicatesSkipped}
@@ -2273,7 +2382,7 @@ export function SurveyImportPreview({
               actionableNeedsReview > 0 ||
               actionableSuggestedExclusions > 0 ? (
                 <div className="mt-4 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold leading-5 text-[#b54708]">
-                  Import is still blocked for new contacts: {actionableBlockingCsvCount} blocking CSV {actionableBlockingCsvCount === 1 ? 'issue' : 'issues'}, {actionableNeedsReview} database {actionableNeedsReview === 1 ? 'review' : 'reviews'}, and {actionableSuggestedExclusions} suggested {actionableSuggestedExclusions === 1 ? 'exclusion' : 'exclusions'} remain.
+                  Import is still blocked for contacts that will be added or refreshed: {actionableBlockingCsvCount} blocking CSV {actionableBlockingCsvCount === 1 ? 'issue' : 'issues'}, {actionableNeedsReview} database {actionableNeedsReview === 1 ? 'review' : 'reviews'}, and {actionableSuggestedExclusions} suggested {actionableSuggestedExclusions === 1 ? 'exclusion' : 'exclusions'} remain.
                 </div>
               ) : !databaseCheckCurrent ? (
                 <div className="mt-4 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold leading-5 text-[#b54708]">
@@ -2333,11 +2442,11 @@ export function SurveyImportPreview({
                   id="confirm-import-title"
                   className="mt-1 text-xl font-extrabold text-[#15223a]"
                 >
-                  Add {rowsToAdd.length.toLocaleString()} contacts to {selectedCampaign?.label ?? 'this campaign'}?
+                  Import into {selectedCampaign?.label ?? 'this campaign'}?
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Follow Up will add only contacts who are not already in the selected campaign. {alreadyInCampaignCount.toLocaleString()} already-present {alreadyInCampaignCount === 1 ? 'contact' : 'contacts'}, {excludedPreviewRows.length.toLocaleString()} excluded rows, and {duplicatesSkipped.toLocaleString()} repeat submissions will be recorded as skipped in import history.
+                  Follow Up will add {rowsToAdd.length.toLocaleString()} new {rowsToAdd.length === 1 ? 'contact' : 'contacts'} and refresh {rowsToUpdate.length.toLocaleString()} existing {rowsToUpdate.length === 1 ? 'contact' : 'contacts'} from the newer survey response. {existingContactsKeptCount.toLocaleString()} existing {existingContactsKeptCount === 1 ? 'contact will' : 'contacts will'} keep the current survey version. {excludedPreviewRows.length.toLocaleString()} excluded rows and {duplicatesSkipped.toLocaleString()} repeat submissions will be recorded as skipped in import history.
                 </p>
 
                 {nonBlockingWarningCount > 0 && (
@@ -2373,7 +2482,7 @@ export function SurveyImportPreview({
                   >
                     {importing
                       ? 'Importing…'
-                      : `Add ${rowsToAdd.length.toLocaleString()} contacts`}
+                      : `Import ${rowsToWrite.length.toLocaleString()} changes`}
                   </button>
                 </div>
               </div>
@@ -2792,10 +2901,18 @@ function DatabaseMatchBadge({
   row,
   result,
   alreadyInCampaign,
+  campaignContact,
+  choice,
+  affinitiesMapped,
+  onChoice,
 }: {
   row: PreviewRow
   result: MatchResult | undefined
   alreadyInCampaign: boolean
+  campaignContact: CampaignContactSnapshot | undefined
+  choice: ExistingContactChoice
+  affinitiesMapped: boolean
+  onChoice: (choice: ExistingContactChoice) => void
 }) {
   if (!result) {
     return (
@@ -2806,17 +2923,100 @@ function DatabaseMatchBadge({
   }
 
   if (alreadyInCampaign) {
+    const changes = campaignContact
+      ? buildExistingContactChanges(row, campaignContact, affinitiesMapped)
+      : []
+
     return (
-      <div className="max-w-[220px]">
-        <span className="inline-flex rounded-full bg-[#eef4ff] px-2.5 py-1 text-[9px] font-extrabold text-[#3538cd]">
-          Already in campaign • skip
+      <div className="min-w-[250px] max-w-[320px]">
+        <span
+          className={[
+            'inline-flex rounded-full px-2.5 py-1 text-[9px] font-extrabold',
+            choice === 'update'
+              ? 'bg-[#ecfdf3] text-[#027a48]'
+              : 'bg-[#eef4ff] text-[#3538cd]',
+          ].join(' ')}
+        >
+          {choice === 'update'
+            ? 'Already in campaign • use newer survey'
+            : 'Already in campaign • keep current'}
         </span>
+
         {result.matched_student_name && (
           <div className="mt-1.5 text-[10px] font-semibold leading-4 text-[#667085]">
             Existing: {result.matched_student_name}
             {result.existing_uniqname ? ` • ${result.existing_uniqname}` : ''}
           </div>
         )}
+
+        <div className="mt-2 rounded-[10px] border border-[#dbe8f8] bg-white p-2.5">
+          <div className="text-[9px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">
+            Survey differences
+          </div>
+
+          {changes.length > 0 ? (
+            <div className="mt-1.5 space-y-1.5">
+              {changes.slice(0, 6).map((change) => (
+                <div
+                  key={`${change.label}-${change.currentValue}-${change.nextValue}`}
+                  className="text-[10px] leading-4 text-[#475467]"
+                >
+                  <span className="font-extrabold text-[#344054]">
+                    {change.label}:
+                  </span>{' '}
+                  {change.currentValue} → {change.nextValue}
+                </div>
+              ))}
+
+              {changes.length > 6 && (
+                <div className="text-[9px] font-bold text-[#667085]">
+                  +{changes.length - 6} more change{changes.length - 6 === 1 ? '' : 's'}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-1.5 text-[10px] leading-4 text-[#667085]">
+              No changed survey fields detected. Keeping the current version is recommended.
+            </div>
+          )}
+
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => onChoice('keep')}
+              className={[
+                'rounded-[8px] border px-2 py-1.5 text-[9px] font-extrabold transition',
+                choice === 'keep'
+                  ? 'border-[#6172f3] bg-[#eef4ff] text-[#3538cd]'
+                  : 'border-[#d0d5dd] bg-white text-[#475467] hover:border-[#98a2b3]',
+              ].join(' ')}
+            >
+              Keep current
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onChoice('update')}
+              disabled={changes.length === 0}
+              className={[
+                'rounded-[8px] border px-2 py-1.5 text-[9px] font-extrabold transition',
+                changes.length === 0
+                  ? 'cursor-not-allowed border-[#e4e7ec] bg-[#f9fafb] text-[#98a2b3]'
+                  : choice === 'update'
+                    ? 'border-[#12b76a] bg-[#ecfdf3] text-[#027a48]'
+                    : 'border-[#abefc6] bg-white text-[#027a48] hover:bg-[#ecfdf3]',
+              ].join(' ')}
+            >
+              Use newer survey
+            </button>
+          </div>
+
+          {choice === 'update' && changes.length > 0 && (
+            <div className="mt-2 text-[9px] font-semibold leading-4 text-[#027a48]">
+              Only survey/contact fields refresh. Status, assignment, knocks, interactions, and history stay unchanged. Affinities mirror the newer survey, so selections no longer present there are removed.
+            </div>
+          )}
+        </div>
       </div>
     )
   }
@@ -2862,6 +3062,105 @@ function DatabaseMatchBadge({
       )}
     </div>
   )
+}
+
+function buildExistingContactChanges(
+  row: PreviewRow,
+  current: CampaignContactSnapshot,
+  affinitiesMapped: boolean
+): ExistingContactChange[] {
+  const changes: ExistingContactChange[] = []
+
+  const push = (
+    label: string,
+    currentValue: string | null | undefined,
+    nextValue: string | null | undefined
+  ) => {
+    const currentText = displaySurveyValue(currentValue)
+    const nextText = displaySurveyValue(nextValue)
+
+    if (
+      nextText !== '—' &&
+      normalizeComparison(currentText) !== normalizeComparison(nextText)
+    ) {
+      changes.push({
+        label,
+        currentValue: currentText,
+        nextValue: nextText,
+      })
+    }
+  }
+
+  push('Year', current.year_at_um, row.year)
+  push('Gender', current.gender_raw, row.gender)
+  push(
+    'Phone',
+    current.phone ? formatPhone(normalizePhone(current.phone)) : null,
+    row.phoneNormalized ? formatPhone(row.phoneNormalized) : null
+  )
+  push('Location', current.location_name, row.location)
+  push('Room / address', current.room_or_address, row.room)
+  push(
+    'Jesus interest',
+    current.jesus_interest,
+    normalizeInterestForImport(row.jesus, 'jesus')
+  )
+  push(
+    'Community interest',
+    current.community_interest,
+    normalizeInterestForImport(row.community, 'standard')
+  )
+  push(
+    'Interview interest',
+    current.interview_interest,
+    normalizeInterestForImport(row.interview, 'standard')
+  )
+
+  if (affinitiesMapped) {
+    const currentAffinities = [...(current.affinities ?? [])]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+    const nextAffinities = [...row.affinities]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+
+    const currentKey = currentAffinities
+      .map(normalizeComparison)
+      .join('|')
+    const nextKey = nextAffinities
+      .map(normalizeComparison)
+      .join('|')
+
+    if (currentKey !== nextKey) {
+      changes.push({
+        label: 'Affinities',
+        currentValue:
+          currentAffinities.length > 0
+            ? currentAffinities.join(', ')
+            : '—',
+        nextValue:
+          nextAffinities.length > 0
+            ? nextAffinities.join(', ')
+            : '—',
+      })
+    }
+  }
+
+  return changes
+}
+
+function displaySurveyValue(value: string | null | undefined) {
+  const text = value?.trim() ?? ''
+  return text || '—'
+}
+
+function normalizeComparison(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
 }
 
 function matchStatusConfig(status: MatchStatus) {

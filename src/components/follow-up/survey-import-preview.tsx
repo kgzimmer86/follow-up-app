@@ -40,6 +40,7 @@ type EditableRow = {
   gender: string
   year: string
   location: string
+  house: string
   room: string
   jesus: string
   community: string
@@ -64,6 +65,7 @@ type RowOverride = Partial<
     | 'uniqname'
     | 'phone'
     | 'location'
+    | 'house'
     | 'room'
   >
 >
@@ -103,6 +105,7 @@ type CampaignContactSnapshot = {
   community_interest: string | null
   interview_interest: string | null
   location_name: string | null
+  house_name: string | null
   room_or_address: string | null
   affinities: string[] | null
 }
@@ -227,6 +230,17 @@ const APP_FIELDS: AppField[] = [
       'residence hall / off campus area',
       'please select your dorm or off-campus area',
       'where do you live',
+    ],
+  },
+  {
+    key: 'house',
+    label: 'House name',
+    aliases: [
+      'house',
+      'house name',
+      'dorm house',
+      'residence house',
+      'residence hall house',
     ],
   },
   {
@@ -1400,6 +1414,9 @@ export function SurveyImportPreview({
             location:
               row.location ||
               null,
+            house_name:
+              row.house.trim() ||
+              null,
             room_or_address:
               row.room.trim() ||
               null,
@@ -2133,7 +2150,7 @@ export function SurveyImportPreview({
                             </td>
 
                             <td className="px-4 py-3 text-xs leading-5 text-[#667085]">
-                              {[row.location, row.room]
+                              {[row.location, row.house, row.room]
                                 .filter(Boolean)
                                 .join(' • ') || '—'}
                             </td>
@@ -2591,7 +2608,7 @@ function RowEditor({
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
         <EditField
           label="Full name"
           value={row.name}
@@ -2631,6 +2648,12 @@ function RowEditor({
             ))}
           </select>
         </label>
+
+        <EditField
+          label="House name"
+          value={row.house}
+          onChange={(value) => onChange('house', value)}
+        />
 
         <EditField
           label="Room / address"
@@ -3099,6 +3122,7 @@ function buildExistingContactChanges(
     row.phoneNormalized ? formatPhone(row.phoneNormalized) : null
   )
   push('Location', current.location_name, row.location)
+  push('House name', current.house_name, row.house)
   push('Room / address', current.room_or_address, row.room)
   push(
     'Jesus interest',
@@ -3324,6 +3348,7 @@ function mapCsvRow(
     gender: value('gender'),
     year: value('year'),
     location,
+    house: value('house'),
     room: value('room'),
     jesus: value('jesus'),
     community: value('community'),
@@ -3361,6 +3386,11 @@ function applyOverride(
       ? normalizeLocation(override.location)
       : row.location
 
+  const house =
+    override.house !== undefined
+      ? override.house
+      : row.house
+
   const room =
     override.room !== undefined
       ? override.room
@@ -3374,6 +3404,7 @@ function applyOverride(
     phone: phoneRaw,
     phoneNormalized,
     location,
+    house,
     room,
     autoFixes: [...row.autoFixes, 'Manual review applied'],
     issues: [],
@@ -3806,6 +3837,12 @@ function duplicateQuality(
     score += 4
     completeness += 1
     reasons.push('known location')
+  }
+
+  if (row.house.trim()) {
+    score += 1
+    completeness += 1
+    reasons.push('house')
   }
 
   if (row.room.trim()) {

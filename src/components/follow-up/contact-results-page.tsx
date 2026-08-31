@@ -30,6 +30,7 @@ export type ContactResultsSearchParams = {
   floor?: string
   wing?: string
   roomOnly?: string
+  display?: string
   page?: string
 }
 
@@ -56,6 +57,7 @@ type FilterValues = {
   floor: string
   wing: string
   roomOnly: string
+  display: string
 }
 
 type AreaRow = {
@@ -100,6 +102,8 @@ type ContactResultRow = {
   owner_name: string | null
   affinity_names: string[]
   interaction_notes: ResultNote[]
+  interaction_count: number
+  last_interaction_at: string | null
 }
 
 type ContactResultsResponse = {
@@ -201,11 +205,22 @@ export async function ContactResultsPage({
       searchParams.roomOnly === '1'
         ? '1'
         : '',
+    display:
+      searchParams.display === 'sheet'
+        ? 'sheet'
+        : '',
   }
 
+  const displayMode =
+    filters.display === 'sheet'
+      ? 'sheet'
+      : 'cards'
+
   const activeFilterCount =
-    Object.values(filters).filter(
-      Boolean
+    Object.entries(filters).filter(
+      ([key, value]) =>
+        key !== 'display' &&
+        Boolean(value)
     ).length
 
   const filterStateKey = [
@@ -509,15 +524,71 @@ export async function ContactResultsPage({
       'All Campus'
   )
 
+  const displayOnlyFilters: FilterValues = {
+    campus: '',
+    location: '',
+    gender: '',
+    status: '',
+    jesus: '',
+    community: '',
+    interview: '',
+    kgp: '',
+    interviewDone: '',
+    affinity: '',
+    floor: '',
+    wing: '',
+    roomOnly: '',
+    display:
+      displayMode === 'sheet'
+        ? 'sheet'
+        : '',
+  }
+
   const clearFiltersHref =
     `${resultsHref({
       basePath,
       sort: sortBy,
       dir: sortDir,
+      filters: displayOnlyFilters,
+    })}#results`
+
+  const cardsFilters: FilterValues = {
+    ...filters,
+    display: '',
+  }
+
+  const sheetFilters: FilterValues = {
+    ...filters,
+    display: 'sheet',
+  }
+
+  const cardsHref =
+    `${resultsHref({
+      basePath,
+      sort: sortBy,
+      dir: sortDir,
+      filters: cardsFilters,
+      page: currentPage,
+    })}#results`
+
+  const sheetHref =
+    `${resultsHref({
+      basePath,
+      sort: sortBy,
+      dir: sortDir,
+      filters: sheetFilters,
+      page: currentPage,
     })}#results`
 
   return (
-    <main className="mx-auto max-w-[1000px] px-[18px] py-[18px] md:px-7 md:pb-12 md:pt-6">
+    <main
+      className={[
+        'mx-auto px-[18px] py-[18px] md:px-7 md:pb-12 md:pt-6',
+        displayMode === 'sheet'
+          ? 'max-w-[1500px]'
+          : 'max-w-[1000px]',
+      ].join(' ')}
+    >
       <section>
         <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-[#175cd3]">
           {viewInfo.eyebrow}
@@ -594,6 +665,14 @@ export async function ContactResultsPage({
               type="hidden"
               name="roomOnly"
               value="1"
+            />
+          )}
+
+          {displayMode === 'sheet' && (
+            <input
+              type="hidden"
+              name="display"
+              value="sheet"
             />
           )}
 
@@ -911,6 +990,32 @@ export async function ContactResultsPage({
           </div>
 
           <div className="flex flex-wrap gap-1.5">
+            <div className="hidden overflow-hidden rounded-[10px] border border-[#e4e7ec] bg-white md:flex">
+              <Link
+                href={cardsHref}
+                className={[
+                  'px-3 py-2 text-xs font-extrabold',
+                  displayMode === 'cards'
+                    ? 'bg-[#00274c] text-white'
+                    : 'text-[#667085]',
+                ].join(' ')}
+              >
+                Cards
+              </Link>
+
+              <Link
+                href={sheetHref}
+                className={[
+                  'border-l border-[#e4e7ec] px-3 py-2 text-xs font-extrabold',
+                  displayMode === 'sheet'
+                    ? 'bg-[#00274c] text-white'
+                    : 'text-[#667085]',
+                ].join(' ')}
+              >
+                Spreadsheet
+              </Link>
+            </div>
+
             {isDormContactContext && (
               <Link
                 href={roomToggleHref}
@@ -988,7 +1093,12 @@ export async function ContactResultsPage({
 
       <div
         id="results"
-        className="mt-4 grid scroll-mt-24 gap-3 md:grid-cols-2"
+        className={[
+          'mt-4 grid scroll-mt-24 gap-3 md:grid-cols-2',
+          displayMode === 'sheet'
+            ? 'md:hidden'
+            : '',
+        ].join(' ')}
       >
         {totalVisibleContacts ===
           0 && (
@@ -1300,6 +1410,134 @@ export async function ContactResultsPage({
         )}
       </div>
 
+      {displayMode === 'sheet' && (
+        <div className="mt-4 hidden overflow-x-auto rounded-[16px] border border-[#e4e7ec] bg-white md:block">
+          <table className="min-w-[2050px] w-full border-collapse text-left text-xs">
+            <thead className="sticky top-0 z-20 bg-[#f9fafb] text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">
+              <tr className="border-b border-[#e4e7ec]">
+                <th className="sticky left-0 z-30 min-w-[190px] bg-[#f9fafb] px-3 py-3">
+                  Name
+                </th>
+                <th className="min-w-[140px] px-3 py-3">Dorm</th>
+                <th className="min-w-[110px] px-3 py-3">Room</th>
+                <th className="min-w-[130px] px-3 py-3">House</th>
+                <th className="min-w-[85px] px-3 py-3">Year</th>
+                <th className="min-w-[90px] px-3 py-3">Gender</th>
+                <th className="min-w-[125px] px-3 py-3">Phone</th>
+                <th className="min-w-[95px] px-3 py-3">Jesus</th>
+                <th className="min-w-[105px] px-3 py-3">Community</th>
+                <th className="min-w-[100px] px-3 py-3">Interview</th>
+                <th className="min-w-[105px] px-3 py-3">Survey done</th>
+                <th className="min-w-[95px] px-3 py-3">KGP shared</th>
+                <th className="min-w-[105px] px-3 py-3">New believer</th>
+                <th className="min-w-[95px] px-3 py-3 text-center">Interactions</th>
+                <th className="min-w-[125px] px-3 py-3">Last interaction</th>
+                <th className="min-w-[125px] px-3 py-3">Status</th>
+                <th className="min-w-[150px] px-3 py-3">Assigned to</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {totalVisibleContacts === 0 ? (
+                <tr>
+                  <td
+                    colSpan={17}
+                    className="px-4 py-8 text-center text-sm text-[#667085]"
+                  >
+                    No contacts match this opportunity and your current filters.
+                  </td>
+                </tr>
+              ) : (
+                paginatedContacts.map(
+                  (contact) => (
+                    <tr
+                      key={contact.id}
+                      className="border-b border-[#eef0f3] last:border-b-0 hover:bg-[#f8fbff]"
+                    >
+                      <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-extrabold text-[#15223a] group-hover:bg-[#f8fbff]">
+                        <Link
+                          href={`/contacts/${contact.id}?from=${encodeURIComponent(
+                            `${returnToResults}#contact-${contact.id}`
+                          )}`}
+                          className="hover:text-[#175cd3] hover:underline"
+                        >
+                          {contact.display_name}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2.5 text-[#475467]">
+                        {contact.area_name || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 font-bold text-[#15223a]">
+                        {contact.room_or_address || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-[#475467]">
+                        {contact.house_name || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-[#475467]">
+                        {contact.year_at_um || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-[#475467]">
+                        {contact.gender_raw || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-[#475467]">
+                        {contact.phone ? (
+                          <a
+                            href={`sms:${phoneHref(contact.phone)}`}
+                            className="text-[#175cd3] hover:underline"
+                          >
+                            {contact.phone}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {formatSurveyAnswer(contact.jesus_interest)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {formatSurveyAnswer(contact.community_interest)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {formatSurveyAnswer(contact.interview_interest)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <SpreadsheetCheck
+                          done={Boolean(contact.interview_completed_at)}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <SpreadsheetCheck
+                          done={Boolean(contact.kgp_shared_at)}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <SpreadsheetCheck
+                          done={Boolean(contact.received_christ_at)}
+                        />
+                      </td>
+                      <td className="px-3 py-2.5 text-center font-extrabold text-[#15223a]">
+                        {contact.interaction_count ?? 0}
+                      </td>
+                      <td className="px-3 py-2.5 text-[#475467]">
+                        {contact.last_interaction_at
+                          ? shortDate(contact.last_interaction_at)
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StatusBadge status={contact.status} />
+                      </td>
+                      <td className="px-3 py-2.5 text-[#475467]">
+                        {contact.owner_name || 'Unassigned'}
+                      </td>
+                    </tr>
+                  )
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {totalPages > 1 && (
         <nav
           aria-label="Contact results pages"
@@ -1589,6 +1827,25 @@ function SortLink({
     >
       {label}
     </Link>
+  )
+}
+
+function SpreadsheetCheck({
+  done,
+}: {
+  done: boolean
+}) {
+  return (
+    <span
+      className={[
+        'inline-flex min-w-[54px] items-center justify-center rounded-full px-2 py-1 font-extrabold',
+        done
+          ? 'bg-[#ecfdf3] text-[#027a48]'
+          : 'bg-[#f2f4f7] text-[#98a2b3]',
+      ].join(' ')}
+    >
+      {done ? '✓ Yes' : '—'}
+    </span>
   )
 }
 

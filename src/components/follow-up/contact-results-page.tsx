@@ -353,6 +353,21 @@ export async function ContactResultsPage({
   const wingOptions =
     results.wing_options ?? []
 
+  const hasSpecificLocation =
+    Boolean(filters.location) &&
+    ![
+      'no_address',
+      'needs_area_assignment',
+    ].includes(filters.location)
+
+  const floorFilterAvailable =
+    hasSpecificLocation &&
+    floorOptions.length > 0
+
+  const wingFilterAvailable =
+    hasSpecificLocation &&
+    wingOptions.length > 0
+
   const totalPages = Math.max(
     1,
     Math.ceil(
@@ -606,9 +621,14 @@ export async function ContactResultsPage({
               label="Floor"
               name="floor"
               value={filters.floor}
+              disabled={!floorFilterAvailable}
             >
               <option value="">
-                Any
+                {!hasSpecificLocation
+                  ? 'Choose dorm first'
+                  : floorOptions.length === 0
+                    ? 'Not available'
+                    : 'Any'}
               </option>
 
               {floorOptions.map(
@@ -627,9 +647,14 @@ export async function ContactResultsPage({
               label="Wing / house #"
               name="wing"
               value={filters.wing}
+              disabled={!wingFilterAvailable}
             >
               <option value="">
-                Any
+                {!hasSpecificLocation
+                  ? 'Choose dorm first'
+                  : wingOptions.length === 0
+                    ? 'Not available'
+                    : 'Any'}
               </option>
 
               {wingOptions.map(
@@ -1375,11 +1400,13 @@ function FilterSelect({
   name,
   value,
   children,
+  disabled = false,
 }: {
   label: string
   name: string
   value: string
   children: ReactNode
+  disabled?: boolean
 }) {
   return (
     <label>
@@ -1390,7 +1417,13 @@ function FilterSelect({
       <select
         name={name}
         defaultValue={value}
-        className="w-full rounded-[11px] border border-[#e4e7ec] bg-white px-2.5 py-2.5 text-sm text-[#15223a]"
+        disabled={disabled}
+        className={[
+          'w-full rounded-[11px] border border-[#e4e7ec] px-2.5 py-2.5 text-sm',
+          disabled
+            ? 'cursor-not-allowed bg-[#f9fafb] text-[#98a2b3]'
+            : 'bg-white text-[#15223a]',
+        ].join(' ')}
       >
         {children}
       </select>

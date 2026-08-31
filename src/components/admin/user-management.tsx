@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 type UserRole =
@@ -99,6 +100,8 @@ export function UserManagement({
   initialUsers: FollowUpUser[]
   ministryAreas: MinistryArea[]
 }) {
+  const router = useRouter()
+
   const [users, setUsers] = useState(initialUsers)
   const [saving, setSaving] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -196,6 +199,13 @@ export function UserManagement({
     )
 
     setSaving(null)
+
+    /*
+     * Refresh the server-rendered layout after a default area change.
+     * This keeps the AppShell/profile menu area label in sync immediately,
+     * including when an admin changes their own default oversight.
+     */
+    router.refresh()
   }
 
   async function changeDiscipler(

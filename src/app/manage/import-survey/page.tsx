@@ -34,7 +34,7 @@ export default async function ImportSurveyPage() {
   if (
     !profile ||
     !profile.is_active ||
-    !['staff', 'admin'].includes(profile.role)
+    profile.role !== 'admin'
   ) {
     redirect('/')
   }

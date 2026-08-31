@@ -24,7 +24,7 @@ const tabs: TabItem[] = [
   { key: 'areas', label: 'Ministry Areas', href: '/manage', roles: ['staff', 'admin'] },
   { key: 'leaders', label: 'Leaders', href: '/manage/leaders', roles: ['staff', 'admin'] },
   { key: 'assign', label: 'Assign Contacts', href: '/assign-contacts', roles: ['discipler', 'staff', 'admin'] },
-  { key: 'import', label: 'Import Survey', href: '/manage/import-survey', roles: ['staff', 'admin'] },
+  { key: 'import', label: 'Import Survey', href: '/manage/import-survey', roles: ['admin'] },
   { key: 'campaigns', label: 'Campaigns', href: '/manage/campaigns', roles: ['admin'] },
   { key: 'users', label: 'Users', href: '/admin/users', roles: ['admin'] },
 ]

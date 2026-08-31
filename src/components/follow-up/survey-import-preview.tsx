@@ -234,10 +234,16 @@ const APP_FIELDS: AppField[] = [
   },
   {
     key: 'house',
-    label: 'House name',
+    label: 'House / building',
     aliases: [
       'house',
       'house name',
+      'house / building',
+      'house/building',
+      'house or building',
+      'house / building name',
+      'building',
+      'building name',
       'dorm house',
       'residence house',
       'residence hall house',
@@ -1996,7 +2002,7 @@ export function SurveyImportPreview({
                 </div>
 
                 <div className="mt-1 text-[10px] font-semibold text-[#667085]">
-                  Click a warning type to isolate those rows. Unrecognized affinity and location rows show the raw survey value.
+                  Click a warning type to isolate those rows. Unrecognized affinity/location values and ambiguous House / Room entries show the source values for review.
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -2650,7 +2656,7 @@ function RowEditor({
         </label>
 
         <EditField
-          label="House name"
+          label="House / building"
           value={row.house}
           onChange={(value) => onChange('house', value)}
         />
@@ -2810,6 +2816,16 @@ function RowReview({
                 Raw: {row.location}
               </div>
             )}
+
+          {issue === 'House / room needs review' && (
+            <div className="mt-0.5 text-[9px] font-semibold leading-4 text-[#667085]">
+              House / building: {row.house || 'blank'}
+              {' • '}
+              Room / address: {row.room || 'blank'}.
+              {' '}
+              A 3–4 digit House / building value probably belongs in Room / address; a text-only Room / address value probably belongs in House / building. Edit this row to confirm.
+            </div>
+          )}
 
           {issue === 'Missing name' && (
             <div className="mt-0.5 text-[9px] font-semibold leading-4 text-[#667085]">
@@ -3122,7 +3138,7 @@ function buildExistingContactChanges(
     row.phoneNormalized ? formatPhone(row.phoneNormalized) : null
   )
   push('Location', current.location_name, row.location)
-  push('House name', current.house_name, row.house)
+  push('House / building', current.house_name, row.house)
   push('Room / address', current.room_or_address, row.room)
   push(
     'Jesus interest',
@@ -3289,6 +3305,125 @@ function rowNeedsDatabaseReview(
   )
 }
 
+function isDormHousingLocation(
+  location: string
+) {
+  const normalized =
+    location.trim()
+
+  return (
+    Boolean(normalized) &&
+    CANONICAL_LOCATIONS.includes(
+      normalized
+    ) &&
+    !normalized
+      .toLowerCase()
+      .startsWith('off campus')
+  )
+}
+
+function isHouseLikeText(
+  value: string
+) {
+  const trimmed =
+    value.trim()
+
+  return (
+    Boolean(trimmed) &&
+    /[a-z]/i.test(trimmed) &&
+    !/\d/.test(trimmed)
+  )
+}
+
+function isLikelyRoomNumber(
+  value: string
+) {
+  return /^\d{3,4}$/.test(
+    value.trim()
+  )
+}
+
+function normalizeHousingFields(
+  location: string,
+  rawHouse: string,
+  rawRoom: string
+) {
+  const house =
+    rawHouse.trim()
+  const room =
+    rawRoom.trim()
+  const autoFixes: string[] = []
+
+  if (
+    !isDormHousingLocation(
+      location
+    )
+  ) {
+    return {
+      house,
+      room,
+      autoFixes,
+    }
+  }
+
+  const roomLooksLikeHouse =
+    isHouseLikeText(room)
+
+  const houseLooksLikeRoom =
+    isLikelyRoomNumber(house)
+
+  if (
+    roomLooksLikeHouse &&
+    houseLooksLikeRoom
+  ) {
+    autoFixes.push(
+      'House / building and Room / address were swapped'
+    )
+
+    return {
+      house: room,
+      room: house,
+      autoFixes,
+    }
+  }
+
+  if (
+    roomLooksLikeHouse &&
+    !house
+  ) {
+    autoFixes.push(
+      'Text-only Room / address moved to House / building'
+    )
+
+    return {
+      house: room,
+      room: '',
+      autoFixes,
+    }
+  }
+
+  if (
+    houseLooksLikeRoom &&
+    !room
+  ) {
+    autoFixes.push(
+      '3–4 digit House / building value moved to Room / address'
+    )
+
+    return {
+      house: '',
+      room: house,
+      autoFixes,
+    }
+  }
+
+  return {
+    house,
+    room,
+    autoFixes,
+  }
+}
+
 function mapCsvRow(
   row: CsvRow,
   mapping: Record<string, string>,
@@ -3303,13 +3438,24 @@ function mapCsvRow(
   const rawUniqname = value('uniqname')
   const rawPhone = value('phone')
   const rawLocation = value('location')
+  const rawHouse = value('house')
+  const rawRoom = value('room')
 
   const uniqname = normalizeUniqname(rawUniqname)
   const phoneNormalized = normalizePhone(rawPhone)
   const location = normalizeLocation(rawLocation)
   const rawAffinities = value('affinities')
 
-  const autoFixes: string[] = []
+  const housing =
+    normalizeHousingFields(
+      location,
+      rawHouse,
+      rawRoom
+    )
+
+  const autoFixes: string[] = [
+    ...housing.autoFixes,
+  ]
 
   if (
     rawUniqname &&
@@ -3348,8 +3494,8 @@ function mapCsvRow(
     gender: value('gender'),
     year: value('year'),
     location,
-    house: value('house'),
-    room: value('room'),
+    house: housing.house,
+    room: housing.room,
     jesus: value('jesus'),
     community: value('community'),
     interview: value('interview'),
@@ -3438,6 +3584,24 @@ function validatePreviewRows(rows: PreviewRow[]) {
       !CANONICAL_LOCATIONS.includes(row.location)
     ) {
       issues.push('Location needs review')
+    }
+
+    if (
+      isDormHousingLocation(
+        row.location
+      ) &&
+      (
+        isHouseLikeText(
+          row.room
+        ) ||
+        isLikelyRoomNumber(
+          row.house
+        )
+      )
+    ) {
+      issues.push(
+        'House / room needs review'
+      )
     }
 
     return {

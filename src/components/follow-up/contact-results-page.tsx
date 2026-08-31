@@ -29,6 +29,7 @@ export type ContactResultsSearchParams = {
   affinity?: string
   floor?: string
   wing?: string
+  roomOnly?: string
   page?: string
 }
 
@@ -54,6 +55,7 @@ type FilterValues = {
   affinity: string
   floor: string
   wing: string
+  roomOnly: string
 }
 
 type AreaRow = {
@@ -195,6 +197,10 @@ export async function ContactResultsPage({
       searchParams.floor ?? '',
     wing:
       searchParams.wing ?? '',
+    roomOnly:
+      searchParams.roomOnly === '1'
+        ? '1'
+        : '',
   }
 
   const activeFilterCount =
@@ -215,6 +221,7 @@ export async function ContactResultsPage({
     filters.affinity,
     filters.floor,
     filters.wing,
+    filters.roomOnly,
   ].join('|')
 
   const supabase = await createClient()
@@ -326,6 +333,8 @@ export async function ContactResultsPage({
         filters.floor || null,
       p_wing:
         filters.wing || null,
+      p_room_only:
+        filters.roomOnly === '1',
     }
   )
 
@@ -367,6 +376,53 @@ export async function ContactResultsPage({
   const wingFilterAvailable =
     hasSpecificLocation &&
     wingOptions.length > 0
+
+  const selectedLocationArea =
+    filters.location
+      ? locationAreas.find(
+          (area) =>
+            area.id === filters.location
+        ) ?? null
+      : null
+
+  const defaultArea =
+    results.default_area_id
+      ? areas.find(
+          (area) =>
+            area.id === results.default_area_id
+        ) ?? null
+      : null
+
+  const isDormContactContext =
+    view !== 'noaddress' &&
+    (
+      view === 'mine' ||
+      (
+        filters.location
+          ? isDormLocation(
+              selectedLocationArea
+            )
+          : isDormLocation(defaultArea)
+      )
+    )
+
+  const roomOnlyActive =
+    filters.roomOnly === '1'
+
+  const roomToggleFilters: FilterValues = {
+    ...filters,
+    roomOnly: roomOnlyActive
+      ? ''
+      : '1',
+  }
+
+  const roomToggleHref =
+    `${resultsHref({
+      basePath,
+      sort: sortBy,
+      dir: sortDir,
+      filters: roomToggleFilters,
+    })}#results`
 
   const totalPages = Math.max(
     1,
@@ -532,6 +588,14 @@ export async function ContactResultsPage({
             name="dir"
             value={sortDir}
           />
+
+          {roomOnlyActive && (
+            <input
+              type="hidden"
+              name="roomOnly"
+              value="1"
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <FilterSelect
@@ -847,6 +911,22 @@ export async function ContactResultsPage({
           </div>
 
           <div className="flex flex-wrap gap-1.5">
+            {isDormContactContext && (
+              <Link
+                href={roomToggleHref}
+                className={[
+                  'rounded-[10px] border px-3 py-2 text-xs font-extrabold',
+                  roomOnlyActive
+                    ? 'border-[#13795b] bg-[#ecfdf3] text-[#027a48]'
+                    : 'border-[#e4e7ec] bg-white text-[#475467]',
+                ].join(' ')}
+              >
+                {roomOnlyActive
+                  ? 'Show missing rooms'
+                  : 'Hide missing rooms'}
+              </Link>
+            )}
+
             <SortLink
               label="Name ↑"
               active={
@@ -1612,6 +1692,23 @@ function DisabledButton({
       {label}
     </button>
   )
+}
+
+function isDormLocation(
+  area: AreaRow | null
+) {
+  if (
+    !area ||
+    area.parent_id === null ||
+    area.area_type === 'affinity'
+  ) {
+    return false
+  }
+
+  return !area.name
+    .trim()
+    .toLowerCase()
+    .startsWith('off campus')
 }
 
 function genderCategory(

@@ -27,6 +27,8 @@ export type ContactResultsSearchParams = {
   kgp?: string
   interviewDone?: string
   affinity?: string
+  floor?: string
+  wing?: string
   page?: string
 }
 
@@ -50,6 +52,8 @@ type FilterValues = {
   kgp: string
   interviewDone: string
   affinity: string
+  floor: string
+  wing: string
 }
 
 type AreaRow = {
@@ -104,6 +108,8 @@ type ContactResultsResponse = {
   total_count: number
   page: number
   page_size: number
+  floor_options: string[]
+  wing_options: string[]
   rows: ContactResultRow[]
 }
 
@@ -185,6 +191,10 @@ export async function ContactResultsPage({
       searchParams.interviewDone ?? '',
     affinity:
       searchParams.affinity ?? '',
+    floor:
+      searchParams.floor ?? '',
+    wing:
+      searchParams.wing ?? '',
   }
 
   const activeFilterCount =
@@ -203,6 +213,8 @@ export async function ContactResultsPage({
     filters.kgp,
     filters.interviewDone,
     filters.affinity,
+    filters.floor,
+    filters.wing,
   ].join('|')
 
   const supabase = await createClient()
@@ -310,6 +322,10 @@ export async function ContactResultsPage({
         filters.interviewDone || null,
       p_affinity:
         filters.affinity || null,
+      p_floor:
+        filters.floor || null,
+      p_wing:
+        filters.wing || null,
     }
   )
 
@@ -330,6 +346,12 @@ export async function ContactResultsPage({
 
   const totalVisibleContacts =
     Number(results.total_count) || 0
+
+  const floorOptions =
+    results.floor_options ?? []
+
+  const wingOptions =
+    results.wing_options ?? []
 
   const totalPages = Math.max(
     1,
@@ -467,8 +489,8 @@ export async function ContactResultsPage({
 
             <div className="mt-0.5 text-xs text-[#667085]">
               Narrow this list by location,
-              survey answers, progress,
-              status or affinity.
+              floor or wing, survey answers,
+              progress, status or affinity.
             </div>
           </div>
 
@@ -578,6 +600,48 @@ export async function ContactResultsPage({
                   Needs Area Assignment
                 </option>
               </optgroup>
+            </FilterSelect>
+
+            <FilterSelect
+              label="Floor"
+              name="floor"
+              value={filters.floor}
+            >
+              <option value="">
+                Any
+              </option>
+
+              {floorOptions.map(
+                (floor) => (
+                  <option
+                    key={floor}
+                    value={floor}
+                  >
+                    {floor}
+                  </option>
+                )
+              )}
+            </FilterSelect>
+
+            <FilterSelect
+              label="Wing / house #"
+              name="wing"
+              value={filters.wing}
+            >
+              <option value="">
+                Any
+              </option>
+
+              {wingOptions.map(
+                (wing) => (
+                  <option
+                    key={wing}
+                    value={wing}
+                  >
+                    {wing}
+                  </option>
+                )
+              )}
             </FilterSelect>
 
             <FilterSelect
@@ -1730,3 +1794,4 @@ function phoneHref(
     ? `+${digits}`
     : digits
 }
+

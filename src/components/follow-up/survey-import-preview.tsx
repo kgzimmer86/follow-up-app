@@ -3119,7 +3119,7 @@ function RowEditor({
         <EditField
           label="U-M uniqname"
           value={row.uniqname}
-          placeholder="uniqname"
+          placeholder="uniqname or @uniqname"
           onChange={(value) => onChange('uniqname', value)}
         />
 
@@ -3377,7 +3377,14 @@ function RowReview({
           {issue ===
             'No usable contact route' && (
             <div className="mt-0.5 text-[9px] font-semibold leading-4 text-[#667085]">
-              {row.name ? (
+              {row.phone.trim() &&
+              !hasPlausiblePhone(
+                row
+              ) ? (
+                <>
+                  The submitted phone number is not a plausible 10-digit U.S. number, so it is not safe to use as the contact&apos;s unique identity. Correct the phone, add a U-M uniqname, add a complete dorm route, or exclude the row.
+                </>
+              ) : row.name ? (
                 <>
                   Check this name in{' '}
                   <a
@@ -3619,9 +3626,26 @@ function DatabaseMatchBadge({
             className:
               'bg-[#fff8eb] text-[#b54708]',
           }
-      : matchStatusConfig(
-          result.status
-        )
+      : result.status ===
+          'new_student_phone_only'
+        ? hasPlausiblePhone(
+            row
+          )
+          ? {
+              label:
+                'New • phone identity accepted',
+              className:
+                'bg-[#ecfdf3] text-[#027a48]',
+            }
+          : {
+              label:
+                'Review • phone number invalid',
+              className:
+                'bg-[#fff8eb] text-[#b54708]',
+            }
+        : matchStatusConfig(
+            result.status
+          )
 
   return (
     <div className="max-w-[220px]">
@@ -3768,8 +3792,8 @@ function matchStatusConfig(status: MatchStatus) {
       }
     case 'new_student_phone_only':
       return {
-        label: 'New • phone identity accepted',
-        className: 'bg-[#ecfdf3] text-[#027a48]',
+        label: 'New • phone supplied',
+        className: 'bg-[#eef4ff] text-[#3538cd]',
       }
     case 'new_student_weak_identity':
       return {
@@ -4823,15 +4847,36 @@ function formatPhone(digits: string) {
 }
 
 function normalizeUniqname(value: string) {
-  const cleaned = value
+  let cleaned = value
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '')
 
   if (!cleaned) return ''
 
+  while (
+    cleaned.startsWith(
+      '@'
+    )
+  ) {
+    cleaned =
+      cleaned.slice(1)
+  }
+
+  if (!cleaned) return ''
+
+  const atIndex =
+    cleaned.indexOf('@')
+
+  if (atIndex > 0) {
+    cleaned =
+      cleaned.slice(
+        0,
+        atIndex
+      )
+  }
+
   return cleaned
-    .split('@')[0]
     .replace(/[^a-z0-9._-]/g, '')
 }
 

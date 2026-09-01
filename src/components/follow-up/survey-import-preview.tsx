@@ -4,6 +4,7 @@
 import {
   ChangeEvent,
   Fragment,
+  useEffect,
   useMemo,
   useState,
 } from 'react'
@@ -470,6 +471,10 @@ export function SurveyImportPreview({
   const [issueFilter, setIssueFilter] = useState<string | null>(null)
   const [duplicateChoices, setDuplicateChoices] =
     useState<Record<string, number>>({})
+  const [confirmedDuplicateChoices, setConfirmedDuplicateChoices] =
+    useState<Record<string, number>>({})
+  const [reviewPage, setReviewPage] =
+    useState(0)
   const [excludedRows, setExcludedRows] =
     useState<Set<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
@@ -615,6 +620,65 @@ export function SurveyImportPreview({
   const duplicatesSkipped =
     reviewedRows.length -
     selectedRows.length
+
+  const duplicateWinnerByGroup =
+    useMemo(() => {
+      const winners =
+        new Map<string, number>()
+
+      for (
+        const row of reviewedRows
+      ) {
+        const duplicate =
+          duplicateMap.get(
+            row.rowNumber
+          )
+
+        if (
+          duplicate?.isDuplicateGroup &&
+          duplicate.isWinner
+        ) {
+          winners.set(
+            duplicate.groupKey,
+            row.rowNumber
+          )
+        }
+      }
+
+      return winners
+    }, [
+      reviewedRows,
+      duplicateMap,
+    ])
+
+  const unresolvedDuplicateGroupKeys =
+    useMemo(() => {
+      const keys =
+        new Set<string>()
+
+      for (
+        const [
+          groupKey,
+          winnerRowNumber,
+        ] of duplicateWinnerByGroup
+      ) {
+        if (
+          confirmedDuplicateChoices[
+            groupKey
+          ] !== winnerRowNumber
+        ) {
+          keys.add(groupKey)
+        }
+      }
+
+      return keys
+    }, [
+      duplicateWinnerByGroup,
+      confirmedDuplicateChoices,
+    ])
+
+  const unresolvedDuplicateGroupCount =
+    unresolvedDuplicateGroupKeys.size
 
   const requiredMapped = Boolean(mapping.name)
 
@@ -836,7 +900,8 @@ export function SurveyImportPreview({
       new: newRows,
       needsReview,
       csvWarnings,
-      duplicates: duplicatesSkipped,
+      duplicates:
+        unresolvedDuplicateGroupCount,
       suggestedExclusions,
       excluded:
         excludedPreviewRows.length,
@@ -846,6 +911,7 @@ export function SurveyImportPreview({
     excludedPreviewRows,
     matchMap,
     duplicatesSkipped,
+    unresolvedDuplicateGroupCount,
     acceptedWarnings,
     confirmedExistingMatches,
     alreadyInCampaignRowNumbers,
@@ -921,6 +987,7 @@ export function SurveyImportPreview({
     databaseCheckCurrent &&
     rowsToWrite.length > 0 &&
     unresolvedExistingChoiceCount === 0 &&
+    unresolvedDuplicateGroupCount === 0 &&
     actionableNeedsReview === 0 &&
     actionableBlockingCsvCount === 0 &&
     actionableSuggestedExclusions === 0 &&
@@ -1102,8 +1169,19 @@ export function SurveyImportPreview({
             return issueFilter
               ? row.issues.includes(issueFilter)
               : row.issues.length > 0
-          case 'duplicates':
-            return true
+          case 'duplicates': {
+            const duplicate =
+              duplicateMap.get(
+                row.rowNumber
+              )
+
+            return Boolean(
+              duplicate?.groupKey &&
+              unresolvedDuplicateGroupKeys.has(
+                duplicate.groupKey
+              )
+            )
+          }
           case 'suggested_exclusions':
             return isSuggestedExclusionRow(
               row
@@ -1128,8 +1206,134 @@ export function SurveyImportPreview({
       confirmedExistingMatches,
       alreadyInCampaignRowNumbers,
       identityDirtyRows,
+      unresolvedDuplicateGroupKeys,
     ]
   )
+
+  useEffect(() => {
+    setReviewPage(0)
+  }, [
+    reviewFilter,
+    issueFilter,
+  ])
+
+  const duplicateGroupKeysInFilter =
+    useMemo(() => {
+      if (
+        reviewFilter !==
+        'duplicates'
+      ) {
+        return []
+      }
+
+      const seen =
+        new Set<string>()
+      const keys: string[] = []
+
+      for (
+        const row of filteredRows
+      ) {
+        const groupKey =
+          duplicateMap.get(
+            row.rowNumber
+          )?.groupKey
+
+        if (
+          groupKey &&
+          !seen.has(groupKey)
+        ) {
+          seen.add(groupKey)
+          keys.push(groupKey)
+        }
+      }
+
+      return keys
+    }, [
+      reviewFilter,
+      filteredRows,
+      duplicateMap,
+    ])
+
+  const regularRowsPerPage = 12
+  const duplicateGroupsPerPage = 6
+
+  const reviewPageCount =
+    reviewFilter === 'duplicates'
+      ? Math.max(
+          1,
+          Math.ceil(
+            duplicateGroupKeysInFilter
+              .length /
+              duplicateGroupsPerPage
+          )
+        )
+      : Math.max(
+          1,
+          Math.ceil(
+            filteredRows.length /
+              regularRowsPerPage
+          )
+        )
+
+  const safeReviewPage =
+    Math.min(
+      reviewPage,
+      reviewPageCount - 1
+    )
+
+  const visibleFilteredRows =
+    useMemo(() => {
+      if (
+        reviewFilter ===
+        'duplicates'
+      ) {
+        const visibleKeys =
+          new Set(
+            duplicateGroupKeysInFilter
+              .slice(
+                safeReviewPage *
+                  duplicateGroupsPerPage,
+                (
+                  safeReviewPage +
+                  1
+                ) *
+                  duplicateGroupsPerPage
+              )
+          )
+
+        return filteredRows.filter(
+          (row) => {
+            const groupKey =
+              duplicateMap.get(
+                row.rowNumber
+              )?.groupKey
+
+            return Boolean(
+              groupKey &&
+              visibleKeys.has(
+                groupKey
+              )
+            )
+          }
+        )
+      }
+
+      return filteredRows.slice(
+        safeReviewPage *
+          regularRowsPerPage,
+        (
+          safeReviewPage +
+          1
+        ) *
+          regularRowsPerPage
+      )
+    }, [
+      filteredRows,
+      reviewFilter,
+      duplicateGroupKeysInFilter,
+      duplicateMap,
+      safeReviewPage,
+    ])
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -1202,6 +1406,8 @@ export function SurveyImportPreview({
       setReviewFilter('all')
       setIssueFilter(null)
       setDuplicateChoices({})
+      setConfirmedDuplicateChoices({})
+      setReviewPage(0)
       setExcludedRows(new Set())
       setImportResult(null)
       setImporting(false)
@@ -1225,6 +1431,8 @@ export function SurveyImportPreview({
     setReviewFilter('all')
     setIssueFilter(null)
     setDuplicateChoices({})
+    setConfirmedDuplicateChoices({})
+    setReviewPage(0)
     setExcludedRows(new Set())
     setImportResult(null)
     setImporting(false)
@@ -1310,6 +1518,8 @@ export function SurveyImportPreview({
     setAcceptedWarnings({})
     setEditingRow(null)
     setDuplicateChoices({})
+    setConfirmedDuplicateChoices({})
+    setReviewPage(0)
     setExcludedRows(new Set())
     clearMatchResults(true)
 
@@ -1521,6 +1731,46 @@ export function SurveyImportPreview({
       })
     )
 
+    setConfirmedDuplicateChoices(
+      (current) => ({
+        ...current,
+        [groupKey]: rowNumber,
+      })
+    )
+  }
+
+  function confirmDuplicateChoice(
+    groupKey: string,
+    rowNumber: number
+  ) {
+    setConfirmedDuplicateChoices(
+      (current) => ({
+        ...current,
+        [groupKey]: rowNumber,
+      })
+    )
+  }
+
+  function confirmAllDuplicateChoices() {
+    setConfirmedDuplicateChoices(
+      (current) => {
+        const next = {
+          ...current,
+        }
+
+        for (
+          const [
+            groupKey,
+            winnerRowNumber,
+          ] of duplicateWinnerByGroup
+        ) {
+          next[groupKey] =
+            winnerRowNumber
+        }
+
+        return next
+      }
+    )
   }
 
   function chooseExistingContactVersion(
@@ -1568,6 +1818,38 @@ export function SurveyImportPreview({
         [rowNumber]:
           matchedStudentId,
       })
+    )
+
+    setShowConfirm(false)
+    setImportError(null)
+  }
+
+  function confirmAllRemainingExistingChoices() {
+    setConfirmedExistingMatches(
+      (current) => {
+        const next = {
+          ...current,
+        }
+
+        for (
+          const rowNumber of
+          alreadyInCampaignRowNumbers
+        ) {
+          const matchedStudentId =
+            matchMap.get(
+              rowNumber
+            )?.matched_student_id
+
+          if (matchedStudentId) {
+            next[
+              rowNumber
+            ] =
+              matchedStudentId
+          }
+        }
+
+        return next
+      }
     )
 
     setShowConfirm(false)
@@ -2319,7 +2601,27 @@ export function SurveyImportPreview({
 
                 {alreadyInCampaignCount > 0 && (
                   <div className="mt-3 rounded-[12px] border border-[#b2ccff] bg-[#eef4ff] px-3 py-3 text-xs font-semibold leading-5 text-[#3538cd]">
-                    {alreadyInCampaignCount.toLocaleString()} {alreadyInCampaignCount === 1 ? 'student is' : 'students are'} already in {selectedCampaign?.label ?? 'this campaign'}. Choose <strong>Keep current</strong> or <strong>Use newer survey</strong>, then click <strong>Confirm choice</strong>. {unresolvedExistingChoiceCount.toLocaleString()} {unresolvedExistingChoiceCount === 1 ? 'choice still needs' : 'choices still need'} confirmation.
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="max-w-3xl">
+                        {alreadyInCampaignCount.toLocaleString()} {alreadyInCampaignCount === 1 ? 'student is' : 'students are'} already in {selectedCampaign?.label ?? 'this campaign'}. Choose <strong>Keep current</strong> or <strong>Use newer survey</strong> where you want to review them individually. {unresolvedExistingChoiceCount.toLocaleString()} {unresolvedExistingChoiceCount === 1 ? 'choice still needs' : 'choices still need'} confirmation.
+                      </div>
+
+                      {unresolvedExistingChoiceCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={confirmAllRemainingExistingChoices}
+                          className="rounded-[9px] border border-[#6172f3] bg-white px-3 py-2 text-[10px] font-extrabold text-[#3538cd] hover:bg-[#f5f8ff]"
+                        >
+                          Confirm all remaining choices
+                        </button>
+                      )}
+                    </div>
+
+                    {unresolvedExistingChoiceCount > 0 && (
+                      <div className="mt-2 text-[10px] leading-4 text-[#475467]">
+                        Any row where you already selected <strong>Use newer survey</strong> keeps that selection. Rows you have not changed keep the default <strong>Keep current</strong>.
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2481,7 +2783,21 @@ export function SurveyImportPreview({
 
             {reviewFilter === 'duplicates' && (
               <div className="mt-3 rounded-[12px] border border-[#dbe8f8] bg-[#f8fbff] px-3 py-2.5 text-xs leading-5 text-[#475467]">
-                Duplicate submissions are grouped by uniqname first, or by the same plausible phone number when neither row has a uniqname. The recommended response appears first in each group. Click <strong>Keep this one</strong> on another response to override the recommendation.
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="max-w-3xl">
+                    Duplicate submissions are grouped by uniqname first, or by the same plausible phone number when neither row has a uniqname. The recommended response appears first in each group. Click <strong>Accept recommendation</strong> to approve it, or <strong>Keep this one</strong> on another response to override and approve that choice.
+                  </div>
+
+                  {unresolvedDuplicateGroupCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={confirmAllDuplicateChoices}
+                      className="rounded-[9px] border border-[#6172f3] bg-white px-3 py-2 text-[10px] font-extrabold text-[#3538cd] hover:bg-[#f5f8ff]"
+                    >
+                      Accept all {unresolvedDuplicateGroupCount} recommendations
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2570,7 +2886,7 @@ export function SurveyImportPreview({
                   </thead>
 
                   <tbody>
-                    {filteredRows.slice(0, 12).map((row) => {
+                    {visibleFilteredRows.map((row) => {
                       const isEditing = editingRow === row.rowNumber
 
                       return (
@@ -2687,6 +3003,9 @@ export function SurveyImportPreview({
                                 onChooseDuplicate={
                                   chooseDuplicateSubmission
                                 }
+                                onConfirmDuplicate={
+                                  confirmDuplicateChoice
+                                }
                               />
                             </td>
 
@@ -2783,9 +3102,64 @@ export function SurveyImportPreview({
                   </tbody>
                 </table>
 
-                {filteredRows.length > 12 && (
-                  <div className="border-t border-[#e4e7ec] bg-[#f9fafb] px-4 py-3 text-center text-xs font-semibold text-[#667085]">
-                    Showing the first 12 of {filteredRows.length} rows in this filter.
+                {reviewPageCount > 1 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e4e7ec] bg-[#f9fafb] px-4 py-3 text-xs font-semibold text-[#667085]">
+                    <div>
+                      {reviewFilter === 'duplicates'
+                        ? `Showing duplicate groups ${
+                            safeReviewPage *
+                              duplicateGroupsPerPage +
+                            1
+                          }–${Math.min(
+                            (
+                              safeReviewPage +
+                              1
+                            ) *
+                              duplicateGroupsPerPage,
+                            duplicateGroupKeysInFilter.length
+                          )} of ${duplicateGroupKeysInFilter.length}`
+                        : `Page ${
+                            safeReviewPage +
+                            1
+                          } of ${reviewPageCount}`}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={safeReviewPage === 0}
+                        onClick={() =>
+                          setReviewPage(
+                            Math.max(
+                              0,
+                              safeReviewPage - 1
+                            )
+                          )
+                        }
+                        className="rounded-[8px] border border-[#d0d5dd] bg-white px-3 py-1.5 text-[10px] font-extrabold text-[#475467] disabled:cursor-not-allowed disabled:text-[#98a2b3]"
+                      >
+                        Previous
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          safeReviewPage >=
+                          reviewPageCount - 1
+                        }
+                        onClick={() =>
+                          setReviewPage(
+                            Math.min(
+                              reviewPageCount - 1,
+                              safeReviewPage + 1
+                            )
+                          )
+                        }
+                        className="rounded-[8px] border border-[#d0d5dd] bg-white px-3 py-1.5 text-[10px] font-extrabold text-[#475467] disabled:cursor-not-allowed disabled:text-[#98a2b3]"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2898,9 +3272,10 @@ export function SurveyImportPreview({
               {actionableBlockingCsvCount > 0 ||
               actionableNeedsReview > 0 ||
               actionableSuggestedExclusions > 0 ||
-              unresolvedExistingChoiceCount > 0 ? (
+              unresolvedExistingChoiceCount > 0 ||
+              unresolvedDuplicateGroupCount > 0 ? (
                 <div className="mt-4 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold leading-5 text-[#b54708]">
-                  Import is still blocked for contacts that will be added or refreshed: {unresolvedExistingChoiceCount} existing-contact {unresolvedExistingChoiceCount === 1 ? 'choice needs' : 'choices need'} confirmation, {actionableBlockingCsvCount} blocking CSV {actionableBlockingCsvCount === 1 ? 'issue' : 'issues'}, {actionableNeedsReview} database {actionableNeedsReview === 1 ? 'review' : 'reviews'}, and {actionableSuggestedExclusions} suggested {actionableSuggestedExclusions === 1 ? 'exclusion' : 'exclusions'} remain.
+                  Import is still blocked for contacts that will be added or refreshed: {unresolvedExistingChoiceCount} existing-contact {unresolvedExistingChoiceCount === 1 ? 'choice needs' : 'choices need'} confirmation, {unresolvedDuplicateGroupCount} duplicate {unresolvedDuplicateGroupCount === 1 ? 'group needs' : 'groups need'} confirmation, {actionableBlockingCsvCount} blocking CSV {actionableBlockingCsvCount === 1 ? 'issue' : 'issues'}, {actionableNeedsReview} database {actionableNeedsReview === 1 ? 'review' : 'reviews'}, and {actionableSuggestedExclusions} suggested {actionableSuggestedExclusions === 1 ? 'exclusion' : 'exclusions'} remain.
                 </div>
               ) : !databaseCheckCurrent ? (
                 <div className="mt-4 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold leading-5 text-[#b54708]">
@@ -3197,12 +3572,17 @@ function RowReview({
   row,
   duplicate,
   onChooseDuplicate,
+  onConfirmDuplicate,
 }: {
   row: PreviewRow
   duplicate:
     | DuplicateMeta
     | undefined
   onChooseDuplicate: (
+    groupKey: string,
+    rowNumber: number
+  ) => void
+  onConfirmDuplicate: (
     groupKey: string,
     rowNumber: number
   ) => void
@@ -3259,6 +3639,22 @@ function RowReview({
               <div className="text-[9px] font-extrabold leading-4 text-[#b54708]">
                 Close call — review both submissions before import.
               </div>
+            )}
+
+          {duplicate.isWinner &&
+            !duplicate.manuallyChosen && (
+              <button
+                type="button"
+                onClick={() =>
+                  onConfirmDuplicate(
+                    duplicate.groupKey,
+                    row.rowNumber
+                  )
+                }
+                className="rounded-[8px] border border-[#6ce9a6] bg-[#ecfdf3] px-2.5 py-1.5 text-[9px] font-extrabold text-[#027a48] hover:border-[#32d583]"
+              >
+                Accept recommendation
+              </button>
             )}
 
           {!duplicate.isWinner && (

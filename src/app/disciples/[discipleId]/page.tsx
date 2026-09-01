@@ -5,6 +5,7 @@ import {
 } from 'next/navigation'
 
 import { DiscipleBackButton } from '@/components/follow-up/disciple-back-button'
+import { DiscipleContactAssignment } from '@/components/follow-up/disciple-contact-assignment'
 import { createClient } from '@/lib/supabase/server'
 
 type PageProps = {
@@ -89,6 +90,23 @@ type CoachingDetail = {
   recent_activity: RecentActivity[]
 }
 
+type AssignmentWorkspace = {
+  assignees: {
+    id: string
+    display_name: string
+    role: string
+    area_name: string | null
+  }[]
+  contacts: {
+    id: string
+    display_name: string
+    primary_owner_id: string | null
+    location_name: string | null
+    house_name: string | null
+    room_or_address: string | null
+  }[]
+}
+
 export default async function DiscipleDetailPage({
   params,
 }: PageProps) {
@@ -155,6 +173,48 @@ export default async function DiscipleDetailPage({
   const detail = data as CoachingDetail
   const person = detail.profile
   const metrics = detail.metrics
+
+  const {
+    data: assignmentWorkspaceData,
+    error: assignmentWorkspaceError,
+  } = await supabase.rpc(
+    'get_contact_assignment_workspace'
+  )
+
+  if (assignmentWorkspaceError) {
+    throw new Error(
+      assignmentWorkspaceError.message
+    )
+  }
+
+  const assignmentWorkspace =
+    assignmentWorkspaceData as AssignmentWorkspace
+
+  const canAssignToPerson =
+    person.id === user.id ||
+    assignmentWorkspace.assignees.some(
+      (assignee) => assignee.id === person.id
+    )
+
+  const eligibleUnassignedContacts =
+    canAssignToPerson
+      ? assignmentWorkspace.contacts
+          .filter(
+            (contact) =>
+              !contact.primary_owner_id
+          )
+          .map((contact) => ({
+            id: contact.id,
+            display_name:
+              contact.display_name,
+            location_name:
+              contact.location_name,
+            house_name:
+              contact.house_name,
+            room_or_address:
+              contact.room_or_address,
+          }))
+      : []
   const needsAttention =
     Number(metrics.unattempted ?? 0) +
     Number(metrics.stale_go_backs ?? 0)
@@ -236,11 +296,6 @@ export default async function DiscipleDetailPage({
               attention={
                 needsAttention > 0
               }
-              href={
-                needsAttention > 0
-                  ? '#needs-attention'
-                  : undefined
-              }
             />
           </div>
 
@@ -279,10 +334,7 @@ export default async function DiscipleDetailPage({
         </div>
 
         <div className="grid gap-4 p-5 md:p-6">
-          <Panel
-            title="Needs attention"
-            id="needs-attention"
-          >
+          <Panel title="Needs attention">
             <p className="mb-4 text-xs leading-5 text-[#667085]">
               These are the exact contacts in
               this discipleship branch that may
@@ -378,6 +430,16 @@ export default async function DiscipleDetailPage({
           )}
 
           <Panel title="Assigned Contacts">
+            {canAssignToPerson && (
+              <DiscipleContactAssignment
+                targetId={person.id}
+                targetName={person.display_name}
+                contacts={
+                  eligibleUnassignedContacts
+                }
+              />
+            )}
+
             {detail.assigned_contacts.length ===
             0 ? (
               <EmptyState>
@@ -526,17 +588,12 @@ export default async function DiscipleDetailPage({
 function Panel({
   title,
   children,
-  id,
 }: {
   title: string
   children: React.ReactNode
-  id?: string
 }) {
   return (
-    <section
-      id={id}
-      className="scroll-mt-24 rounded-[20px] border border-[#e4e7ec] bg-white p-4 md:p-5"
-    >
+    <section className="rounded-[20px] border border-[#e4e7ec] bg-white p-4 md:p-5">
       <h2 className="text-base font-extrabold tracking-[-0.02em] text-[#15223a]">
         {title}
       </h2>
@@ -552,25 +609,20 @@ function Metric({
   value,
   label,
   attention = false,
-  href,
 }: {
   value: number
   label: string
   attention?: boolean
-  href?: string
 }) {
-  const className = [
-    'rounded-[13px] border px-3 py-3',
-    attention
-      ? 'border-[#fedf89] bg-[#fff8eb]'
-      : 'border-[#eef0f3] bg-[#f9fafb]',
-    href
-      ? 'block cursor-pointer transition hover:border-[#fdb022] hover:bg-[#fff4dc] focus:outline-none focus:ring-2 focus:ring-[#fdb022] focus:ring-offset-2'
-      : '',
-  ].join(' ')
-
-  const content = (
-    <>
+  return (
+    <div
+      className={[
+        'rounded-[13px] border px-3 py-3',
+        attention
+          ? 'border-[#fedf89] bg-[#fff8eb]'
+          : 'border-[#eef0f3] bg-[#f9fafb]',
+      ].join(' ')}
+    >
       <div
         className={[
           'text-xl font-black leading-none',
@@ -585,24 +637,6 @@ function Metric({
       <div className="mt-1.5 text-[10px] font-bold leading-4 text-[#667085]">
         {label}
       </div>
-    </>
-  )
-
-  if (href) {
-    return (
-      <a
-        href={href}
-        className={className}
-        aria-label={`${label}: ${value}. Jump to section.`}
-      >
-        {content}
-      </a>
-    )
-  }
-
-  return (
-    <div className={className}>
-      {content}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
+import { ContactAssignmentCell } from '@/components/follow-up/contact-assignment-cell'
 
 export type ContactView =
   | 'mine'
@@ -117,6 +118,18 @@ type ContactResultsResponse = {
   floor_options: string[]
   wing_options: string[]
   rows: ContactResultRow[]
+}
+
+type AssignmentAssignee = {
+  id: string
+  display_name: string
+  role: string
+  area_name: string | null
+}
+
+type AssignmentWorkspace = {
+  assignees: AssignmentAssignee[]
+  contacts: { id: string }[]
 }
 
 const RESULTS_PAGE_SIZE = 50
@@ -254,7 +267,7 @@ export async function ContactResultsPage({
   const { data: profile } =
     await supabase
       .from('profiles')
-      .select('role, is_active')
+      .select('display_name, role, is_active')
       .eq('id', userId)
       .maybeSingle()
 
@@ -366,6 +379,64 @@ export async function ContactResultsPage({
     throw new Error(
       'Follow Up contact results could not be loaded.'
     )
+  }
+
+  let assignmentAssignees:
+    AssignmentAssignee[] = []
+  let editableAssignmentContactIds =
+    new Set<string>()
+
+  if (
+    displayMode === 'sheet' &&
+    ['discipler', 'staff', 'admin'].includes(
+      profile.role
+    )
+  ) {
+    const {
+      data: assignmentWorkspaceData,
+      error: assignmentWorkspaceError,
+    } = await supabase.rpc(
+      'get_contact_assignment_workspace'
+    )
+
+    if (assignmentWorkspaceError) {
+      throw new Error(
+        assignmentWorkspaceError.message
+      )
+    }
+
+    const assignmentWorkspace =
+      assignmentWorkspaceData as AssignmentWorkspace
+
+    assignmentAssignees = [
+      ...assignmentWorkspace.assignees,
+    ]
+
+    if (
+      !assignmentAssignees.some(
+        (assignee) => assignee.id === userId
+      )
+    ) {
+      assignmentAssignees = [
+        {
+          id: userId,
+          display_name:
+            profile.display_name?.trim() ||
+            user.email?.split('@')[0] ||
+            'Me',
+          role: profile.role,
+          area_name: null,
+        },
+        ...assignmentAssignees,
+      ]
+    }
+
+    editableAssignmentContactIds =
+      new Set(
+        assignmentWorkspace.contacts.map(
+          (contact) => contact.id
+        )
+      )
   }
 
   const totalVisibleContacts =
@@ -1527,7 +1598,25 @@ export async function ContactResultsPage({
                         <StatusBadge status={contact.status} />
                       </td>
                       <td className="px-3 py-2.5 text-[#475467]">
-                        {contact.owner_name || 'Unassigned'}
+                        {editableAssignmentContactIds.has(
+                          contact.id
+                        ) ? (
+                          <ContactAssignmentCell
+                            contactId={contact.id}
+                            currentOwnerId={
+                              contact.primary_owner_id
+                            }
+                            currentOwnerName={
+                              contact.owner_name
+                            }
+                            assignees={
+                              assignmentAssignees
+                            }
+                          />
+                        ) : (
+                          contact.owner_name ||
+                          'Unassigned'
+                        )}
                       </td>
                     </tr>
                   )

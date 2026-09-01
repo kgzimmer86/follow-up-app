@@ -445,7 +445,9 @@ export function SurveyImportPreview({
     useState<CampaignContactSnapshot[]>([])
   const [existingContactChoices, setExistingContactChoices] =
     useState<Record<number, ExistingContactChoice>>({})
-  const [confirmedExistingChoices, setConfirmedExistingChoices] =
+  const [confirmedExistingMatches, setConfirmedExistingMatches] =
+    useState<Record<number, string>>({})
+  const [identityDirtyRows, setIdentityDirtyRows] =
     useState<Set<number>>(new Set())
   const [checkedCampaignId, setCheckedCampaignId] = useState<string | null>(null)
   const [showCreateCampaign, setShowCreateCampaign] = useState(false)
@@ -707,10 +709,19 @@ export function SurveyImportPreview({
     Array.from(
       alreadyInCampaignRowNumbers
     ).filter(
-      (rowNumber) =>
-        !confirmedExistingChoices.has(
-          rowNumber
+      (rowNumber) => {
+        const matchedStudentId =
+          matchMap.get(
+            rowNumber
+          )?.matched_student_id ?? ''
+
+        return (
+          !matchedStudentId ||
+          confirmedExistingMatches[
+            rowNumber
+          ] !== matchedStudentId
         )
+      }
     ).length
 
   const counts = useMemo(() => {
@@ -836,11 +847,12 @@ export function SurveyImportPreview({
     Boolean(selectedCampaignId) &&
     checkedCampaignId === selectedCampaignId &&
     importRows.length > 0 &&
-    matchResults.length ===
-      importRows.length &&
     importRows.every(
       (row) =>
         matchMap.has(
+          row.rowNumber
+        ) &&
+        !identityDirtyRows.has(
           row.rowNumber
         )
     )
@@ -1125,7 +1137,7 @@ export function SurveyImportPreview({
       setExcludedRows(new Set())
       setImportResult(null)
       setImporting(false)
-      clearMatchResults()
+      clearMatchResults(true)
     } catch {
       resetPreview()
       setError(
@@ -1148,10 +1160,12 @@ export function SurveyImportPreview({
     setExcludedRows(new Set())
     setImportResult(null)
     setImporting(false)
-    clearMatchResults()
+    clearMatchResults(true)
   }
 
-  function clearMatchResults() {
+  function clearMatchResults(
+    resetExistingReview = false
+  ) {
     setMatchResults([])
     setMatchError(null)
     setCheckingMatches(false)
@@ -1159,14 +1173,18 @@ export function SurveyImportPreview({
     setImportError(null)
     setCampaignMemberStudentIds(new Set())
     setCampaignContacts([])
-    setExistingContactChoices({})
-    setConfirmedExistingChoices(new Set())
     setCheckedCampaignId(null)
+
+    if (resetExistingReview) {
+      setExistingContactChoices({})
+      setConfirmedExistingMatches({})
+      setIdentityDirtyRows(new Set())
+    }
   }
 
   function changeCampaign(campaignId: string) {
     setSelectedCampaignId(campaignId)
-    clearMatchResults()
+    clearMatchResults(true)
   }
 
   async function createDraftCampaign() {
@@ -1216,7 +1234,7 @@ export function SurveyImportPreview({
     setNewStartsOn('')
     setNewEndsOn('')
     setCreatingCampaign(false)
-    clearMatchResults()
+    clearMatchResults(true)
   }
 
   function changeMapping(appField: string, csvColumn: string) {
@@ -1225,7 +1243,7 @@ export function SurveyImportPreview({
     setEditingRow(null)
     setDuplicateChoices({})
     setExcludedRows(new Set())
-    clearMatchResults()
+    clearMatchResults(true)
 
     setMapping((current) => {
       const next = { ...current, [appField]: csvColumn }
@@ -1241,7 +1259,40 @@ export function SurveyImportPreview({
     field: keyof RowOverride,
     value: string
   ) {
-    clearMatchResults()
+    const changesIdentity =
+      field === 'uniqname' ||
+      field === 'phone'
+
+    if (changesIdentity) {
+      setExistingContactChoices(
+        (current) => {
+          const next = {
+            ...current,
+          }
+          delete next[rowNumber]
+          return next
+        }
+      )
+
+      setConfirmedExistingMatches(
+        (current) => {
+          const next = {
+            ...current,
+          }
+          delete next[rowNumber]
+          return next
+        }
+      )
+
+      setIdentityDirtyRows(
+        (current) => {
+          const next =
+            new Set(current)
+          next.add(rowNumber)
+          return next
+        }
+      )
+    }
 
     setAcceptedWarnings(
       (current) => {
@@ -1263,7 +1314,34 @@ export function SurveyImportPreview({
   }
 
   function resetRow(rowNumber: number) {
-    clearMatchResults()
+    setExistingContactChoices(
+      (current) => {
+        const next = {
+          ...current,
+        }
+        delete next[rowNumber]
+        return next
+      }
+    )
+
+    setConfirmedExistingMatches(
+      (current) => {
+        const next = {
+          ...current,
+        }
+        delete next[rowNumber]
+        return next
+      }
+    )
+
+    setIdentityDirtyRows(
+      (current) => {
+        const next =
+          new Set(current)
+        next.delete(rowNumber)
+        return next
+      }
+    )
 
     setAcceptedWarnings(
       (current) => {
@@ -1332,7 +1410,6 @@ export function SurveyImportPreview({
       }
     )
 
-    clearMatchResults()
   }
 
   function excludeRow(
@@ -1348,7 +1425,6 @@ export function SurveyImportPreview({
       }
     )
 
-    clearMatchResults()
   }
 
   function restoreRow(
@@ -1364,7 +1440,6 @@ export function SurveyImportPreview({
       }
     )
 
-    clearMatchResults()
   }
 
   function chooseDuplicateSubmission(
@@ -1378,7 +1453,6 @@ export function SurveyImportPreview({
       })
     )
 
-    clearMatchResults()
   }
 
   function chooseExistingContactVersion(
@@ -1390,14 +1464,15 @@ export function SurveyImportPreview({
       [rowNumber]: choice,
     }))
 
-    setConfirmedExistingChoices(
+    setConfirmedExistingMatches(
       (current) => {
-        const next =
-          new Set(current)
+        const next = {
+          ...current,
+        }
 
-        next.delete(
+        delete next[
           rowNumber
-        )
+        ]
 
         return next
       }
@@ -1410,17 +1485,21 @@ export function SurveyImportPreview({
   function confirmExistingContactVersion(
     rowNumber: number
   ) {
-    setConfirmedExistingChoices(
-      (current) => {
-        const next =
-          new Set(current)
+    const matchedStudentId =
+      matchMap.get(
+        rowNumber
+      )?.matched_student_id
 
-        next.add(
-          rowNumber
-        )
+    if (!matchedStudentId) {
+      return
+    }
 
-        return next
-      }
+    setConfirmedExistingMatches(
+      (current) => ({
+        ...current,
+        [rowNumber]:
+          matchedStudentId,
+      })
     )
 
     setShowConfirm(false)
@@ -1430,14 +1509,15 @@ export function SurveyImportPreview({
   function reopenExistingContactVersion(
     rowNumber: number
   ) {
-    setConfirmedExistingChoices(
+    setConfirmedExistingMatches(
       (current) => {
-        const next =
-          new Set(current)
+        const next = {
+          ...current,
+        }
 
-        next.delete(
+        delete next[
           rowNumber
-        )
+        ]
 
         return next
       }
@@ -1454,8 +1534,6 @@ export function SurveyImportPreview({
     setMatchError(null)
     setCampaignMemberStudentIds(new Set())
     setCampaignContacts([])
-    setExistingContactChoices({})
-    setConfirmedExistingChoices(new Set())
     setCheckedCampaignId(null)
 
     const supabase = createClient()
@@ -1518,9 +1596,117 @@ export function SurveyImportPreview({
       )
     }
 
+    const nextMatchMap =
+      new Map(
+        nextMatches.map(
+          (result) => [
+            result.row_number,
+            result,
+          ]
+        )
+      )
+
+    const nextExistingRows =
+      new Set<number>()
+
+    for (const row of importRows) {
+      const matchedStudentId =
+        nextMatchMap.get(
+          row.rowNumber
+        )?.matched_student_id
+
+      if (
+        matchedStudentId &&
+        nextCampaignMembers.has(
+          matchedStudentId
+        )
+      ) {
+        nextExistingRows.add(
+          row.rowNumber
+        )
+      }
+    }
+
+    setExistingContactChoices(
+      (current) => {
+        const next:
+          Record<
+            number,
+            ExistingContactChoice
+          > = {}
+
+        for (const [
+          rowNumberRaw,
+          choice,
+        ] of Object.entries(
+          current
+        )) {
+          const rowNumber =
+            Number(
+              rowNumberRaw
+            )
+
+          if (
+            nextExistingRows.has(
+              rowNumber
+            )
+          ) {
+            next[
+              rowNumber
+            ] = choice
+          }
+        }
+
+        return next
+      }
+    )
+
+    setConfirmedExistingMatches(
+      (current) => {
+        const next:
+          Record<
+            number,
+            string
+          > = {}
+
+        for (const [
+          rowNumberRaw,
+          confirmedStudentId,
+        ] of Object.entries(
+          current
+        )) {
+          const rowNumber =
+            Number(
+              rowNumberRaw
+            )
+
+          const currentStudentId =
+            nextMatchMap.get(
+              rowNumber
+            )?.matched_student_id
+
+          if (
+            nextExistingRows.has(
+              rowNumber
+            ) &&
+            currentStudentId ===
+              confirmedStudentId
+          ) {
+            next[
+              rowNumber
+            ] =
+              confirmedStudentId
+          }
+        }
+
+        return next
+      }
+    )
+
     setMatchResults(nextMatches)
     setCampaignMemberStudentIds(nextCampaignMembers)
     setCampaignContacts(nextCampaignContacts)
+    setIdentityDirtyRows(new Set())
     setCheckedCampaignId(selectedCampaignId)
     setCheckingMatches(false)
   }
@@ -2390,9 +2576,19 @@ export function SurveyImportPreview({
                                       : undefined
                                   }
                                   choice={existingContactChoices[row.rowNumber] ?? 'keep'}
-                                  confirmed={confirmedExistingChoices.has(
-                                    row.rowNumber
-                                  )}
+                                  confirmed={
+                                    Boolean(
+                                      matchMap.get(
+                                        row.rowNumber
+                                      )?.matched_student_id
+                                    ) &&
+                                    confirmedExistingMatches[
+                                      row.rowNumber
+                                    ] ===
+                                      matchMap.get(
+                                        row.rowNumber
+                                      )?.matched_student_id
+                                  }
                                   affinitiesMapped={Boolean(mapping.affinities)}
                                   onChoice={(choice) =>
                                     chooseExistingContactVersion(
@@ -2601,6 +2797,12 @@ export function SurveyImportPreview({
                     : 'Run database check first'}
                 </div>
               </div>
+
+              {identityDirtyRows.size > 0 && (
+                <div className="mt-3 rounded-[12px] border border-[#fedf89] bg-[#fffaf0] px-3 py-2.5 text-xs leading-5 text-[#667085]">
+                  You changed a phone number or uniqname on {identityDirtyRows.size} {identityDirtyRows.size === 1 ? 'row' : 'rows'}. Keep fixing the rest without interruption; run <strong>Check existing students</strong> once more when you are finished to refresh only those identity matches.
+                </div>
+              )}
 
               <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 <FinalStat

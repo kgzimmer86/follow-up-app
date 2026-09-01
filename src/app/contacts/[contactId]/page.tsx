@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { EditableContactInfo } from '@/components/follow-up/editable-contact-info'
+import { EditableContactLocation } from '@/components/follow-up/editable-contact-location'
 
 type PageProps = {
   params: Promise<{
@@ -875,12 +876,15 @@ export default async function ContactDetailPage({
             contact={contact}
             student={student}
             email={email}
-            contactArea={
-              contactArea
-            }
-            parentArea={parentArea}
             affinityNames={
               affinityNames
+            }
+            ministryAreas={
+              areas.filter(
+                (area) =>
+                  area.area_type !==
+                  'affinity'
+              )
             }
           />
         )}
@@ -1149,16 +1153,14 @@ function SurveyTab({
   contact,
   student,
   email,
-  contactArea,
-  parentArea,
   affinityNames,
+  ministryAreas,
 }: {
   contact: ContactRow
   student: StudentRow
   email: string | null
-  contactArea: AreaRow | null
-  parentArea: AreaRow | null
   affinityNames: string[]
+  ministryAreas: AreaRow[]
 }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -1207,6 +1209,18 @@ function SurveyTab({
           roomOrAddress={contact.room_or_address}
         />
 
+        <div className="mt-4 border-t border-[#eef0f3] pt-4">
+          <EditableContactLocation
+            contactId={contact.id}
+            ministryLocationId={
+              contact.ministry_location_id
+            }
+            ministryAreas={
+              ministryAreas
+            }
+          />
+        </div>
+
         <div className="mt-4 border-t border-[#eef0f3] pt-1">
           <DefinitionList>
             <DefinitionRow
@@ -1221,33 +1235,6 @@ function SurveyTab({
               value={
                 contact.year_at_um ||
                 'Not provided'
-              }
-            />
-
-            <DefinitionRow
-              label="Campus area"
-              value={
-                parentArea?.name ||
-                (
-                  contactArea?.area_type ===
-                  'campus_region'
-                    ? contactArea.name
-                    : null
-                ) ||
-                'Unplaced'
-              }
-            />
-
-            <DefinitionRow
-              label="Dorm / location"
-              value={
-                contactArea?.name ||
-                (
-                  contact.location_resolution ===
-                  'no_address'
-                    ? 'No address provided'
-                    : 'Needs area assignment'
-                )
               }
             />
 

@@ -848,13 +848,8 @@ export function SurveyImportPreview({
   }
 
   const counts = useMemo(() => {
-    const existing = importRows.filter((row) =>
-      isExistingStatus(
-        matchMap.get(
-          row.rowNumber
-        )?.status
-      )
-    ).length
+    const existing =
+      unresolvedExistingChoiceCount
 
     const newRows = importRows.filter((row) =>
       isNewStatus(
@@ -1159,7 +1154,14 @@ export function SurveyImportPreview({
               )
             )
           case 'existing':
-            return isExistingStatus(status)
+            return (
+              alreadyInCampaignRowNumbers.has(
+                row.rowNumber
+              ) &&
+              !isExistingChoiceConfirmed(
+                row.rowNumber
+              )
+            )
           case 'new':
             return isNewStatus(
               status,
@@ -2800,6 +2802,7 @@ export function SurveyImportPreview({
                 label="Existing"
                 count={counts.existing}
                 onClick={() => { setIssueFilter(null); setReviewFilter('existing') }}
+                attention
               />
 
               <FilterButton
@@ -2830,6 +2833,7 @@ export function SurveyImportPreview({
                 label="Duplicate Submissions"
                 count={counts.duplicates}
                 onClick={() => { setIssueFilter(null); setReviewFilter('duplicates') }}
+                attention
               />
 
               <FilterButton
@@ -2887,6 +2891,12 @@ export function SurveyImportPreview({
             {reviewFilter === 'csv_warnings' && (
               <div className="mt-3 rounded-[12px] border border-[#abefc6] bg-[#ecfdf3] px-3 py-2.5 text-xs leading-5 text-[#475467]">
                 If a row is imperfect but still has a usable phone, U-M identity, or valid dorm route, use <strong>Approve as-is</strong>. This clears the CSV warning without inventing data. Editing the row automatically removes that approval so the corrected values are reviewed again.
+              </div>
+            )}
+
+            {reviewFilter === 'existing' && (
+              <div className="mt-3 rounded-[12px] border border-[#b2ccff] bg-[#eef4ff] px-3 py-2.5 text-xs leading-5 text-[#475467]">
+                This view shows only existing campaign contacts whose <strong>Keep current</strong> or <strong>Use newer survey</strong> choice still needs confirmation. Each confirmed row disappears immediately and the Existing count decreases by one.
               </div>
             )}
 
@@ -3537,7 +3547,7 @@ function FilterButton({
         active
           ? 'border-[#00274c] bg-[#00274c] text-white'
           : attention && count > 0
-            ? 'border-[#fedf89] bg-[#fff8eb] text-[#b54708]'
+            ? 'border-[#fda29b] bg-[#fef3f2] text-[#b42318]'
             : 'border-[#d0d5dd] bg-white text-[#475467] hover:border-[#98a2b3]',
       ].join(' ')}
     >

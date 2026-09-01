@@ -1482,9 +1482,9 @@ export async function ContactResultsPage({
       </div>
 
       {displayMode === 'sheet' && (
-        <div className="mt-4 hidden overflow-x-auto rounded-[16px] border border-[#e4e7ec] bg-white md:block">
+        <div className="mt-4 hidden max-h-[72vh] overflow-auto rounded-[16px] border border-[#e4e7ec] bg-white md:block">
           <table className="min-w-[2050px] w-full border-collapse text-left text-xs">
-            <thead className="sticky top-0 z-20 bg-[#f9fafb] text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">
+            <thead className="sticky top-0 z-20 bg-[#f9fafb] text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085] shadow-[0_1px_0_#e4e7ec]">
               <tr className="border-b border-[#e4e7ec]">
                 <th className="sticky left-0 z-30 min-w-[190px] bg-[#f9fafb] px-3 py-3">
                   Name

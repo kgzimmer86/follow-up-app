@@ -42,19 +42,21 @@ export function ContactAssignmentCell({
   async function changeOwner(
     nextOwnerId: string
   ) {
-    if (!nextOwnerId || nextOwnerId === ownerId) {
+    if (nextOwnerId === ownerId) {
       return
     }
 
     const previousOwnerId = ownerId
     const previousOwnerName = ownerName
-    const nextOwner = assignees.find(
-      (assignee) => assignee.id === nextOwnerId
-    )
+    const nextOwner = nextOwnerId
+      ? assignees.find(
+          (assignee) => assignee.id === nextOwnerId
+        )
+      : null
 
     setOwnerId(nextOwnerId)
     setOwnerName(
-      nextOwner?.display_name ?? 'Follow Up user'
+      nextOwner?.display_name ?? null
     )
     setSaving(true)
     setSaved(false)
@@ -65,7 +67,7 @@ export function ContactAssignmentCell({
       'assign_contacts_to_follow_up_user',
       {
         p_contact_ids: [contactId],
-        p_assignee_id: nextOwnerId,
+        p_assignee_id: nextOwnerId || null,
       }
     )
 
@@ -93,11 +95,9 @@ export function ContactAssignmentCell({
         }
         className="w-full rounded-[8px] border border-[#d0d5dd] bg-white px-2 py-1.5 text-[11px] font-bold text-[#344054] outline-none focus:border-[#175cd3] disabled:bg-[#f2f4f7]"
       >
-        {!ownerId && (
-          <option value="">
-            Unassigned — choose person
-          </option>
-        )}
+        <option value="">
+          Unassigned
+        </option>
 
         {ownerId && !currentOwnerIsOption && (
           <option value={ownerId} disabled>

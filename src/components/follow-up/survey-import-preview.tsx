@@ -724,6 +724,61 @@ export function SurveyImportPreview({
       }
     ).length
 
+  const isExistingChoiceConfirmed = (
+    rowNumber: number
+  ) => {
+    const matchedStudentId =
+      matchMap.get(
+        rowNumber
+      )?.matched_student_id
+
+    return (
+      Boolean(matchedStudentId) &&
+      alreadyInCampaignRowNumbers.has(
+        rowNumber
+      ) &&
+      confirmedExistingMatches[
+        rowNumber
+      ] === matchedStudentId
+    )
+  }
+
+  const rowNeedsActiveDatabaseReview = (
+    row: PreviewRow
+  ) => {
+    if (
+      identityDirtyRows.has(
+        row.rowNumber
+      )
+    ) {
+      return false
+    }
+
+    const status =
+      matchMap.get(
+        row.rowNumber
+      )?.status
+
+    if (
+      !rowNeedsDatabaseReview(
+        status,
+        row
+      )
+    ) {
+      return false
+    }
+
+    if (
+      isExistingChoiceConfirmed(
+        row.rowNumber
+      )
+    ) {
+      return false
+    }
+
+    return true
+  }
+
   const counts = useMemo(() => {
     const existing = importRows.filter((row) =>
       isExistingStatus(
@@ -742,13 +797,8 @@ export function SurveyImportPreview({
       )
     ).length
 
-    const needsReview = importRows.filter((row) =>
-      rowNeedsDatabaseReview(
-        matchMap.get(
-          row.rowNumber
-        )?.status,
-        row
-      )
+    const needsReview = importRows.filter(
+      rowNeedsActiveDatabaseReview
     ).length
 
     const csvWarnings = importRows.filter(
@@ -762,11 +812,13 @@ export function SurveyImportPreview({
         )?.status
 
       return (
+        !identityDirtyRows.has(
+          row.rowNumber
+        ) &&
         !rowHasBlockingCsvIssue(
           row
         ) &&
-        !rowNeedsDatabaseReview(
-          status,
+        !rowNeedsActiveDatabaseReview(
           row
         )
       )
@@ -795,6 +847,9 @@ export function SurveyImportPreview({
     matchMap,
     duplicatesSkipped,
     acceptedWarnings,
+    confirmedExistingMatches,
+    alreadyInCampaignRowNumbers,
+    identityDirtyRows,
   ])
 
   const blockingCsvCount =
@@ -826,13 +881,16 @@ export function SurveyImportPreview({
 
   const actionableNeedsReview = useMemo(
     () =>
-      rowsToWrite.filter((row) =>
-        rowNeedsDatabaseReview(
-          matchMap.get(row.rowNumber)?.status,
-          row
-        )
+      rowsToWrite.filter(
+        rowNeedsActiveDatabaseReview
       ).length,
-    [rowsToWrite, matchMap]
+    [
+      rowsToWrite,
+      matchMap,
+      confirmedExistingMatches,
+      alreadyInCampaignRowNumbers,
+      identityDirtyRows,
+    ]
   )
 
   const actionableSuggestedExclusions = useMemo(
@@ -903,8 +961,7 @@ export function SurveyImportPreview({
 
       if (
         row &&
-        rowNeedsDatabaseReview(
-          result.status,
+        rowNeedsActiveDatabaseReview(
           row
         )
       ) {
@@ -926,7 +983,14 @@ export function SurveyImportPreview({
             .label,
       }))
       .sort((a, b) => b.count - a.count)
-  }, [matchResults, importRows])
+  }, [
+    matchResults,
+    importRows,
+    matchMap,
+    confirmedExistingMatches,
+    alreadyInCampaignRowNumbers,
+    identityDirtyRows,
+  ])
 
   const filteredRows = useMemo(
     () => {
@@ -1013,11 +1077,13 @@ export function SurveyImportPreview({
         switch (reviewFilter) {
           case 'ready':
             return (
+              !identityDirtyRows.has(
+                row.rowNumber
+              ) &&
               !rowHasBlockingCsvIssue(
                 row
               ) &&
-              !rowNeedsDatabaseReview(
-                status,
+              !rowNeedsActiveDatabaseReview(
                 row
               )
             )
@@ -1029,8 +1095,7 @@ export function SurveyImportPreview({
               row
             )
           case 'needs_review':
-            return rowNeedsDatabaseReview(
-              status,
+            return rowNeedsActiveDatabaseReview(
               row
             )
           case 'csv_warnings':
@@ -1060,6 +1125,9 @@ export function SurveyImportPreview({
       reviewFilter,
       issueFilter,
       editingRow,
+      confirmedExistingMatches,
+      alreadyInCampaignRowNumbers,
+      identityDirtyRows,
     ]
   )
 
@@ -2438,7 +2506,7 @@ export function SurveyImportPreview({
                     >
                       MCommunity
                     </a>
-                    {' '}for a uniqname before excluding. A nameless phone-only response is kept only when the student answered Yes or Maybe to Christian community or exploring a relationship with Jesus.
+                    {' '}for a uniqname before excluding. A nameless response with a plausible phone number is still a valid contact and can be imported without inventing a uniqname or name.
                   </div>
 
                   {counts.suggestedExclusions > 0 && (
@@ -2800,7 +2868,7 @@ export function SurveyImportPreview({
 
               {identityDirtyRows.size > 0 && (
                 <div className="mt-3 rounded-[12px] border border-[#fedf89] bg-[#fffaf0] px-3 py-2.5 text-xs leading-5 text-[#667085]">
-                  You changed a phone number or uniqname on {identityDirtyRows.size} {identityDirtyRows.size === 1 ? 'row' : 'rows'}. Keep fixing the rest without interruption; run <strong>Check existing students</strong> once more when you are finished to refresh only those identity matches.
+                  You changed a phone number or uniqname on {identityDirtyRows.size} {identityDirtyRows.size === 1 ? 'row' : 'rows'}. Those rows are no longer counted under <strong>Needs Review</strong>. Keep fixing the rest, then run <strong>Check existing students</strong> once when you are finished to refresh those identity matches before import.
                 </div>
               )}
 
@@ -3324,7 +3392,7 @@ function RowReview({
                 </>
               ) : (
                 <>
-                  No name or high-priority interest makes this phone-only response too weak for follow-up. Exclude it unless the original source can supply better identity information.
+                  This row has no plausible phone, U-M identity, or complete dorm route. Add a usable follow-up route or exclude it.
                 </>
               )}
             </div>
@@ -3700,7 +3768,7 @@ function matchStatusConfig(status: MatchStatus) {
       }
     case 'new_student_phone_only':
       return {
-        label: 'New • phone identity',
+        label: 'New • phone identity accepted',
         className: 'bg-[#ecfdf3] text-[#027a48]',
       }
     case 'new_student_weak_identity':
@@ -4308,35 +4376,6 @@ function hasUsableFollowUpRoute(
   )
 }
 
-function responseShowsInterest(
-  value: string
-) {
-  const normalized =
-    value
-      .trim()
-      .toLowerCase()
-
-  return (
-    normalized.startsWith('yes') ||
-    normalized.startsWith('maybe') ||
-    normalized.includes('yes,') ||
-    normalized.includes('maybe,')
-  )
-}
-
-function hasPriorityInterest(
-  row: PreviewRow
-) {
-  return (
-    responseShowsInterest(
-      row.community
-    ) ||
-    responseShowsInterest(
-      row.jesus
-    )
-  )
-}
-
 function canImportWithoutName(
   row: PreviewRow
 ) {
@@ -4356,9 +4395,8 @@ function canImportWithoutName(
     return true
   }
 
-  return (
-    hasPlausiblePhone(row) &&
-    hasPriorityInterest(row)
+  return hasPlausiblePhone(
+    row
   )
 }
 

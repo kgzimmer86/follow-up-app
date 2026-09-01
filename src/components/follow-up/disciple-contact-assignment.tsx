@@ -10,15 +10,22 @@ type EligibleContact = {
   location_name: string | null
   house_name: string | null
   room_or_address: string | null
+  location_resolution: string | null
+  status: string
+  jesus_interest: string | null
+  community_interest: string | null
+  interview_interest: string | null
 }
 
 export function DiscipleContactAssignment({
   targetId,
   targetName,
+  areaName,
   contacts,
 }: {
   targetId: string
   targetName: string
+  areaName: string | null
   contacts: EligibleContact[]
 }) {
   const router = useRouter()
@@ -46,6 +53,10 @@ export function DiscipleContactAssignment({
         contact.location_name,
         contact.house_name,
         contact.room_or_address,
+        contact.status,
+        contact.jesus_interest,
+        contact.community_interest,
+        contact.interview_interest,
       ]
         .filter(Boolean)
         .join(' ')
@@ -126,7 +137,11 @@ export function DiscipleContactAssignment({
             Assign contacts to {targetName}
           </div>
           <p className="mt-0.5 text-[11px] leading-4 text-[#667085]">
-            Expand to choose eligible unassigned contacts.
+            {areaName
+              ? `Only unassigned contacts from ${areaName}.`
+              : `No default ministry area is set for ${firstName(
+                  targetName
+                )}.`}
           </p>
         </div>
 
@@ -142,10 +157,18 @@ export function DiscipleContactAssignment({
       </summary>
 
       <div className="border-t border-[#dbe8f8] p-4">
-        {availableContacts.length === 0 ? (
+        {!areaName ? (
           <p className="text-xs font-semibold leading-5 text-[#667085]">
-            No unassigned eligible contacts are
-            available in your assignment scope.
+            Set a default ministry area for{' '}
+            {targetName} before assigning contacts
+            from this coaching page.
+          </p>
+        ) : availableContacts.length === 0 ? (
+          <p className="text-xs font-semibold leading-5 text-[#667085]">
+            No unassigned contacts from{' '}
+            <strong>{areaName}</strong> are currently
+            eligible for you to assign to{' '}
+            {targetName}.
           </p>
         ) : (
           <>
@@ -154,11 +177,11 @@ export function DiscipleContactAssignment({
               onChange={(event) =>
                 setQuery(event.target.value)
               }
-              placeholder="Search name, dorm, house, or room..."
+              placeholder="Search name, dorm, house, room, status, or survey answer..."
               className="w-full rounded-[11px] border border-[#d0d5dd] bg-white px-3 py-2.5 text-sm text-[#15223a] outline-none focus:border-[#175cd3]"
             />
 
-            <div className="mt-3 max-h-[260px] overflow-y-auto rounded-[12px] border border-[#e4e7ec] bg-white">
+            <div className="mt-3 max-h-[390px] overflow-y-auto rounded-[12px] border border-[#e4e7ec] bg-white">
               {visibleContacts.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[#667085]">
                   No eligible contacts match this search.
@@ -168,7 +191,7 @@ export function DiscipleContactAssignment({
                   {visibleContacts.map((contact) => (
                     <label
                       key={contact.id}
-                      className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-[#f8fbff]"
+                      className="flex cursor-pointer items-start gap-3 px-3 py-3 hover:bg-[#f8fbff]"
                     >
                       <input
                         type="checkbox"
@@ -181,15 +204,44 @@ export function DiscipleContactAssignment({
                             event.target.checked
                           )
                         }
-                        className="mt-0.5 h-4 w-4 rounded border-[#d0d5dd]"
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-[#d0d5dd]"
                       />
 
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-extrabold text-[#15223a]">
-                          {contact.display_name}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-start justify-between gap-2">
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-extrabold text-[#15223a]">
+                              {contact.display_name}
+                            </span>
+                            <span className="mt-0.5 block text-[10px] leading-4 text-[#667085]">
+                              {locationLabel(contact)}
+                            </span>
+                          </span>
+
+                          <StatusBadge
+                            status={contact.status}
+                          />
                         </span>
-                        <span className="mt-0.5 block truncate text-[10px] text-[#667085]">
-                          {locationLabel(contact)}
+
+                        <span className="mt-2 flex flex-wrap gap-1.5">
+                          <InterestBadge
+                            label="Jesus"
+                            value={
+                              contact.jesus_interest
+                            }
+                          />
+                          <InterestBadge
+                            label="Community"
+                            value={
+                              contact.community_interest
+                            }
+                          />
+                          <InterestBadge
+                            label="Interview"
+                            value={
+                              contact.interview_interest
+                            }
+                          />
                         </span>
                       </span>
                     </label>
@@ -238,14 +290,128 @@ export function DiscipleContactAssignment({
   )
 }
 
+function InterestBadge({
+  label,
+  value,
+}: {
+  label: string
+  value: string | null
+}) {
+  return (
+    <span
+      className={[
+        'rounded-lg border px-2 py-1 text-[10px] font-semibold',
+        interestClass(value),
+      ].join(' ')}
+    >
+      <strong>{label}</strong>{' '}
+      {formatInterest(value)}
+    </span>
+  )
+}
+
+function StatusBadge({
+  status,
+}: {
+  status: string
+}) {
+  return (
+    <span
+      className={[
+        'shrink-0 rounded-full px-2.5 py-1.5 text-[10px] font-extrabold',
+        statusClass(status),
+      ].join(' ')}
+    >
+      {formatStatus(status)}
+    </span>
+  )
+}
+
 function locationLabel(contact: EligibleContact) {
-  return [
+  const label = [
     contact.location_name,
     contact.house_name,
     contact.room_or_address,
   ]
     .filter(Boolean)
-    .join(' • ') || 'Location unavailable'
+    .join(' • ')
+
+  if (label) {
+    return label
+  }
+
+  if (
+    contact.location_resolution ===
+    'no_address'
+  ) {
+    return 'No Address'
+  }
+
+  return 'Location unavailable'
+}
+
+function interestClass(
+  value: string | null
+) {
+  switch (value) {
+    case 'yes':
+      return 'border-[#d1fadf] bg-[#edfdf6] text-[#15223a]'
+    case 'maybe':
+      return 'border-[#fedf89] bg-[#fff8eb] text-[#15223a]'
+    case 'already_have_one':
+      return 'border-[#e9d7fe] bg-[#f4f3ff] text-[#15223a]'
+    default:
+      return 'border-[#edf0f3] bg-[#f9fafb] text-[#667085]'
+  }
+}
+
+function formatInterest(
+  value: string | null
+) {
+  switch (value) {
+    case 'yes':
+      return 'Yes'
+    case 'maybe':
+      return 'Maybe'
+    case 'no':
+      return 'No'
+    case 'already_have_one':
+      return 'Already have one'
+    default:
+      return '—'
+  }
+}
+
+function statusClass(status: string) {
+  switch (status) {
+    case 'go_back':
+      return 'bg-[#eef4ff] text-[#3538cd]'
+    case 'involved':
+      return 'bg-[#ecfdf3] text-[#027a48]'
+    case 'attempted_contact':
+      return 'bg-[#fff4e5] text-[#9a4b00]'
+    case 'not_interested':
+      return 'bg-[#fef3f2] text-[#b42318]'
+    default:
+      return 'bg-[#f2f4f7] text-[#475467]'
+  }
+}
+
+function formatStatus(status: string) {
+  switch (status) {
+    case 'uncontacted':
+      return 'Uncontacted'
+    case 'attempted_contact':
+      return 'Attempted contact'
+    case 'go_back':
+      return 'Go back'
+    case 'involved':
+      return 'Involved'
+    case 'not_interested':
+      return 'Not interested'
+    default:
+      return status
+  }
 }
 
 function firstName(name: string) {

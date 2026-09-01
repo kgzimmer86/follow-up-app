@@ -90,20 +90,21 @@ type CoachingDetail = {
   recent_activity: RecentActivity[]
 }
 
-type AssignmentWorkspace = {
-  assignees: {
-    id: string
-    display_name: string
-    role: string
-    area_name: string | null
-  }[]
+type TargetAssignmentCandidates = {
+  can_assign: boolean
+  target_area_id: string | null
+  target_area_name: string | null
   contacts: {
     id: string
     display_name: string
-    primary_owner_id: string | null
     location_name: string | null
     house_name: string | null
     room_or_address: string | null
+    location_resolution: string | null
+    status: string
+    jesus_interest: string | null
+    community_interest: string | null
+    interview_interest: string | null
   }[]
 }
 
@@ -175,46 +176,37 @@ export default async function DiscipleDetailPage({
   const metrics = detail.metrics
 
   const {
-    data: assignmentWorkspaceData,
-    error: assignmentWorkspaceError,
+    data: assignmentCandidateData,
+    error: assignmentCandidateError,
   } = await supabase.rpc(
-    'get_contact_assignment_workspace'
+    'get_disciple_assignment_candidates',
+    {
+      p_assignee_id: person.id,
+    }
   )
 
-  if (assignmentWorkspaceError) {
+  if (assignmentCandidateError) {
     throw new Error(
-      assignmentWorkspaceError.message
+      assignmentCandidateError.message
     )
   }
 
-  const assignmentWorkspace =
-    assignmentWorkspaceData as AssignmentWorkspace
+  const assignmentCandidates =
+    assignmentCandidateData as
+      | TargetAssignmentCandidates
+      | null
 
   const canAssignToPerson =
-    person.id === user.id ||
-    assignmentWorkspace.assignees.some(
-      (assignee) => assignee.id === person.id
+    Boolean(
+      assignmentCandidates?.can_assign
     )
 
   const eligibleUnassignedContacts =
-    canAssignToPerson
-      ? assignmentWorkspace.contacts
-          .filter(
-            (contact) =>
-              !contact.primary_owner_id
-          )
-          .map((contact) => ({
-            id: contact.id,
-            display_name:
-              contact.display_name,
-            location_name:
-              contact.location_name,
-            house_name:
-              contact.house_name,
-            room_or_address:
-              contact.room_or_address,
-          }))
-      : []
+    assignmentCandidates?.contacts ?? []
+
+  const assignmentAreaName =
+    assignmentCandidates?.target_area_name ??
+    null
   const needsAttention =
     Number(metrics.unattempted ?? 0) +
     Number(metrics.stale_go_backs ?? 0)
@@ -434,6 +426,7 @@ export default async function DiscipleDetailPage({
               <DiscipleContactAssignment
                 targetId={person.id}
                 targetName={person.display_name}
+                areaName={assignmentAreaName}
                 contacts={
                   eligibleUnassignedContacts
                 }

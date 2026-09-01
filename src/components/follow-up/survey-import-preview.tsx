@@ -428,6 +428,9 @@ const LOCATION_ALIASES: Record<string, string> = {
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_ROWS = 15000
 
+const CSV_PHONE_IDENTITY_CONFLICT =
+  'Phone conflicts with another U-M uniqname in this CSV'
+
 export function SurveyImportPreview({
   initialCampaigns,
   role,
@@ -567,11 +570,13 @@ export function SurveyImportPreview({
 
   const importRows = useMemo(
     () =>
-      selectedRows.filter(
-        (row) =>
-          !excludedRows.has(
-            row.rowNumber
-          )
+      addCsvIdentityConflictIssues(
+        selectedRows.filter(
+          (row) =>
+            !excludedRows.has(
+              row.rowNumber
+            )
+        )
       ),
     [selectedRows, excludedRows]
   )
@@ -1746,8 +1751,15 @@ export function SurveyImportPreview({
   function approveRowAsIs(
     row: PreviewRow
   ) {
+    const approvableIssues =
+      row.issues.filter(
+        (issue) =>
+          issue !==
+          CSV_PHONE_IDENTITY_CONFLICT
+      )
+
     if (
-      row.issues.length === 0 ||
+      approvableIssues.length === 0 ||
       !hasUsableFollowUpRoute(
         row
       )
@@ -1759,7 +1771,7 @@ export function SurveyImportPreview({
       (current) => ({
         ...current,
         [row.rowNumber]:
-          row.issues,
+          approvableIssues,
       })
     )
 
@@ -3168,7 +3180,11 @@ export function SurveyImportPreview({
                                         : 'Edit'}
                                     </button>
 
-                                    {row.issues.length > 0 &&
+                                    {row.issues.some(
+                                      (issue) =>
+                                        issue !==
+                                        CSV_PHONE_IDENTITY_CONFLICT
+                                    ) &&
                                       hasUsableFollowUpRoute(
                                         row
                                       ) && (
@@ -3835,6 +3851,17 @@ function RowReview({
                     ? ' • Building is missing or unrecognized. Choose Building 1–4 / Harper Hall, or use Approve as-is if the phone or U-M identity is enough for follow-up.'
                     : ' • Building is missing or unrecognized. Choose Building 1–4 or Harper Hall.'
                   : ''}
+              </div>
+            )}
+
+          {issue ===
+            CSV_PHONE_IDENTITY_CONFLICT && (
+              <div className="mt-0.5 text-[9px] font-semibold leading-4 text-[#667085]">
+                This same phone number appears on two different U-M uniqnames in this CSV.
+                Edit the incorrect phone or uniqname, or exclude one of the rows.
+                If these are truly two different students sharing a phone, clear the phone
+                from one row and keep that student&apos;s uniqname. This issue cannot be
+                approved as-is because the database uses phone as an identity cross-check.
               </div>
             )}
 
@@ -4753,6 +4780,79 @@ function applyOverride(
     autoFixes: [...row.autoFixes, 'Manual review applied'],
     issues: [],
   }
+}
+
+function addCsvIdentityConflictIssues(
+  rows: PreviewRow[]
+) {
+  const uniqnamesByPhone =
+    new Map<string, Set<string>>()
+
+  for (const row of rows) {
+    if (
+      !row.uniqname ||
+      classifyPhone(
+        row.phoneNormalized
+      ) !== 'plausible'
+    ) {
+      continue
+    }
+
+    const uniqnames =
+      uniqnamesByPhone.get(
+        row.phoneNormalized
+      ) ?? new Set<string>()
+
+    uniqnames.add(row.uniqname)
+
+    uniqnamesByPhone.set(
+      row.phoneNormalized,
+      uniqnames
+    )
+  }
+
+  const conflictingPhones =
+    new Set(
+      Array.from(
+        uniqnamesByPhone.entries()
+      )
+        .filter(
+          ([, uniqnames]) =>
+            uniqnames.size > 1
+        )
+        .map(([phone]) => phone)
+    )
+
+  if (conflictingPhones.size === 0) {
+    return rows
+  }
+
+  return rows.map((row) => {
+    if (
+      !row.uniqname ||
+      !conflictingPhones.has(
+        row.phoneNormalized
+      )
+    ) {
+      return row
+    }
+
+    if (
+      row.issues.includes(
+        CSV_PHONE_IDENTITY_CONFLICT
+      )
+    ) {
+      return row
+    }
+
+    return {
+      ...row,
+      issues: [
+        ...row.issues,
+        CSV_PHONE_IDENTITY_CONFLICT,
+      ],
+    }
+  })
 }
 
 function validatePreviewRows(rows: PreviewRow[]) {

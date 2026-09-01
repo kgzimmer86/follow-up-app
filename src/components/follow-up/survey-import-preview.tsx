@@ -420,6 +420,8 @@ const LOCATION_ALIASES: Record<string, string> = {
   'off campus village': 'Off Campus — Village',
   'village off campus': 'Off Campus — Village',
   'off-campus village': 'Off Campus — Village',
+  'wolverine village': 'Wolverine Village',
+  'wolverine village housing': 'Wolverine Village',
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -2814,6 +2816,9 @@ function RowReview({
             row.location && (
               <div className="mt-0.5 text-[9px] font-semibold leading-4 text-[#667085]">
                 Raw: {row.location}
+                {row.location === 'Wolverine Village'
+                  ? ' • Building is missing or unrecognized. Choose Building 1–4 or Harper Hall.'
+                  : ''}
               </div>
             )}
 
@@ -3305,6 +3310,106 @@ function rowNeedsDatabaseReview(
   )
 }
 
+function wolverineVillageBuilding(
+  value: string
+) {
+  const normalized =
+    normalizeHeader(
+      value.trim()
+    )
+
+  const map: Record<string, string> = {
+    '1': 'Building 1',
+    'building 1': 'Building 1',
+    'building one': 'Building 1',
+    '2': 'Building 2',
+    'building 2': 'Building 2',
+    'building two': 'Building 2',
+    '3': 'Building 3',
+    'building 3': 'Building 3',
+    'building three': 'Building 3',
+    '4': 'Building 4',
+    'building 4': 'Building 4',
+    'building four': 'Building 4',
+    'harper': 'Harper Hall',
+    'harper hall': 'Harper Hall',
+  }
+
+  return map[normalized] ?? ''
+}
+
+function normalizeWolverineVillageHousing(
+  location: string,
+  rawHouse: string,
+  rawRoom: string
+) {
+  const house =
+    rawHouse.trim()
+  const room =
+    rawRoom.trim()
+  const autoFixes: string[] = []
+
+  if (
+    location !==
+    'Wolverine Village'
+  ) {
+    return {
+      location,
+      house,
+      room,
+      autoFixes,
+    }
+  }
+
+  const houseBuilding =
+    wolverineVillageBuilding(
+      house
+    )
+
+  const roomBuilding =
+    wolverineVillageBuilding(
+      room
+    )
+
+  if (houseBuilding) {
+    autoFixes.push(
+      `Wolverine Village ${house || 'building'} mapped to ${houseBuilding}`
+    )
+
+    return {
+      location: houseBuilding,
+      house: '',
+      room,
+      autoFixes,
+    }
+  }
+
+  if (
+    roomBuilding &&
+    isLikelyRoomNumber(
+      house
+    )
+  ) {
+    autoFixes.push(
+      `Wolverine Village building and room were swapped; mapped to ${roomBuilding}`
+    )
+
+    return {
+      location: roomBuilding,
+      house: '',
+      room: house,
+      autoFixes,
+    }
+  }
+
+  return {
+    location,
+    house,
+    room,
+    autoFixes,
+  }
+}
+
 function isDormHousingLocation(
   location: string
 ) {
@@ -3443,17 +3548,29 @@ function mapCsvRow(
 
   const uniqname = normalizeUniqname(rawUniqname)
   const phoneNormalized = normalizePhone(rawPhone)
-  const location = normalizeLocation(rawLocation)
+  const normalizedLocation =
+    normalizeLocation(rawLocation)
   const rawAffinities = value('affinities')
 
-  const housing =
-    normalizeHousingFields(
-      location,
+  const wolverineVillage =
+    normalizeWolverineVillageHousing(
+      normalizedLocation,
       rawHouse,
       rawRoom
     )
 
+  const location =
+    wolverineVillage.location
+
+  const housing =
+    normalizeHousingFields(
+      location,
+      wolverineVillage.house,
+      wolverineVillage.room
+    )
+
   const autoFixes: string[] = [
+    ...wolverineVillage.autoFixes,
     ...housing.autoFixes,
   ]
 

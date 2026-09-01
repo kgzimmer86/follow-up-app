@@ -2247,8 +2247,14 @@ export function SurveyImportPreview({
               row.year ||
               null,
             location:
-              row.location ||
-              null,
+              row.location ===
+              'Wolverine Village'
+                ? 'The Village'
+                : CANONICAL_LOCATIONS.includes(
+                      row.location
+                    )
+                  ? row.location
+                  : null,
             house_name:
               row.house.trim() ||
               null,

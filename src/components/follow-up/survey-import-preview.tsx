@@ -682,6 +682,10 @@ export function SurveyImportPreview({
 
   const requiredMapped = Boolean(mapping.name)
 
+  const hasUnsavedImportWork =
+    Boolean(fileName) &&
+    !importResult
+
   const rowApprovedAsIs = (
     row: PreviewRow
   ) =>
@@ -1215,6 +1219,105 @@ export function SurveyImportPreview({
   }, [
     reviewFilter,
     issueFilter,
+  ])
+
+  useEffect(() => {
+    if (!hasUnsavedImportWork) {
+      return
+    }
+
+    const warningMessage =
+      'Are you sure you want to leave import? Work not saved.'
+
+    const guardKey =
+      `follow-up-import-${Date.now()}`
+
+    let allowingLeave = false
+
+    const handleBeforeUnload = (
+      event: BeforeUnloadEvent
+    ) => {
+      if (allowingLeave) {
+        return
+      }
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    const handlePopState = () => {
+      if (allowingLeave) {
+        return
+      }
+
+      const shouldLeave =
+        window.confirm(
+          warningMessage
+        )
+
+      if (shouldLeave) {
+        allowingLeave = true
+
+        window.removeEventListener(
+          'beforeunload',
+          handleBeforeUnload
+        )
+
+        window.removeEventListener(
+          'popstate',
+          handlePopState
+        )
+
+        window.history.back()
+        return
+      }
+
+      window.history.pushState(
+        {
+          ...(window.history.state ??
+            {}),
+          __followUpImportGuard:
+            guardKey,
+        },
+        '',
+        window.location.href
+      )
+    }
+
+    window.history.pushState(
+      {
+        ...(window.history.state ??
+          {}),
+        __followUpImportGuard:
+          guardKey,
+      },
+      '',
+      window.location.href
+    )
+
+    window.addEventListener(
+      'beforeunload',
+      handleBeforeUnload
+    )
+
+    window.addEventListener(
+      'popstate',
+      handlePopState
+    )
+
+    return () => {
+      window.removeEventListener(
+        'beforeunload',
+        handleBeforeUnload
+      )
+
+      window.removeEventListener(
+        'popstate',
+        handlePopState
+      )
+    }
+  }, [
+    hasUnsavedImportWork,
   ])
 
   const duplicateGroupKeysInFilter =
@@ -2457,6 +2560,12 @@ export function SurveyImportPreview({
           )}
 
           <section className="mt-5">
+            {hasUnsavedImportWork && (
+              <div className="mb-3 rounded-[12px] border border-[#fedf89] bg-[#fffaf0] px-3 py-2.5 text-xs font-semibold leading-5 text-[#667085]">
+                Import review is not saved until you complete the import. If you use the browser Back button, reload, or close this page, Follow Up will warn you before leaving.
+              </div>
+            )}
+
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#667085]">

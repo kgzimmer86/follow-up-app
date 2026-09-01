@@ -445,6 +445,8 @@ export function SurveyImportPreview({
     useState<CampaignContactSnapshot[]>([])
   const [existingContactChoices, setExistingContactChoices] =
     useState<Record<number, ExistingContactChoice>>({})
+  const [confirmedExistingChoices, setConfirmedExistingChoices] =
+    useState<Set<number>>(new Set())
   const [checkedCampaignId, setCheckedCampaignId] = useState<string | null>(null)
   const [showCreateCampaign, setShowCreateCampaign] = useState(false)
   const [newAcademicYear, setNewAcademicYear] = useState('')
@@ -459,6 +461,8 @@ export function SurveyImportPreview({
   const [rows, setRows] = useState<CsvRow[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [overrides, setOverrides] = useState<Record<number, RowOverride>>({})
+  const [acceptedWarnings, setAcceptedWarnings] =
+    useState<Record<number, string[]>>({})
   const [editingRow, setEditingRow] = useState<number | null>(null)
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('all')
   const [issueFilter, setIssueFilter] = useState<string | null>(null)
@@ -490,24 +494,68 @@ export function SurveyImportPreview({
     [baseRows, overrides]
   )
 
+  const reviewedRows = useMemo(
+    () =>
+      mappedRows.map((row) => {
+        const accepted =
+          acceptedWarnings[
+            row.rowNumber
+          ] ?? []
+
+        const stillPresent =
+          row.issues.filter(
+            (issue) =>
+              accepted.includes(issue)
+          )
+
+        if (
+          stillPresent.length === 0
+        ) {
+          return row
+        }
+
+        return {
+          ...row,
+          issues:
+            row.issues.filter(
+              (issue) =>
+                !accepted.includes(
+                  issue
+                )
+            ),
+          autoFixes: [
+            ...row.autoFixes,
+            ...stillPresent.map(
+              (issue) =>
+                `Approved as-is: ${issue}`
+            ),
+          ],
+        }
+      }),
+    [
+      mappedRows,
+      acceptedWarnings,
+    ]
+  )
+
   const duplicateMap = useMemo(
     () =>
       buildDuplicateMap(
-        mappedRows,
+        reviewedRows,
         duplicateChoices
       ),
-    [mappedRows, duplicateChoices]
+    [reviewedRows, duplicateChoices]
   )
 
   const selectedRows = useMemo(
     () =>
-      mappedRows.filter(
+      reviewedRows.filter(
         (row) =>
           !duplicateMap.get(
             row.rowNumber
           )?.skip
       ),
-    [mappedRows, duplicateMap]
+    [reviewedRows, duplicateMap]
   )
 
   const importRows = useMemo(
@@ -535,18 +583,18 @@ export function SurveyImportPreview({
 
   const duplicateRows = useMemo(
     () =>
-      mappedRows.filter(
+      reviewedRows.filter(
         (row) =>
           duplicateMap.get(
             row.rowNumber
           )?.isDuplicateGroup
       ),
-    [mappedRows, duplicateMap]
+    [reviewedRows, duplicateMap]
   )
 
   const duplicateGroups = useMemo(
     () =>
-      mappedRows.filter(
+      reviewedRows.filter(
         (row) => {
           const meta =
             duplicateMap.get(
@@ -559,14 +607,31 @@ export function SurveyImportPreview({
           )
         }
       ).length,
-    [mappedRows, duplicateMap]
+    [reviewedRows, duplicateMap]
   )
 
   const duplicatesSkipped =
-    mappedRows.length -
+    reviewedRows.length -
     selectedRows.length
 
   const requiredMapped = Boolean(mapping.name)
+
+  const rowApprovedAsIs = (
+    row: PreviewRow
+  ) =>
+    (
+      acceptedWarnings[
+        row.rowNumber
+      ] ?? []
+    ).length > 0
+
+  const isSuggestedExclusionRow = (
+    row: PreviewRow
+  ) =>
+    !rowApprovedAsIs(row) &&
+    shouldSuggestExclusion(
+      row
+    )
 
   const matchMap = useMemo(
     () => new Map(matchResults.map((result) => [result.row_number, result])),
@@ -638,6 +703,16 @@ export function SurveyImportPreview({
   const existingContactsKeptCount =
     alreadyInCampaignCount - rowsToUpdate.length
 
+  const unresolvedExistingChoiceCount =
+    Array.from(
+      alreadyInCampaignRowNumbers
+    ).filter(
+      (rowNumber) =>
+        !confirmedExistingChoices.has(
+          rowNumber
+        )
+    ).length
+
   const counts = useMemo(() => {
     const existing = importRows.filter((row) =>
       isExistingStatus(
@@ -688,7 +763,7 @@ export function SurveyImportPreview({
 
     const suggestedExclusions =
       importRows.filter(
-        shouldSuggestExclusion
+        isSuggestedExclusionRow
       ).length
 
     return {
@@ -708,6 +783,7 @@ export function SurveyImportPreview({
     excludedPreviewRows,
     matchMap,
     duplicatesSkipped,
+    acceptedWarnings,
   ])
 
   const blockingCsvCount =
@@ -749,8 +825,11 @@ export function SurveyImportPreview({
   )
 
   const actionableSuggestedExclusions = useMemo(
-    () => rowsToWrite.filter(shouldSuggestExclusion).length,
-    [rowsToWrite]
+    () => rowsToWrite.filter(isSuggestedExclusionRow).length,
+    [
+      rowsToWrite,
+      acceptedWarnings,
+    ]
   )
 
   const databaseCheckCurrent =
@@ -771,6 +850,7 @@ export function SurveyImportPreview({
     requiredMapped &&
     databaseCheckCurrent &&
     rowsToWrite.length > 0 &&
+    unresolvedExistingChoiceCount === 0 &&
     actionableNeedsReview === 0 &&
     actionableBlockingCsvCount === 0 &&
     actionableSuggestedExclusions === 0 &&
@@ -889,7 +969,7 @@ export function SurveyImportPreview({
       const editingPreviewRow =
         editingRow === null
           ? undefined
-          : mappedRows.find(
+          : reviewedRows.find(
               (row) =>
                 row.rowNumber ===
                 editingRow
@@ -948,7 +1028,7 @@ export function SurveyImportPreview({
           case 'duplicates':
             return true
           case 'suggested_exclusions':
-            return shouldSuggestExclusion(
+            return isSuggestedExclusionRow(
               row
             )
           case 'excluded':
@@ -959,7 +1039,7 @@ export function SurveyImportPreview({
       })
     },
     [
-      mappedRows,
+      reviewedRows,
       importRows,
       duplicateRows,
       duplicateMap,
@@ -1037,6 +1117,7 @@ export function SurveyImportPreview({
       setRows(nextRows)
       setMapping(autoMapColumns(nextHeaders))
       setOverrides({})
+      setAcceptedWarnings({})
       setEditingRow(null)
       setReviewFilter('all')
       setIssueFilter(null)
@@ -1059,6 +1140,7 @@ export function SurveyImportPreview({
     setRows([])
     setMapping({})
     setOverrides({})
+    setAcceptedWarnings({})
     setEditingRow(null)
     setReviewFilter('all')
     setIssueFilter(null)
@@ -1078,6 +1160,7 @@ export function SurveyImportPreview({
     setCampaignMemberStudentIds(new Set())
     setCampaignContacts([])
     setExistingContactChoices({})
+    setConfirmedExistingChoices(new Set())
     setCheckedCampaignId(null)
   }
 
@@ -1138,6 +1221,7 @@ export function SurveyImportPreview({
 
   function changeMapping(appField: string, csvColumn: string) {
     setOverrides({})
+    setAcceptedWarnings({})
     setEditingRow(null)
     setDuplicateChoices({})
     setExcludedRows(new Set())
@@ -1159,6 +1243,16 @@ export function SurveyImportPreview({
   ) {
     clearMatchResults()
 
+    setAcceptedWarnings(
+      (current) => {
+        const next = {
+          ...current,
+        }
+        delete next[rowNumber]
+        return next
+      }
+    )
+
     setOverrides((current) => ({
       ...current,
       [rowNumber]: {
@@ -1171,6 +1265,16 @@ export function SurveyImportPreview({
   function resetRow(rowNumber: number) {
     clearMatchResults()
 
+    setAcceptedWarnings(
+      (current) => {
+        const next = {
+          ...current,
+        }
+        delete next[rowNumber]
+        return next
+      }
+    )
+
     setOverrides((current) => {
       const next = { ...current }
       delete next[rowNumber]
@@ -1178,11 +1282,34 @@ export function SurveyImportPreview({
     })
   }
 
+  function approveRowAsIs(
+    row: PreviewRow
+  ) {
+    if (
+      row.issues.length === 0 ||
+      !hasUsableFollowUpRoute(
+        row
+      )
+    ) {
+      return
+    }
+
+    setAcceptedWarnings(
+      (current) => ({
+        ...current,
+        [row.rowNumber]:
+          row.issues,
+      })
+    )
+
+    setEditingRow(null)
+  }
+
   function excludeAllSuggested() {
     const suggestedRowNumbers =
       importRows
         .filter(
-          shouldSuggestExclusion
+          isSuggestedExclusionRow
         )
         .map(
           (row) =>
@@ -1262,6 +1389,60 @@ export function SurveyImportPreview({
       ...current,
       [rowNumber]: choice,
     }))
+
+    setConfirmedExistingChoices(
+      (current) => {
+        const next =
+          new Set(current)
+
+        next.delete(
+          rowNumber
+        )
+
+        return next
+      }
+    )
+
+    setShowConfirm(false)
+    setImportError(null)
+  }
+
+  function confirmExistingContactVersion(
+    rowNumber: number
+  ) {
+    setConfirmedExistingChoices(
+      (current) => {
+        const next =
+          new Set(current)
+
+        next.add(
+          rowNumber
+        )
+
+        return next
+      }
+    )
+
+    setShowConfirm(false)
+    setImportError(null)
+  }
+
+  function reopenExistingContactVersion(
+    rowNumber: number
+  ) {
+    setConfirmedExistingChoices(
+      (current) => {
+        const next =
+          new Set(current)
+
+        next.delete(
+          rowNumber
+        )
+
+        return next
+      }
+    )
+
     setShowConfirm(false)
     setImportError(null)
   }
@@ -1274,6 +1455,7 @@ export function SurveyImportPreview({
     setCampaignMemberStudentIds(new Set())
     setCampaignContacts([])
     setExistingContactChoices({})
+    setConfirmedExistingChoices(new Set())
     setCheckedCampaignId(null)
 
     const supabase = createClient()
@@ -1355,7 +1537,7 @@ export function SurveyImportPreview({
       createClient()
 
     const payload =
-      mappedRows.map(
+      reviewedRows.map(
         (row) => {
           const duplicate =
             duplicateMap.get(
@@ -1405,6 +1587,10 @@ export function SurveyImportPreview({
               ] ?? {},
             issues:
               row.issues,
+            accepted_issues:
+              acceptedWarnings[
+                row.rowNumber
+              ] ?? [],
             name:
               row.name.trim(),
             uniqname:
@@ -1879,7 +2065,7 @@ export function SurveyImportPreview({
 
                 {alreadyInCampaignCount > 0 && (
                   <div className="mt-3 rounded-[12px] border border-[#b2ccff] bg-[#eef4ff] px-3 py-3 text-xs font-semibold leading-5 text-[#3538cd]">
-                    {alreadyInCampaignCount.toLocaleString()} {alreadyInCampaignCount === 1 ? 'student is' : 'students are'} already in {selectedCampaign?.label ?? 'this campaign'}. Review {alreadyInCampaignCount === 1 ? 'that row' : 'those rows'} below and choose <strong>Keep current</strong> or <strong>Use newer survey</strong>. Keep current is the default.
+                    {alreadyInCampaignCount.toLocaleString()} {alreadyInCampaignCount === 1 ? 'student is' : 'students are'} already in {selectedCampaign?.label ?? 'this campaign'}. Choose <strong>Keep current</strong> or <strong>Use newer survey</strong>, then click <strong>Confirm choice</strong>. {unresolvedExistingChoiceCount.toLocaleString()} {unresolvedExistingChoiceCount === 1 ? 'choice still needs' : 'choices still need'} confirmation.
                   </div>
                 )}
 
@@ -2030,6 +2216,12 @@ export function SurveyImportPreview({
                     )
                   )}
                 </div>
+              </div>
+            )}
+
+            {reviewFilter === 'csv_warnings' && (
+              <div className="mt-3 rounded-[12px] border border-[#abefc6] bg-[#ecfdf3] px-3 py-2.5 text-xs leading-5 text-[#475467]">
+                If a row is imperfect but still has a usable phone, U-M identity, or valid dorm route, use <strong>Approve as-is</strong>. This clears the CSV warning without inventing data. Editing the row automatically removes that approval so the corrected values are reviewed again.
               </div>
             )}
 
@@ -2198,11 +2390,24 @@ export function SurveyImportPreview({
                                       : undefined
                                   }
                                   choice={existingContactChoices[row.rowNumber] ?? 'keep'}
+                                  confirmed={confirmedExistingChoices.has(
+                                    row.rowNumber
+                                  )}
                                   affinitiesMapped={Boolean(mapping.affinities)}
                                   onChoice={(choice) =>
                                     chooseExistingContactVersion(
                                       row.rowNumber,
                                       choice
+                                    )
+                                  }
+                                  onConfirm={() =>
+                                    confirmExistingContactVersion(
+                                      row.rowNumber
+                                    )
+                                  }
+                                  onReopen={() =>
+                                    reopenExistingContactVersion(
+                                      row.rowNumber
                                     )
                                   }
                                 />
@@ -2255,7 +2460,24 @@ export function SurveyImportPreview({
                                         : 'Edit'}
                                     </button>
 
-                                    {shouldSuggestExclusion(
+                                    {row.issues.length > 0 &&
+                                      hasUsableFollowUpRoute(
+                                        row
+                                      ) && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            approveRowAsIs(
+                                              row
+                                            )
+                                          }
+                                          className="rounded-[9px] border border-[#6ce9a6] bg-[#ecfdf3] px-2.5 py-1.5 text-[10px] font-extrabold text-[#027a48] hover:border-[#32d583]"
+                                        >
+                                          Approve as-is
+                                        </button>
+                                      )}
+
+                                    {isSuggestedExclusionRow(
                                       row
                                     ) && (
                                       <button
@@ -2405,9 +2627,10 @@ export function SurveyImportPreview({
 
               {actionableBlockingCsvCount > 0 ||
               actionableNeedsReview > 0 ||
-              actionableSuggestedExclusions > 0 ? (
+              actionableSuggestedExclusions > 0 ||
+              unresolvedExistingChoiceCount > 0 ? (
                 <div className="mt-4 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold leading-5 text-[#b54708]">
-                  Import is still blocked for contacts that will be added or refreshed: {actionableBlockingCsvCount} blocking CSV {actionableBlockingCsvCount === 1 ? 'issue' : 'issues'}, {actionableNeedsReview} database {actionableNeedsReview === 1 ? 'review' : 'reviews'}, and {actionableSuggestedExclusions} suggested {actionableSuggestedExclusions === 1 ? 'exclusion' : 'exclusions'} remain.
+                  Import is still blocked for contacts that will be added or refreshed: {unresolvedExistingChoiceCount} existing-contact {unresolvedExistingChoiceCount === 1 ? 'choice needs' : 'choices need'} confirmation, {actionableBlockingCsvCount} blocking CSV {actionableBlockingCsvCount === 1 ? 'issue' : 'issues'}, {actionableNeedsReview} database {actionableNeedsReview === 1 ? 'review' : 'reviews'}, and {actionableSuggestedExclusions} suggested {actionableSuggestedExclusions === 1 ? 'exclusion' : 'exclusions'} remain.
                 </div>
               ) : !databaseCheckCurrent ? (
                 <div className="mt-4 rounded-[12px] border border-[#fedf89] bg-[#fff8eb] px-3 py-3 text-xs font-semibold leading-5 text-[#b54708]">
@@ -2817,7 +3040,9 @@ function RowReview({
               <div className="mt-0.5 text-[9px] font-semibold leading-4 text-[#667085]">
                 Raw: {row.location}
                 {row.location === 'Wolverine Village'
-                  ? ' • Building is missing or unrecognized. Choose Building 1–4 or Harper Hall.'
+                  ? hasUsableFollowUpRoute(row)
+                    ? ' • Building is missing or unrecognized. Choose Building 1–4 / Harper Hall, or use Approve as-is if the phone or U-M identity is enough for follow-up.'
+                    : ' • Building is missing or unrecognized. Choose Building 1–4 or Harper Hall.'
                   : ''}
               </div>
             )}
@@ -2834,12 +3059,12 @@ function RowReview({
 
           {issue === 'Missing name' && (
             <div className="mt-0.5 text-[9px] font-semibold leading-4 text-[#667085]">
-              {canImportWithoutName(
+              {hasUsableFollowUpRoute(
                 row
               ) ? (
                 <>
                   <span className="font-extrabold text-[#027a48]">
-                    Import allowed without a name.
+                    This contact can be preserved without inventing a name.
                   </span>
                   {' '}
                   {row.uniqname ? (
@@ -2867,13 +3092,13 @@ function RowReview({
                     </>
                   ) : (
                     <>
-                      The usable phone number plus Yes/Maybe interest gives the team a reason to follow up. The first text can ask for the student&apos;s name.
+                      The usable phone number gives the team a way to follow up. Use <strong>Approve as-is</strong> if you want to keep the row without a name; the first text can ask for the student&apos;s name.
                     </>
                   )}
                 </>
               ) : (
                 <>
-                  No recoverable name and no qualifying follow-up route make this row a suggested exclusion.
+                  This row has no usable phone, U-M identity, or complete dorm route. Add a follow-up route or exclude it.
                 </>
               )}
             </div>
@@ -2947,16 +3172,22 @@ function DatabaseMatchBadge({
   alreadyInCampaign,
   campaignContact,
   choice,
+  confirmed,
   affinitiesMapped,
   onChoice,
+  onConfirm,
+  onReopen,
 }: {
   row: PreviewRow
   result: MatchResult | undefined
   alreadyInCampaign: boolean
   campaignContact: CampaignContactSnapshot | undefined
   choice: ExistingContactChoice
+  confirmed: boolean
   affinitiesMapped: boolean
   onChoice: (choice: ExistingContactChoice) => void
+  onConfirm: () => void
+  onReopen: () => void
 }) {
   if (!result) {
     return (
@@ -2971,6 +3202,33 @@ function DatabaseMatchBadge({
       ? buildExistingContactChanges(row, campaignContact, affinitiesMapped)
       : []
 
+    if (confirmed) {
+      return (
+        <div className="min-w-[250px] max-w-[320px]">
+          <span className="inline-flex rounded-full bg-[#ecfdf3] px-2.5 py-1 text-[9px] font-extrabold text-[#027a48]">
+            ✓ Choice confirmed • {choice === 'update'
+              ? 'use newer survey'
+              : 'keep current'}
+          </span>
+
+          {result.matched_student_name && (
+            <div className="mt-1.5 text-[10px] font-semibold leading-4 text-[#667085]">
+              Existing: {result.matched_student_name}
+              {result.existing_uniqname ? ` • ${result.existing_uniqname}` : ''}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={onReopen}
+            className="mt-2 rounded-[8px] border border-[#d0d5dd] bg-white px-2.5 py-1.5 text-[9px] font-extrabold text-[#475467] hover:border-[#98a2b3]"
+          >
+            Change choice
+          </button>
+        </div>
+      )
+    }
+
     return (
       <div className="min-w-[250px] max-w-[320px]">
         <span
@@ -2982,8 +3240,8 @@ function DatabaseMatchBadge({
           ].join(' ')}
         >
           {choice === 'update'
-            ? 'Already in campaign • use newer survey'
-            : 'Already in campaign • keep current'}
+            ? 'Already in campaign • use newer survey selected'
+            : 'Already in campaign • keep current selected'}
         </span>
 
         {result.matched_student_name && (
@@ -3054,6 +3312,14 @@ function DatabaseMatchBadge({
               Use newer survey
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="mt-2 w-full rounded-[8px] border border-[#6ce9a6] bg-[#ecfdf3] px-2.5 py-2 text-[9px] font-extrabold text-[#027a48] hover:border-[#32d583]"
+          >
+            Confirm choice
+          </button>
 
           {choice === 'update' && changes.length > 0 && (
             <div className="mt-2 text-[9px] font-semibold leading-4 text-[#027a48]">

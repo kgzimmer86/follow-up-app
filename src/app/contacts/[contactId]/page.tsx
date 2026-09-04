@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { EditableContactInfo } from '@/components/follow-up/editable-contact-info'
 import { EditableContactLocation } from '@/components/follow-up/editable-contact-location'
+import { HistoryEventActions } from '@/components/follow-up/history-event-actions'
 
 type PageProps = {
   params: Promise<{
@@ -893,6 +894,8 @@ export default async function ContactDetailPage({
           'history' && (
           <HistoryTab
             events={displayEvents}
+            currentUserId={userId}
+            currentUserRole={profile.role}
           />
         )}
 
@@ -1253,8 +1256,12 @@ function SurveyTab({
 
 function HistoryTab({
   events,
+  currentUserId,
+  currentUserRole,
 }: {
   events: DisplayEvent[]
+  currentUserId: string
+  currentUserRole: string
 }) {
   return (
     <Panel title="Follow-up history">
@@ -1325,6 +1332,15 @@ function HistoryTab({
                         {event.notes}
                       </p>
                     )}
+
+                    <HistoryEventActions
+                      event={event}
+                      canEdit={
+                        currentUserRole === 'staff' ||
+                        currentUserRole === 'admin' ||
+                        event.performed_by === currentUserId
+                      }
+                    />
                   </div>
                 </div>
               )

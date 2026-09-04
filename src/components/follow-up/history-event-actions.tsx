@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client'
 
 type HistoryEvent = {
   id: string
+  performed_by: string | null
+  performerName?: string
   event_type: string
   occurred_at: string
   notes: string | null
@@ -32,12 +34,31 @@ type Draft = {
 function HistoryEventActions({
   event,
   canEdit,
+  currentUserId,
+  primaryOwnerId,
+  primaryOwnerName,
 }: {
   event: HistoryEvent
   canEdit: boolean
+  currentUserId: string
+  primaryOwnerId: string | null
+  primaryOwnerName: string | null
 }) {
   const router = useRouter()
   const isKnock = event.event_type === 'knock'
+
+  const deletingPrimaryInteraction =
+    !isKnock &&
+    Boolean(event.performed_by) &&
+    event.performed_by === primaryOwnerId
+
+  const primaryIsCurrentUser =
+    primaryOwnerId === currentUserId
+
+  const primaryLabel =
+    primaryOwnerName ||
+    event.performerName ||
+    'the current primary person'
 
   const original = useMemo(
     () => draftFromEvent(event),
@@ -48,6 +69,9 @@ function HistoryEventActions({
   const [draft, setDraft] = useState<Draft>(original)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [assignmentChoice, setAssignmentChoice] = useState<
+    'keep' | 'unassign' | null
+  >(null)
 
   const changes = useMemo(
     () => buildChanges(original, draft, isKnock),
@@ -67,6 +91,7 @@ function HistoryEventActions({
   function cancel() {
     setDraft(original)
     setError(null)
+    setAssignmentChoice(null)
     setStage('idle')
   }
 
@@ -131,6 +156,16 @@ function HistoryEventActions({
   }
 
   async function confirmDelete() {
+    if (
+      deletingPrimaryInteraction &&
+      assignmentChoice === null
+    ) {
+      setError(
+        'Choose whether the primary assignment should stay or move to Unassigned.'
+      )
+      return
+    }
+
     setSaving(true)
     setError(null)
 
@@ -140,6 +175,9 @@ function HistoryEventActions({
       'delete_follow_up_event',
       {
         p_event_id: event.id,
+        p_unassign_primary:
+          deletingPrimaryInteraction &&
+          assignmentChoice === 'unassign',
       }
     )
 
@@ -150,6 +188,7 @@ function HistoryEventActions({
     }
 
     setSaving(false)
+    setAssignmentChoice(null)
     setStage('idle')
     router.refresh()
   }
@@ -170,6 +209,7 @@ function HistoryEventActions({
             type="button"
             onClick={() => {
               setError(null)
+              setAssignmentChoice(null)
               setStage('delete')
             }}
             className="text-[#b42318] hover:underline"
@@ -370,8 +410,71 @@ function HistoryEventActions({
           </div>
 
           <p className="mt-1 text-xs leading-5 text-[#667085]">
-            This permanently removes the history entry and updates related stats, coaching views, and progress markers. If this leaves the contact with no knocks or interactions, their status will become Uncontacted.
+            This permanently removes the history entry and updates related stats,
+            coaching views, and progress markers. If only knocks remain, status
+            becomes Attempted Contact. If no knocks or interactions remain, status
+            becomes Uncontacted.
           </p>
+
+          {deletingPrimaryInteraction && (
+            <div className="mt-3 rounded-[10px] border border-[#f2c7c3] bg-white p-3">
+              <div className="text-xs font-extrabold text-[#15223a]">
+                What should happen to the primary assignment?
+              </div>
+
+              <p className="mt-1 text-[11px] leading-5 text-[#667085]">
+                {primaryIsCurrentUser
+                  ? 'You are currently the primary follow-up person for this contact.'
+                  : `${primaryLabel} is currently the primary follow-up person and recorded this interaction.`}
+              </p>
+
+              <div className="mt-2 grid gap-2">
+                <label className="flex cursor-pointer items-start gap-2 rounded-[9px] border border-[#e4e7ec] p-2.5">
+                  <input
+                    type="radio"
+                    name={`delete-assignment-${event.id}`}
+                    checked={assignmentChoice === 'keep'}
+                    onChange={() => setAssignmentChoice('keep')}
+                    className="mt-0.5 h-4 w-4"
+                  />
+
+                  <span>
+                    <span className="block text-xs font-extrabold text-[#344054]">
+                      {primaryIsCurrentUser
+                        ? 'Keep me as primary'
+                        : `Keep ${primaryLabel} assigned`}
+                    </span>
+
+                    <span className="mt-0.5 block text-[11px] leading-4 text-[#667085]">
+                      The contact stays assigned and remains in the current primary
+                      person&apos;s My Contacts.
+                    </span>
+                  </span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2 rounded-[9px] border border-[#e4e7ec] p-2.5">
+                  <input
+                    type="radio"
+                    name={`delete-assignment-${event.id}`}
+                    checked={assignmentChoice === 'unassign'}
+                    onChange={() => setAssignmentChoice('unassign')}
+                    className="mt-0.5 h-4 w-4"
+                  />
+
+                  <span>
+                    <span className="block text-xs font-extrabold text-[#344054]">
+                      Move contact to Unassigned
+                    </span>
+
+                    <span className="mt-0.5 block text-[11px] leading-4 text-[#667085]">
+                      Primary ownership is cleared so the contact can be assigned
+                      again.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
 
           {error && <ErrorBox message={error} />}
 
@@ -387,7 +490,11 @@ function HistoryEventActions({
 
             <button
               type="button"
-              disabled={saving}
+              disabled={
+                saving ||
+                (deletingPrimaryInteraction &&
+                  assignmentChoice === null)
+              }
               onClick={confirmDelete}
               className="rounded-[10px] bg-[#b42318] px-3 py-2.5 text-xs font-extrabold text-white disabled:opacity-50"
             >

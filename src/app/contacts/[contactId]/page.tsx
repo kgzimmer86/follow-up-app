@@ -896,6 +896,8 @@ export default async function ContactDetailPage({
             events={displayEvents}
             currentUserId={userId}
             currentUserRole={profile.role}
+            primaryOwnerId={contact.primary_owner_id}
+            primaryOwnerName={ownerName}
           />
         )}
 
@@ -1258,10 +1260,14 @@ function HistoryTab({
   events,
   currentUserId,
   currentUserRole,
+  primaryOwnerId,
+  primaryOwnerName,
 }: {
   events: DisplayEvent[]
   currentUserId: string
   currentUserRole: string
+  primaryOwnerId: string | null
+  primaryOwnerName: string | null
 }) {
   return (
     <Panel title="Follow-up history">
@@ -1340,6 +1346,9 @@ function HistoryTab({
                         currentUserRole === 'admin' ||
                         event.performed_by === currentUserId
                       }
+                      currentUserId={currentUserId}
+                      primaryOwnerId={primaryOwnerId}
+                      primaryOwnerName={primaryOwnerName}
                     />
                   </div>
                 </div>

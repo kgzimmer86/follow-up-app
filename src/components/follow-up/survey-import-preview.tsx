@@ -113,6 +113,37 @@ type CampaignContactSnapshot = {
 
 type ExistingContactChoice = 'keep' | 'update'
 
+type WeakMatchChoice =
+  | 'keep_separate'
+  | 'merge'
+
+type WeakMatchCandidate = {
+  contact_id: string
+  student_id: string
+  display_name: string | null
+  uniqname: string | null
+  umich_email: string | null
+  phone: string | null
+  contact_origin: string | null
+  follow_up_status: string | null
+  primary_owner_id: string | null
+  location_name: string | null
+  room_or_address: string | null
+  identity_conflict: boolean
+  phone_differs: boolean
+  match_reason: string
+}
+
+type WeakMatchResult = {
+  row_number: number
+  candidate_count: number
+  status:
+    | 'no_weak_match'
+    | 'weak_match'
+    | 'multiple_weak_matches'
+  candidates: WeakMatchCandidate[]
+}
+
 type ExistingContactChange = {
   label: string
   currentValue: string
@@ -141,6 +172,7 @@ type ImportResult = {
   students_reused: number
   contacts_created: number
   contacts_updated: number
+  contacts_merged?: number
 }
 
 type DuplicateMeta = {
@@ -482,6 +514,12 @@ export function SurveyImportPreview({
     useState<Set<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [matchResults, setMatchResults] = useState<MatchResult[]>([])
+  const [weakMatchResults, setWeakMatchResults] =
+    useState<WeakMatchResult[]>([])
+  const [weakMatchChoices, setWeakMatchChoices] =
+    useState<Record<number, WeakMatchChoice>>({})
+  const [confirmedWeakMatches, setConfirmedWeakMatches] =
+    useState<Record<number, string>>({})
   const [checkingMatches, setCheckingMatches] = useState(false)
   const [matchError, setMatchError] = useState<string | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -713,6 +751,19 @@ export function SurveyImportPreview({
     [matchResults]
   )
 
+  const weakMatchMap = useMemo(
+    () =>
+      new Map(
+        weakMatchResults.map(
+          (result) => [
+            result.row_number,
+            result,
+          ]
+        )
+      ),
+    [weakMatchResults]
+  )
+
   const selectedCampaign =
     campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null
 
@@ -816,6 +867,100 @@ export function SurveyImportPreview({
     )
   }
 
+  const weakMatchChoiceToken = (
+    rowNumber: number
+  ) => {
+    const choice =
+      weakMatchChoices[
+        rowNumber
+      ]
+
+    const result =
+      weakMatchMap.get(
+        rowNumber
+      )
+
+    if (
+      !choice ||
+      !result ||
+      result.candidate_count === 0
+    ) {
+      return null
+    }
+
+    if (choice === 'keep_separate') {
+      return 'keep_separate'
+    }
+
+    if (
+      choice === 'merge' &&
+      result.candidate_count === 1 &&
+      result.candidates[0]?.contact_id
+    ) {
+      return `merge:${result.candidates[0].contact_id}`
+    }
+
+    return null
+  }
+
+  const isWeakMatchConfirmed = (
+    rowNumber: number
+  ) => {
+    const token =
+      weakMatchChoiceToken(
+        rowNumber
+      )
+
+    return Boolean(
+      token &&
+      confirmedWeakMatches[
+        rowNumber
+      ] === token
+    )
+  }
+
+  const isWeakMergeConfirmed = (
+    rowNumber: number
+  ) =>
+    weakMatchChoices[
+      rowNumber
+    ] === 'merge' &&
+    isWeakMatchConfirmed(
+      rowNumber
+    )
+
+  const rowsToMerge = useMemo(
+    () =>
+      rowsToAdd.filter(
+        (row) =>
+          isWeakMergeConfirmed(
+            row.rowNumber
+          )
+      ),
+    [
+      rowsToAdd,
+      weakMatchChoices,
+      confirmedWeakMatches,
+      weakMatchResults,
+    ]
+  )
+
+  const rowsToCreate = useMemo(
+    () =>
+      rowsToAdd.filter(
+        (row) =>
+          !isWeakMergeConfirmed(
+            row.rowNumber
+          )
+      ),
+    [
+      rowsToAdd,
+      weakMatchChoices,
+      confirmedWeakMatches,
+      weakMatchResults,
+    ]
+  )
+
   const rowNeedsActiveDatabaseReview = (
     row: PreviewRow
   ) => {
@@ -825,6 +970,21 @@ export function SurveyImportPreview({
       )
     ) {
       return false
+    }
+
+    const weakMatch =
+      weakMatchMap.get(
+        row.rowNumber
+      )
+
+    if (
+      weakMatch &&
+      weakMatch.candidate_count > 0 &&
+      !isWeakMatchConfirmed(
+        row.rowNumber
+      )
+    ) {
+      return true
     }
 
     const status =
@@ -920,6 +1080,9 @@ export function SurveyImportPreview({
     confirmedExistingMatches,
     alreadyInCampaignRowNumbers,
     identityDirtyRows,
+    weakMatchMap,
+    weakMatchChoices,
+    confirmedWeakMatches,
   ])
 
   const blockingCsvCount =
@@ -960,6 +1123,9 @@ export function SurveyImportPreview({
       confirmedExistingMatches,
       alreadyInCampaignRowNumbers,
       identityDirtyRows,
+      weakMatchMap,
+      weakMatchChoices,
+      confirmedWeakMatches,
     ]
   )
 
@@ -978,6 +1144,9 @@ export function SurveyImportPreview({
     importRows.every(
       (row) =>
         matchMap.has(
+          row.rowNumber
+        ) &&
+        weakMatchMap.has(
           row.rowNumber
         ) &&
         !identityDirtyRows.has(
@@ -1553,6 +1722,7 @@ export function SurveyImportPreview({
     resetExistingReview = false
   ) {
     setMatchResults([])
+    setWeakMatchResults([])
     setMatchError(null)
     setCheckingMatches(false)
     setShowConfirm(false)
@@ -1564,6 +1734,8 @@ export function SurveyImportPreview({
     if (resetExistingReview) {
       setExistingContactChoices({})
       setConfirmedExistingMatches({})
+      setWeakMatchChoices({})
+      setConfirmedWeakMatches({})
       setIdentityDirtyRows(new Set())
     }
   }
@@ -1994,6 +2166,97 @@ export function SurveyImportPreview({
     setImportError(null)
   }
 
+  function chooseWeakMatch(
+    rowNumber: number,
+    choice: WeakMatchChoice
+  ) {
+    setWeakMatchChoices(
+      (current) => ({
+        ...current,
+        [rowNumber]:
+          choice,
+      })
+    )
+
+    setConfirmedWeakMatches(
+      (current) => {
+        const next = {
+          ...current,
+        }
+
+        delete next[
+          rowNumber
+        ]
+
+        return next
+      }
+    )
+
+    setShowConfirm(false)
+    setImportError(null)
+  }
+
+  function confirmWeakMatch(
+    rowNumber: number
+  ) {
+    const token =
+      weakMatchChoiceToken(
+        rowNumber
+      )
+
+    if (!token) {
+      return
+    }
+
+    const result =
+      weakMatchMap.get(
+        rowNumber
+      )
+
+    if (
+      token.startsWith('merge:') &&
+      (
+        result?.candidate_count !== 1 ||
+        result.candidates[0]?.identity_conflict ||
+        result.candidates[0]?.phone_differs
+      )
+    ) {
+      return
+    }
+
+    setConfirmedWeakMatches(
+      (current) => ({
+        ...current,
+        [rowNumber]:
+          token,
+      })
+    )
+
+    setShowConfirm(false)
+    setImportError(null)
+  }
+
+  function reopenWeakMatch(
+    rowNumber: number
+  ) {
+    setConfirmedWeakMatches(
+      (current) => {
+        const next = {
+          ...current,
+        }
+
+        delete next[
+          rowNumber
+        ]
+
+        return next
+      }
+    )
+
+    setShowConfirm(false)
+    setImportError(null)
+  }
+
   async function checkExistingStudents() {
     if (!requiredMapped || !selectedCampaignId) return
 
@@ -2001,6 +2264,9 @@ export function SurveyImportPreview({
     setMatchError(null)
     setCampaignMemberStudentIds(new Set())
     setCampaignContacts([])
+    setWeakMatchResults([])
+    setWeakMatchChoices({})
+    setConfirmedWeakMatches({})
     setCheckedCampaignId(null)
 
     const supabase = createClient()
@@ -2027,6 +2293,89 @@ export function SurveyImportPreview({
     }
 
     const nextMatches = (data ?? []) as MatchResult[]
+
+    const weakPayload =
+      importRows.map(
+        (row) => ({
+          row_number:
+            row.rowNumber,
+          name:
+            row.name,
+          uniqname:
+            row.uniqname ||
+            null,
+          phone:
+            row.phoneNormalized ||
+            null,
+          location:
+            row.location ===
+            'Wolverine Village'
+              ? 'The Village'
+              : CANONICAL_LOCATIONS.includes(
+                    row.location
+                  )
+                ? row.location
+                : null,
+          room_or_address:
+            row.room.trim() ||
+            null,
+        })
+      )
+
+    const {
+      data: weakData,
+      error: weakError,
+    } = await supabase.rpc(
+      'preview_survey_import_weak_matches',
+      {
+        p_campaign_id:
+          selectedCampaignId,
+        p_rows:
+          weakPayload,
+      }
+    )
+
+    if (weakError) {
+      setMatchError(
+        weakError.message
+      )
+      setMatchResults([])
+      setWeakMatchResults([])
+      setCheckingMatches(false)
+      return
+    }
+
+    const strongMatchedRows =
+      new Set(
+        nextMatches
+          .filter(
+            (result) =>
+              Boolean(
+                result.matched_student_id
+              )
+          )
+          .map(
+            (result) =>
+              result.row_number
+          )
+      )
+
+    const nextWeakMatches =
+      ((weakData ?? []) as WeakMatchResult[]).map(
+        (result) =>
+          strongMatchedRows.has(
+            result.row_number
+          )
+            ? {
+                ...result,
+                candidate_count: 0,
+                status:
+                  'no_weak_match' as const,
+                candidates: [],
+              }
+            : result
+      )
+
     const matchedStudentIds = Array.from(
       new Set(
         nextMatches
@@ -2171,6 +2520,7 @@ export function SurveyImportPreview({
     )
 
     setMatchResults(nextMatches)
+    setWeakMatchResults(nextWeakMatches)
     setCampaignMemberStudentIds(nextCampaignMembers)
     setCampaignContacts(nextCampaignContacts)
     setIdentityDirtyRows(new Set())
@@ -2209,6 +2559,20 @@ export function SurveyImportPreview({
             alreadyInCampaign &&
             existingContactChoices[row.rowNumber] === 'update'
 
+          const weakMatch =
+            weakMatchMap.get(
+              row.rowNumber
+            )
+
+          const mergeContactId =
+            isWeakMergeConfirmed(
+              row.rowNumber
+            ) &&
+            weakMatch?.candidate_count === 1
+              ? weakMatch.candidates[0]?.contact_id ??
+                null
+              : null
+
           const action =
             duplicate?.skip ||
             isExcluded ||
@@ -2216,7 +2580,9 @@ export function SurveyImportPreview({
               ? 'skip'
               : useNewerSurvey
                 ? 'update_existing'
-                : 'import'
+                : mergeContactId
+                  ? 'merge_into_existing'
+                  : 'import'
 
           const skipReason =
             duplicate?.skip
@@ -2231,6 +2597,8 @@ export function SurveyImportPreview({
             row_number:
               row.rowNumber,
             action,
+            merge_contact_id:
+              mergeContactId,
             skip_reason:
               skipReason,
             raw_data:
@@ -2304,7 +2672,7 @@ export function SurveyImportPreview({
       data,
       error: rpcError,
     } = await supabase.rpc(
-      'import_survey_rows',
+      'import_survey_rows_v2',
       {
         p_campaign_id:
           selectedCampaignId,
@@ -3110,7 +3478,30 @@ export function SurveyImportPreview({
                                         row.rowNumber
                                       )?.matched_student_id
                                   }
+                                  weakMatchResult={
+                                    matchMap.get(row.rowNumber)?.matched_student_id
+                                      ? undefined
+                                      : weakMatchMap.get(row.rowNumber)
+                                  }
+                                  weakChoice={weakMatchChoices[row.rowNumber]}
+                                  weakConfirmed={isWeakMatchConfirmed(row.rowNumber)}
                                   affinitiesMapped={Boolean(mapping.affinities)}
+                                  onWeakChoice={(choice) =>
+                                    chooseWeakMatch(
+                                      row.rowNumber,
+                                      choice
+                                    )
+                                  }
+                                  onWeakConfirm={() =>
+                                    confirmWeakMatch(
+                                      row.rowNumber
+                                    )
+                                  }
+                                  onWeakReopen={() =>
+                                    reopenWeakMatch(
+                                      row.rowNumber
+                                    )
+                                  }
                                   onChoice={(choice) =>
                                     chooseExistingContactVersion(
                                       row.rowNumber,
@@ -3317,7 +3708,7 @@ export function SurveyImportPreview({
                 Survey responses are now in Follow Up.
               </h3>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 <FinalStat
                   value={importResult.imported_rows}
                   label="Rows imported"
@@ -3331,8 +3722,16 @@ export function SurveyImportPreview({
                   label="Contacts created"
                 />
                 <FinalStat
-                  value={importResult.contacts_updated}
+                  value={Math.max(
+                    0,
+                    importResult.contacts_updated -
+                      (importResult.contacts_merged ?? 0)
+                  )}
                   label="Existing refreshed"
+                />
+                <FinalStat
+                  value={importResult.contacts_merged ?? 0}
+                  label="Field matches merged"
                 />
               </div>
 
@@ -3387,10 +3786,14 @@ export function SurveyImportPreview({
                 </div>
               )}
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
                 <FinalStat
-                  value={rowsToAdd.length}
+                  value={rowsToCreate.length}
                   label="New contacts to add"
+                />
+                <FinalStat
+                  value={rowsToMerge.length}
+                  label="Field matches to merge"
                 />
                 <FinalStat
                   value={rowsToUpdate.length}
@@ -3480,7 +3883,7 @@ export function SurveyImportPreview({
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Follow Up will add {rowsToAdd.length.toLocaleString()} new {rowsToAdd.length === 1 ? 'contact' : 'contacts'} and refresh {rowsToUpdate.length.toLocaleString()} existing {rowsToUpdate.length === 1 ? 'contact' : 'contacts'} from the newer survey response. {existingContactsKeptCount.toLocaleString()} existing {existingContactsKeptCount === 1 ? 'contact will' : 'contacts will'} keep the current survey version. {excludedPreviewRows.length.toLocaleString()} excluded rows and {duplicatesSkipped.toLocaleString()} repeat submissions will be recorded as skipped in import history.
+                  Follow Up will add {rowsToCreate.length.toLocaleString()} new {rowsToCreate.length === 1 ? 'contact' : 'contacts'}, merge {rowsToMerge.length.toLocaleString()} incoming survey {rowsToMerge.length === 1 ? 'row' : 'rows'} into reviewed field-added {rowsToMerge.length === 1 ? 'contact' : 'contacts'}, and refresh {rowsToUpdate.length.toLocaleString()} existing {rowsToUpdate.length === 1 ? 'contact' : 'contacts'} from the newer survey response. {existingContactsKeptCount.toLocaleString()} existing {existingContactsKeptCount === 1 ? 'contact will' : 'contacts will'} keep the current survey version. {excludedPreviewRows.length.toLocaleString()} excluded rows and {duplicatesSkipped.toLocaleString()} repeat submissions will be recorded as skipped in import history.
                 </p>
 
                 {nonBlockingWarningCount > 0 && (
@@ -3998,7 +4401,13 @@ function DatabaseMatchBadge({
   campaignContact,
   choice,
   confirmed,
+  weakMatchResult,
+  weakChoice,
+  weakConfirmed,
   affinitiesMapped,
+  onWeakChoice,
+  onWeakConfirm,
+  onWeakReopen,
   onChoice,
   onConfirm,
   onReopen,
@@ -4009,7 +4418,13 @@ function DatabaseMatchBadge({
   campaignContact: CampaignContactSnapshot | undefined
   choice: ExistingContactChoice
   confirmed: boolean
+  weakMatchResult: WeakMatchResult | undefined
+  weakChoice: WeakMatchChoice | undefined
+  weakConfirmed: boolean
   affinitiesMapped: boolean
+  onWeakChoice: (choice: WeakMatchChoice) => void
+  onWeakConfirm: () => void
+  onWeakReopen: () => void
   onChoice: (choice: ExistingContactChoice) => void
   onConfirm: () => void
   onReopen: () => void
@@ -4152,6 +4567,167 @@ function DatabaseMatchBadge({
             </div>
           )}
         </div>
+      </div>
+    )
+  }
+
+  if (
+    weakMatchResult &&
+    weakMatchResult.candidate_count > 0
+  ) {
+    const candidate =
+      weakMatchResult.candidate_count === 1
+        ? weakMatchResult.candidates[0]
+        : null
+
+    const mergeBlocked =
+      !candidate ||
+      candidate.identity_conflict ||
+      candidate.phone_differs
+
+    if (weakConfirmed) {
+      return (
+        <div className="min-w-[270px] max-w-[340px]">
+          <span className="inline-flex rounded-full bg-[#ecfdf3] px-2.5 py-1 text-[9px] font-extrabold text-[#027a48]">
+            ✓ Choice confirmed • {weakChoice === 'merge'
+              ? 'merge with field contact'
+              : 'keep separate'}
+          </span>
+
+          {candidate && (
+            <div className="mt-1.5 text-[10px] font-semibold leading-4 text-[#667085]">
+              Field contact: {candidate.display_name || 'Unnamed'}
+              {candidate.location_name ? ` • ${candidate.location_name}` : ''}
+              {candidate.room_or_address ? ` • ${candidate.room_or_address}` : ''}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={onWeakReopen}
+            className="mt-2 rounded-[8px] border border-[#d0d5dd] bg-white px-2.5 py-1.5 text-[9px] font-extrabold text-[#475467] hover:border-[#98a2b3]"
+          >
+            Change choice
+          </button>
+        </div>
+      )
+    }
+
+    return (
+      <div className="min-w-[270px] max-w-[340px] rounded-[10px] border border-[#fedf89] bg-[#fffaf0] p-2.5">
+        <div className="text-[9px] font-extrabold uppercase tracking-[0.06em] text-[#b54708]">
+          Possible field-added match
+        </div>
+
+        <div className="mt-1 text-[10px] font-semibold leading-4 text-[#667085]">
+          Same or compatible name + same location + same room/address. This is only a possible match and will never merge automatically.
+        </div>
+
+        {candidate ? (
+          <div className="mt-2 grid gap-2">
+            <div className="rounded-[8px] bg-white px-2.5 py-2">
+              <div className="text-[9px] font-extrabold text-[#344054]">
+                Survey row
+              </div>
+              <div className="mt-0.5 text-[10px] leading-4 text-[#667085]">
+                {row.name || 'Unnamed'}
+                {row.location ? ` • ${row.location}` : ''}
+                {row.room ? ` • ${row.room}` : ''}
+              </div>
+              {(row.uniqname || row.phoneNormalized) && (
+                <div className="mt-1 text-[9px] font-semibold leading-4 text-[#667085]">
+                  {row.uniqname ? `${row.uniqname}@umich.edu` : ''}
+                  {row.uniqname && row.phoneNormalized ? ' • ' : ''}
+                  {row.phoneNormalized ? formatPhone(row.phoneNormalized) : ''}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-[8px] bg-white px-2.5 py-2">
+              <div className="text-[9px] font-extrabold text-[#344054]">
+                Field-added contact
+              </div>
+              <div className="mt-0.5 text-[10px] leading-4 text-[#667085]">
+                {candidate.display_name || 'Unnamed'}
+                {candidate.location_name ? ` • ${candidate.location_name}` : ''}
+                {candidate.room_or_address ? ` • ${candidate.room_or_address}` : ''}
+              </div>
+              {(candidate.uniqname || candidate.phone) && (
+                <div className="mt-1 text-[9px] font-semibold leading-4 text-[#667085]">
+                  {candidate.uniqname
+                    ? `${candidate.uniqname}@umich.edu`
+                    : ''}
+                  {candidate.uniqname && candidate.phone ? ' • ' : ''}
+                  {candidate.phone ? formatPhone(candidate.phone) : ''}
+                </div>
+              )}
+            </div>
+
+            {mergeBlocked && (
+              <div className="rounded-[8px] border border-[#fecdca] bg-[#fef3f2] px-2.5 py-2 text-[9px] font-semibold leading-4 text-[#b42318]">
+                Merge is disabled because the two records have conflicting strong identity information
+                {candidate.identity_conflict && candidate.phone_differs
+                  ? ' (U-M identity and phone).'
+                  : candidate.identity_conflict
+                    ? ' (U-M identity).'
+                    : ' (phone).'}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="mt-2 rounded-[8px] border border-[#fecdca] bg-[#fef3f2] px-2.5 py-2 text-[9px] font-semibold leading-4 text-[#b42318]">
+            Multiple field-added contacts match this name, location, and room. The importer will not guess which one is correct.
+          </div>
+        )}
+
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => onWeakChoice('keep_separate')}
+            className={[
+              'rounded-[8px] border px-2 py-1.5 text-[9px] font-extrabold transition',
+              weakChoice === 'keep_separate'
+                ? 'border-[#6172f3] bg-[#eef4ff] text-[#3538cd]'
+                : 'border-[#d0d5dd] bg-white text-[#475467] hover:border-[#98a2b3]',
+            ].join(' ')}
+          >
+            Keep separate
+          </button>
+
+          <button
+            type="button"
+            disabled={mergeBlocked}
+            onClick={() => onWeakChoice('merge')}
+            className={[
+              'rounded-[8px] border px-2 py-1.5 text-[9px] font-extrabold transition',
+              mergeBlocked
+                ? 'cursor-not-allowed border-[#e4e7ec] bg-[#f9fafb] text-[#98a2b3]'
+                : weakChoice === 'merge'
+                  ? 'border-[#12b76a] bg-[#ecfdf3] text-[#027a48]'
+                  : 'border-[#abefc6] bg-white text-[#027a48] hover:bg-[#ecfdf3]',
+            ].join(' ')}
+          >
+            Merge records
+          </button>
+        </div>
+
+        <div className="mt-2 text-[9px] font-semibold leading-4 text-[#667085]">
+          <strong className="text-[#344054]">Merge records</strong> keeps the field-added contact and its Follow Up history, adds the incoming survey information, then removes the duplicate survey record. <strong className="text-[#344054]">Keep separate</strong> imports this survey row as a different person.
+        </div>
+
+        <button
+          type="button"
+          disabled={!weakChoice || (weakChoice === 'merge' && mergeBlocked)}
+          onClick={onWeakConfirm}
+          className={[
+            'mt-2 w-full rounded-[8px] border px-2.5 py-2 text-[9px] font-extrabold',
+            !weakChoice || (weakChoice === 'merge' && mergeBlocked)
+              ? 'cursor-not-allowed border-[#e4e7ec] bg-[#f9fafb] text-[#98a2b3]'
+              : 'border-[#6ce9a6] bg-[#ecfdf3] text-[#027a48] hover:border-[#32d583]',
+          ].join(' ')}
+        >
+          Confirm choice
+        </button>
       </div>
     )
   }

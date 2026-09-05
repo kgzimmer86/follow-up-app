@@ -134,13 +134,33 @@ export function AddPersonModal({
       formData.get('gender') ?? ''
     ).trim()
 
-    const phone = String(
+    const rawPhone = String(
       formData.get('phone') ?? ''
     ).trim()
 
-    const uniqname = String(
+    const rawIdentity = String(
       formData.get('uniqname') ?? ''
     ).trim()
+
+    const phoneResult =
+      normalizedPhoneForSave(rawPhone)
+
+    if (phoneResult.error) {
+      setErrorMessage(phoneResult.error)
+      return
+    }
+
+    const identityResult =
+      normalizeUmichIdentity(rawIdentity)
+
+    if (identityResult.error) {
+      setErrorMessage(identityResult.error)
+      return
+    }
+
+    const phone = phoneResult.value
+    const uniqname =
+      identityResult.uniqname
 
     const areaId = String(
       formData.get('areaId') ?? ''
@@ -382,7 +402,13 @@ export function AddPersonModal({
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder="734-555-1234"
+                placeholder="(734) 555-1234"
+                onInput={(event) => {
+                  event.currentTarget.value =
+                    formatPhone(
+                      event.currentTarget.value
+                    )
+                }}
                 className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-600"
               />
             </div>
@@ -392,7 +418,7 @@ export function AddPersonModal({
                 htmlFor="field-person-uniqname"
                 className="block text-sm font-extrabold text-slate-800"
               >
-                Uniqname
+                U-M uniqname / email
                 <span className="ml-1 font-semibold text-slate-400">
                   optional
                 </span>
@@ -405,13 +431,24 @@ export function AddPersonModal({
                 autoCapitalize="none"
                 autoCorrect="off"
                 autoComplete="off"
-                placeholder="csmith"
+                placeholder="csmith or csmith@umich.edu"
+                onBlur={(event) => {
+                  const result =
+                    normalizeUmichIdentity(
+                      event.currentTarget.value
+                    )
+
+                  if (!result.error) {
+                    event.currentTarget.value =
+                      result.uniqname
+                  }
+                }}
                 className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-600"
               />
             </div>
 
             <p className="text-xs text-slate-500">
-              Only a name is required. You can fill in identity and location details later.
+              Only a name is required. Phone formatting and U-M identity are normalized automatically; you can fill in the rest later.
             </p>
 
             {errorMessage && (
@@ -448,4 +485,137 @@ export function AddPersonModal({
       </div>
     </div>
   )
+}
+
+function phoneDigits(value: string) {
+  let digits = value.replace(/\D/g, '')
+
+  if (
+    digits.length === 11 &&
+    digits.startsWith('1')
+  ) {
+    digits = digits.slice(1)
+  }
+
+  if (digits.length > 10) {
+    digits = digits.slice(-10)
+  }
+
+  return digits
+}
+
+function formatPhone(value: string) {
+  const digits = phoneDigits(value)
+
+  if (!digits) return ''
+
+  if (digits.length <= 3) {
+    return digits
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  }
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`
+}
+
+function normalizedPhoneForSave(
+  value: string
+) {
+  const rawDigits = value.replace(/\D/g, '')
+  let digits = rawDigits
+
+  if (
+    digits.length === 11 &&
+    digits.startsWith('1')
+  ) {
+    digits = digits.slice(1)
+  } else if (digits.length > 10) {
+    digits = digits.slice(-10)
+  }
+
+  if (!digits) {
+    return {
+      value: '',
+      error: null as string | null,
+    }
+  }
+
+  if (digits.length !== 10) {
+    return {
+      value: '',
+      error:
+        'Enter a 10-digit phone number, or leave it blank.',
+    }
+  }
+
+  return {
+    value: digits,
+    error: null as string | null,
+  }
+}
+
+function normalizeUmichIdentity(
+  value: string
+) {
+  let normalized = value
+    .trim()
+    .toLowerCase()
+
+  if (!normalized) {
+    return {
+      uniqname: '',
+      email: '',
+      error: null as string | null,
+    }
+  }
+
+  while (
+    normalized.endsWith(
+      '@umich.edu@umich.edu'
+    )
+  ) {
+    normalized = normalized.replace(
+      /@umich\.edu@umich\.edu$/,
+      '@umich.edu'
+    )
+  }
+
+  let uniqname = normalized
+
+  if (normalized.includes('@')) {
+    if (
+      !/^[a-z0-9._-]+@umich\.edu$/.test(
+        normalized
+      )
+    ) {
+      return {
+        uniqname: '',
+        email: '',
+        error:
+          'Enter a U-M uniqname or an @umich.edu email address.',
+      }
+    }
+
+    uniqname = normalized.split('@')[0]
+  }
+
+  if (
+    !uniqname ||
+    !/^[a-z0-9._-]+$/.test(uniqname)
+  ) {
+    return {
+      uniqname: '',
+      email: '',
+      error:
+        'Enter a valid U-M uniqname or @umich.edu email address.',
+    }
+  }
+
+  return {
+    uniqname,
+    email: `${uniqname}@umich.edu`,
+    error: null as string | null,
+  }
 }

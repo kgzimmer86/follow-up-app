@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
+import { AddPersonModal } from '@/components/follow-up/add-person-modal'
 
 type AppShellProps = {
   children: ReactNode
@@ -27,6 +28,8 @@ export function AppShell({
   const pathname = usePathname()
   const router = useRouter()
   const [profileMenuOpen, setProfileMenuOpen] =
+    useState(false)
+  const [addPersonOpen, setAddPersonOpen] =
     useState(false)
   const profileMenuRef =
     useRef<HTMLDivElement | null>(null)
@@ -244,6 +247,28 @@ export function AppShell({
                   </div>
 
                   <div className="p-1.5">
+                    <div className="px-3 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#98a2b3]">
+                      Field tools
+                    </div>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setProfileMenuOpen(false)
+                        setAddPersonOpen(true)
+                      }}
+                      className="flex w-full items-center rounded-[10px] px-3 py-2.5 text-left text-sm font-extrabold text-[#175cd3] transition hover:bg-[#eff8ff]"
+                    >
+                      + Add person
+                    </button>
+
+                    <div className="my-1.5 border-t border-[#eef0f3]" />
+
+                    <div className="px-3 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#98a2b3]">
+                      Account
+                    </div>
+
                     <Link
                       href="/profile"
                       role="menuitem"
@@ -294,6 +319,13 @@ export function AppShell({
           </Link>
         ))}
       </nav>
+
+      <AddPersonModal
+        open={addPersonOpen}
+        onClose={() =>
+          setAddPersonOpen(false)
+        }
+      />
     </div>
   )
 }

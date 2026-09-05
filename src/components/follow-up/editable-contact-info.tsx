@@ -611,8 +611,10 @@ export function EditableContactInfo({
             error={error}
             onBack={() => {
               setError(null)
+              setSuccess(null)
               setDuplicateReview(null)
-              setStage('review')
+              setDraft(saved)
+              setStage('view')
             }}
             onKeepSeparate={
               keepSeparate

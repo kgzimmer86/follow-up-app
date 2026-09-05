@@ -16,6 +16,68 @@ type Stage =
   | 'view'
   | 'edit'
   | 'review'
+  | 'duplicate'
+
+type DuplicateContact = {
+  contact_id?: string | null
+  student_id?: string | null
+  display_name?: string | null
+  phone?: string | null
+  uniqname?: string | null
+  umich_email?: string | null
+  contact_origin?: string | null
+  survey_submitted_at?: string | null
+  location_name?: string | null
+  room_or_address?: string | null
+}
+
+type MergePreview = {
+  can_merge?: boolean
+  blocked_reason?: string | null
+  recommended_preferred_data_contact_id?: string | null
+  signals?: {
+    strong_match?: boolean
+    uniqname_match?: boolean
+    phone_match?: boolean
+    weak_name_location_room_match?: boolean
+    identity_conflict?: boolean
+  } | null
+}
+
+type IdentityEditResult = {
+  status?:
+    | 'saved'
+    | 'saved_separate'
+    | 'merged'
+    | 'needs_merge_review'
+    | 'needs_manual_review'
+
+  needs_merge_review?: boolean
+  message?: string | null
+
+  contact_id?: string | null
+  student_id?: string | null
+  display_name?: string | null
+  phone?: string | null
+  umich_email?: string | null
+  uniqname?: string | null
+  room_or_address?: string | null
+
+  skipped_fields?: string[] | null
+
+  match_reasons?: string[] | null
+  current_contact?: DuplicateContact | null
+  candidate_contact?: DuplicateContact | null
+  proposed?: {
+    display_name?: string | null
+    phone?: string | null
+    umich_email?: string | null
+    uniqname?: string | null
+    room_or_address?: string | null
+  } | null
+
+  merge_preview?: MergePreview | null
+}
 
 type EditableContactInfoProps = {
   contactId: string
@@ -74,6 +136,13 @@ export function EditableContactInfo({
   const [success, setSuccess] =
     useState<string | null>(null)
 
+  const [
+    duplicateReview,
+    setDuplicateReview,
+  ] = useState<IdentityEditResult | null>(
+    null
+  )
+
   const reviewedDraft =
     normalizeForReview(draft, saved)
 
@@ -84,17 +153,20 @@ export function EditableContactInfo({
     setDraft(saved)
     setError(null)
     setSuccess(null)
+    setDuplicateReview(null)
     setStage('edit')
   }
 
   function cancelEdit() {
     setDraft(saved)
     setError(null)
+    setDuplicateReview(null)
     setStage('view')
   }
 
   function reviewChanges() {
     setError(null)
+    setDuplicateReview(null)
 
     const phoneResult =
       normalizedPhoneForSave(draft.phone)
@@ -139,11 +211,12 @@ export function EditableContactInfo({
     setStage('review')
   }
 
-  async function confirmChanges() {
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
-
+  async function callUpdate(
+    action:
+      | 'review'
+      | 'keep_separate'
+      | 'merge'
+  ) {
     const supabase =
       createClient()
 
@@ -151,7 +224,7 @@ export function EditableContactInfo({
       data,
       error: rpcError,
     } = await supabase.rpc(
-      'update_follow_up_contact_info',
+      'update_follow_up_contact_info_v2',
       {
         p_contact_id: contactId,
         p_display_name:
@@ -162,23 +235,115 @@ export function EditableContactInfo({
           reviewedDraft.umichEmail,
         p_room_or_address:
           reviewedDraft.roomOrAddress,
+        p_conflict_action: action,
       }
     )
 
     if (rpcError) {
-      setSaving(false)
-      setError(rpcError.message)
-      return
+      throw new Error(rpcError.message)
     }
 
-    const result =
-      (data ?? {}) as {
-        display_name?: string | null
-        phone?: string | null
-        umich_email?: string | null
-        room_or_address?: string | null
+    return (data ?? {}) as IdentityEditResult
+  }
+
+  async function confirmChanges() {
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const result =
+        await callUpdate('review')
+
+      if (
+        result.status ===
+          'needs_merge_review' ||
+        result.needs_merge_review === true
+      ) {
+        setDuplicateReview(result)
+        setStage('duplicate')
+        setSaving(false)
+        return
       }
 
+      if (
+        result.status ===
+        'needs_manual_review'
+      ) {
+        setSaving(false)
+        setError(
+          result.message ||
+            'This identity needs manual review. No changes were saved.'
+        )
+        return
+      }
+
+      finishSuccessfulSave(
+        result,
+        result.message ||
+          'Contact information updated.'
+      )
+    } catch (caught) {
+      setSaving(false)
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Contact information could not be updated.'
+      )
+    }
+  }
+
+  async function keepSeparate() {
+    setSaving(true)
+    setError(null)
+
+    try {
+      const result =
+        await callUpdate(
+          'keep_separate'
+        )
+
+      finishSuccessfulSave(
+        result,
+        keepSeparateMessage(result)
+      )
+    } catch (caught) {
+      setSaving(false)
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'The contacts could not be kept separate.'
+      )
+    }
+  }
+
+  async function mergeContacts() {
+    setSaving(true)
+    setError(null)
+
+    try {
+      const result =
+        await callUpdate('merge')
+
+      finishSuccessfulSave(
+        result,
+        result.message ||
+          'Duplicate contacts merged.'
+      )
+    } catch (caught) {
+      setSaving(false)
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'The contacts could not be merged.'
+      )
+    }
+  }
+
+  function finishSuccessfulSave(
+    result: IdentityEditResult,
+    message: string
+  ) {
     const nextSaved: ContactInfo = {
       displayName:
         result.display_name ??
@@ -200,11 +365,10 @@ export function EditableContactInfo({
 
     setSaved(nextSaved)
     setDraft(nextSaved)
+    setDuplicateReview(null)
     setStage('view')
     setSaving(false)
-    setSuccess(
-      'Contact information updated.'
-    )
+    setSuccess(message)
 
     router.refresh()
   }
@@ -432,12 +596,273 @@ export function EditableContactInfo({
               className="rounded-[11px] bg-[#00274c] px-3 py-3 text-sm font-extrabold text-white disabled:opacity-50"
             >
               {saving
-                ? 'Saving...'
+                ? 'Checking...'
                 : 'Confirm Changes'}
             </button>
           </div>
         </div>
       )}
+
+      {stage === 'duplicate' &&
+        duplicateReview && (
+          <DuplicateReview
+            review={duplicateReview}
+            saving={saving}
+            error={error}
+            onBack={() => {
+              setError(null)
+              setDuplicateReview(null)
+              setStage('review')
+            }}
+            onKeepSeparate={
+              keepSeparate
+            }
+            onMerge={mergeContacts}
+          />
+        )}
+    </div>
+  )
+}
+
+function DuplicateReview({
+  review,
+  saving,
+  error,
+  onBack,
+  onKeepSeparate,
+  onMerge,
+}: {
+  review: IdentityEditResult
+  saving: boolean
+  error: string | null
+  onBack: () => void
+  onKeepSeparate: () => void
+  onMerge: () => void
+}) {
+  const current =
+    review.current_contact ?? {}
+
+  const candidate =
+    review.candidate_contact ?? {}
+
+  const mergePreview =
+    review.merge_preview ?? {}
+
+  const canMerge =
+    mergePreview.can_merge !== false
+
+  const reasons =
+    readableMatchReasons(
+      review.match_reasons
+    )
+
+  return (
+    <div>
+      <div className="rounded-[14px] border border-[#fdb022] bg-[#fffaeb] p-4">
+        <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#b54708]">
+          Possible duplicate
+        </div>
+
+        <div className="mt-1 text-base font-extrabold text-[#15223a]">
+          This information matches
+          another Follow Up contact.
+        </div>
+
+        <p className="mt-2 text-xs leading-5 text-[#667085]">
+          Nothing has been merged yet.
+          Compare the two records before
+          deciding whether they are the
+          same person.
+        </p>
+
+        {reasons && (
+          <div className="mt-3 rounded-[10px] bg-white/70 px-3 py-2 text-xs font-bold text-[#7a2e0e]">
+            Match: {reasons}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <ContactCompareCard
+          eyebrow="Contact you are editing"
+          contact={current}
+        />
+
+        <ContactCompareCard
+          eyebrow="Existing possible match"
+          contact={candidate}
+        />
+      </div>
+
+      {!canMerge && (
+        <div className="mt-4 rounded-[12px] border border-[#fecdca] bg-[#fef3f2] px-3 py-3 text-xs font-bold leading-5 text-[#b42318]">
+          {mergePreview.blocked_reason ||
+            'These records cannot be safely merged from this screen.'}
+        </div>
+      )}
+
+      <div className="mt-4 rounded-[12px] border border-[#d0d5dd] bg-[#f9fafb] px-3.5 py-3">
+        <div className="text-xs font-extrabold text-[#15223a]">
+          What each choice does
+        </div>
+
+        <div className="mt-2 space-y-2 text-xs leading-5 text-[#667085]">
+          <p>
+            <strong className="text-[#344054]">
+              Merge contacts
+            </strong>{' '}
+            combines their Follow Up
+            history into the contact you
+            are editing and removes the
+            duplicate record.
+          </p>
+
+          <p>
+            <strong className="text-[#344054]">
+              Keep separate
+            </strong>{' '}
+            leaves both people intact.
+            The matching phone or U-M
+            identity will not be copied
+            onto this contact.
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <ErrorBox message={error} />
+      )}
+
+      <div className="mt-5 grid gap-2">
+        {canMerge && (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onMerge}
+            className="w-full rounded-[11px] bg-[#00274c] px-3 py-3 text-sm font-extrabold text-white disabled:opacity-50"
+          >
+            {saving
+              ? 'Merging...'
+              : 'Merge Contacts'}
+          </button>
+        )}
+
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onKeepSeparate}
+          className="w-full rounded-[11px] border border-[#d0d5dd] bg-white px-3 py-3 text-sm font-extrabold text-[#15223a] disabled:opacity-50"
+        >
+          {saving
+            ? 'Saving...'
+            : 'Keep Separate'}
+        </button>
+
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onBack}
+          className="w-full px-3 py-2 text-xs font-extrabold text-[#667085] disabled:opacity-50"
+        >
+          Back without saving
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ContactCompareCard({
+  eyebrow,
+  contact,
+}: {
+  eyebrow: string
+  contact: DuplicateContact
+}) {
+  const email =
+    normalizedUmichForDisplay(
+      contact.umich_email ||
+        contact.uniqname ||
+        ''
+    )
+
+  const origin =
+    contact.contact_origin ===
+    'field_added'
+      ? 'Added in the field'
+      : contact.contact_origin ===
+          'survey'
+        ? 'Survey contact'
+        : null
+
+  return (
+    <div className="rounded-[14px] border border-[#e4e7ec] bg-white p-3.5">
+      <div className="text-[10px] font-extrabold uppercase tracking-[0.07em] text-[#667085]">
+        {eyebrow}
+      </div>
+
+      <div className="mt-1 text-sm font-extrabold text-[#15223a]">
+        {contact.display_name ||
+          'Unnamed contact'}
+      </div>
+
+      <div className="mt-3 space-y-2">
+        <CompareLine
+          label="Phone"
+          value={
+            contact.phone
+              ? formatPhone(
+                  contact.phone
+                )
+              : null
+          }
+        />
+
+        <CompareLine
+          label="U-M identity"
+          value={email || null}
+        />
+
+        <CompareLine
+          label="Location"
+          value={
+            contact.location_name ||
+            null
+          }
+        />
+
+        <CompareLine
+          label="Room / address"
+          value={
+            contact.room_or_address ||
+            null
+          }
+        />
+
+        <CompareLine
+          label="Source"
+          value={origin}
+        />
+      </div>
+    </div>
+  )
+}
+
+function CompareLine({
+  label,
+  value,
+}: {
+  label: string
+  value: string | null
+}) {
+  return (
+    <div>
+      <div className="text-[10px] font-extrabold uppercase tracking-[0.04em] text-[#98a2b3]">
+        {label}
+      </div>
+
+      <div className="mt-0.5 break-words text-xs font-bold text-[#344054]">
+        {value || 'Not provided'}
+      </div>
     </div>
   )
 }
@@ -738,3 +1163,65 @@ function normalizedUmichForDisplay(
     : result.email
 }
 
+function readableMatchReasons(
+  reasons?: string[] | null
+) {
+  if (!reasons?.length) return ''
+
+  return reasons
+    .map((reason) => {
+      if (reason === 'phone') {
+        return 'same phone number'
+      }
+
+      if (
+        reason === 'umich_identity'
+      ) {
+        return 'same U-M identity'
+      }
+
+      if (
+        reason ===
+        'name_location_room'
+      ) {
+        return 'same name, location, and room'
+      }
+
+      return reason
+        .replaceAll('_', ' ')
+    })
+    .join(' + ')
+}
+
+function keepSeparateMessage(
+  result: IdentityEditResult
+) {
+  const skipped =
+    result.skipped_fields ?? []
+
+  if (
+    skipped.includes('phone') &&
+    skipped.includes(
+      'umich_identity'
+    )
+  ) {
+    return 'Contacts kept separate. The matching phone and U-M identity were left unchanged.'
+  }
+
+  if (skipped.includes('phone')) {
+    return 'Contacts kept separate. The matching phone number was left unchanged.'
+  }
+
+  if (
+    skipped.includes(
+      'umich_identity'
+    )
+  ) {
+    return 'Contacts kept separate. The matching U-M identity was left unchanged.'
+  }
+
+  return (
+    result.message ||
+    'Contacts kept separate.'
+  )
+}

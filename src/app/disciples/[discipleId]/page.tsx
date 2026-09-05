@@ -6,6 +6,7 @@ import {
 
 import { DiscipleBackButton } from '@/components/follow-up/disciple-back-button'
 import { DiscipleContactAssignment } from '@/components/follow-up/disciple-contact-assignment'
+import { AssignedContactUnassignButton } from '@/components/follow-up/assigned-contact-unassign-button'
 import { createClient } from '@/lib/supabase/server'
 
 type PageProps = {
@@ -446,41 +447,52 @@ export default async function DiscipleDetailPage({
               <div className="divide-y divide-[#eef0f3]">
                 {detail.assigned_contacts.map(
                   (contact) => (
-                    <Link
+                    <div
                       key={contact.id}
-                      href={`/contacts/${contact.id}`}
-                      className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                      className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
                     >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-extrabold text-[#15223a]">
-                          {
-                            contact.display_name
-                          }
+                      <Link
+                        href={`/contacts/${contact.id}`}
+                        className="flex min-w-0 flex-1 items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-extrabold text-[#15223a]">
+                            {
+                              contact.display_name
+                            }
+                          </div>
+
+                          <div className="mt-0.5 text-[11px] text-[#667085]">
+                            {locationLabel(
+                              contact
+                            )}
+                          </div>
                         </div>
 
-                        <div className="mt-0.5 text-[11px] text-[#667085]">
-                          {locationLabel(
-                            contact
-                          )}
-                        </div>
-                      </div>
+                        <div className="shrink-0 text-right">
+                          <StatusBadge
+                            status={
+                              contact.status
+                            }
+                          />
 
-                      <div className="shrink-0 text-right">
-                        <StatusBadge
-                          status={
-                            contact.status
-                          }
+                          <div className="mt-1 text-[10px] font-semibold text-[#98a2b3]">
+                            {contact.last_activity_at
+                              ? `Last ${shortDate(
+                                  contact.last_activity_at
+                                )}`
+                              : 'No activity yet'}
+                          </div>
+                        </div>
+                      </Link>
+
+                      {canAssignToPerson && (
+                        <AssignedContactUnassignButton
+                          contactId={contact.id}
+                          contactName={contact.display_name}
                         />
-
-                        <div className="mt-1 text-[10px] font-semibold text-[#98a2b3]">
-                          {contact.last_activity_at
-                            ? `Last ${shortDate(
-                                contact.last_activity_at
-                              )}`
-                            : 'No activity yet'}
-                        </div>
-                      </div>
-                    </Link>
+                      )}
+                    </div>
                   )
                 )}
               </div>

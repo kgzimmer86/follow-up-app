@@ -560,7 +560,7 @@ function LeaderCard({
 
   return (
     <Link
-      href={`/manage/leaders/${leader.id}`}
+      href={`/disciples/${leader.id}`}
       className="block rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_5px_rgba(16,24,40,0.03)] transition hover:border-[#98a2b3] hover:shadow-[0_4px_14px_rgba(16,24,40,0.06)] md:p-5"
     >
       <div className="flex items-start justify-between gap-3">
@@ -663,7 +663,7 @@ function LeaderCard({
       </div>
 
       <div className="mt-3 text-right text-[11px] font-extrabold text-[#175cd3]">
-        View leader →
+        View coaching →
       </div>
     </Link>
   )

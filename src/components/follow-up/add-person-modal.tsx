@@ -130,6 +130,10 @@ export function AddPersonModal({
       formData.get('name') ?? ''
     ).trim()
 
+    const gender = String(
+      formData.get('gender') ?? ''
+    ).trim()
+
     const phone = String(
       formData.get('phone') ?? ''
     ).trim()
@@ -162,9 +166,10 @@ export function AddPersonModal({
       data,
       error,
     } = await supabase.rpc(
-      'create_field_added_contact',
+      'create_field_added_contact_v2',
       {
         p_display_name: name,
+        p_gender: gender || null,
         p_phone: phone || null,
         p_uniqname: uniqname || null,
         p_source_contact_id: null,
@@ -278,6 +283,30 @@ export function AddPersonModal({
                 placeholder="Chris"
                 className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-600"
               />
+            </div>
+
+            <div>
+              <label
+                htmlFor="field-person-gender"
+                className="block text-sm font-extrabold text-slate-800"
+              >
+                Gender
+                <span className="ml-1 font-semibold text-slate-400">
+                  optional
+                </span>
+              </label>
+
+              <select
+                id="field-person-gender"
+                name="gender"
+                defaultValue=""
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-600"
+              >
+                <option value="">Not entered</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
 
             <div>

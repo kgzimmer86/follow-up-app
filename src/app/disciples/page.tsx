@@ -109,12 +109,6 @@ export default async function DisciplesPage() {
               </p>
             </div>
 
-            <Link
-              href="/assign-contacts"
-              className="inline-flex shrink-0 items-center justify-center rounded-[12px] bg-[#00274c] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#113a67]"
-            >
-              Assign Contacts
-            </Link>
           </div>
         </div>
 

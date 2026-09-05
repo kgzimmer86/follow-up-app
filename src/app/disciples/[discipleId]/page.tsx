@@ -327,30 +327,6 @@ export default async function DiscipleDetailPage({
         </div>
 
         <div className="grid gap-4 p-5 md:p-6">
-          <Panel title="Needs attention">
-            <p className="mb-4 text-xs leading-5 text-[#667085]">
-              These are the exact contacts in
-              this discipleship branch that may
-              need coaching or a next step.
-            </p>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <AttentionQueue
-                title="Assigned, never attempted"
-                count={unattempted.length}
-                contacts={unattempted}
-                emptyText="Nothing in this queue right now."
-              />
-
-              <AttentionQueue
-                title="Go Backs quiet 7+ days"
-                count={staleGoBacks.length}
-                contacts={staleGoBacks}
-                emptyText="No stale Go Backs right now."
-              />
-            </div>
-          </Panel>
-
           {detail.direct_disciples.length >
             0 && (
             <Panel title="Their Disciples">
@@ -421,6 +397,31 @@ export default async function DiscipleDetailPage({
               </div>
             </Panel>
           )}
+
+
+          <Panel title="Needs attention">
+            <p className="mb-4 text-xs leading-5 text-[#667085]">
+              These are the exact contacts in
+              this discipleship branch that may
+              need coaching or a next step.
+            </p>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <AttentionQueue
+                title="Assigned, never attempted"
+                count={unattempted.length}
+                contacts={unattempted}
+                emptyText="Nothing in this queue right now."
+              />
+
+              <AttentionQueue
+                title="Go Backs quiet 7+ days"
+                count={staleGoBacks.length}
+                contacts={staleGoBacks}
+                emptyText="No stale Go Backs right now."
+              />
+            </div>
+          </Panel>
 
           <Panel title="Assigned Contacts">
             {canAssignToPerson && (

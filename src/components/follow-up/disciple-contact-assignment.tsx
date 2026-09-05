@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -39,6 +39,19 @@ export function DiscipleContactAssignment({
     useState<string | null>(null)
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null)
+
+  // Keep the client-side picker synchronized with fresh server data.
+  // This matters when a contact is unassigned elsewhere on this same page:
+  // router.refresh() updates the `contacts` prop, but React preserves this
+  // component's local state unless we explicitly sync it.
+  useEffect(() => {
+    setAvailableContacts(contacts)
+    setSelectedIds((current) =>
+      current.filter((id) =>
+        contacts.some((contact) => contact.id === id)
+      )
+    )
+  }, [contacts])
 
   const visibleContacts = useMemo(() => {
     const normalized = query.trim().toLowerCase()

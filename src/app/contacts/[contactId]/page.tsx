@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
+import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
 import { EditableContactInfo } from '@/components/follow-up/editable-contact-info'
 import { EditableContactLocation } from '@/components/follow-up/editable-contact-location'
 import { HistoryEventActions } from '@/components/follow-up/history-event-actions'
@@ -20,6 +21,7 @@ type PageProps = {
   searchParams: Promise<{
     tab?: string
     from?: string
+    interaction?: string
   }>
 }
 
@@ -116,6 +118,9 @@ export default async function ContactDetailPage({
 
   const returnTo =
     safeReturnTo(query.from)
+
+  const autoOpenInteraction =
+    query.interaction === '1'
 
   const supabase =
     await createClient()
@@ -809,6 +814,26 @@ export default async function ContactDetailPage({
                 contact.status
               }
               isPrimary={isPrimary}
+              autoOpen={
+                autoOpenInteraction
+              }
+            />
+          </div>
+
+          <div className="mt-2">
+            <AddRoommateButton
+              sourceContactId={
+                contact.id
+              }
+              locationName={
+                contactArea?.name ||
+                contact.house_name ||
+                null
+              }
+              roomOrAddress={
+                contact.room_or_address
+              }
+              returnTo={returnTo}
             />
           </div>
         </div>

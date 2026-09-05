@@ -1,7 +1,11 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 type InteractionButtonProps = {
@@ -9,6 +13,7 @@ type InteractionButtonProps = {
   contactName: string
   currentStatus: string
   isPrimary: boolean
+  autoOpen?: boolean
 }
 
 export function InteractionButton({
@@ -16,10 +21,13 @@ export function InteractionButton({
   contactName,
   currentStatus,
   isPrimary,
+  autoOpen = false,
 }: InteractionButtonProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(autoOpen)
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
@@ -74,8 +82,6 @@ export function InteractionButton({
         p_status_after: statusAfter || null,
         p_make_primary:
           formData.get('makePrimary') === 'on',
-        p_found_home:
-          formData.get('foundHome') === 'on',
       }
     )
 
@@ -90,13 +96,55 @@ export function InteractionButton({
     setStatusError(false)
     setOpen(false)
 
-    router.refresh()
+    if (searchParams.has('interaction')) {
+      const nextParams =
+        new URLSearchParams(
+          searchParams.toString()
+        )
+
+      nextParams.delete('interaction')
+
+      const query =
+        nextParams.toString()
+
+      router.replace(
+        query
+          ? `${pathname}?${query}`
+          : pathname,
+        {
+          scroll: false,
+        }
+      )
+    } else {
+      router.refresh()
+    }
   }
 
   function closeForm() {
     setErrorMessage(null)
     setStatusError(false)
     setOpen(false)
+
+    if (searchParams.has('interaction')) {
+      const nextParams =
+        new URLSearchParams(
+          searchParams.toString()
+        )
+
+      nextParams.delete('interaction')
+
+      const query =
+        nextParams.toString()
+
+      router.replace(
+        query
+          ? `${pathname}?${query}`
+          : pathname,
+        {
+          scroll: false,
+        }
+      )
+    }
   }
 
   return (
@@ -165,36 +213,6 @@ export function InteractionButton({
                     placeholder="Add helpful notes for future follow up..."
                     className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-600"
                   />
-                </div>
-
-                <div>
-                  <div className="text-sm font-extrabold text-slate-800">
-                    Observed Schedule
-                  </div>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    Only use this when you interacted with them at
-                    their residence.
-                  </p>
-
-                  <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
-                    <input
-                      type="checkbox"
-                      name="foundHome"
-                      className="mt-0.5 h-5 w-5 rounded border-slate-300"
-                    />
-
-                    <span>
-                      <span className="block text-sm font-extrabold text-emerald-950">
-                        Found them home?
-                      </span>
-
-                      <span className="mt-0.5 block text-xs text-emerald-800">
-                        Check this if they were home when you went
-                        to their residence.
-                      </span>
-                    </span>
-                  </label>
                 </div>
 
                 <div>

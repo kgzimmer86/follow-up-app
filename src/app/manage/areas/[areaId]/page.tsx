@@ -423,20 +423,31 @@ function LeaderCard({
   leader: LeaderRow
 }) {
   return (
-    <div className="rounded-[16px] border border-[#e4e7ec] bg-white p-4">
+    <Link
+      href={`/disciples/${leader.id}`}
+      className="block rounded-[16px] border border-[#e4e7ec] bg-white p-4 transition hover:border-[#98a2b3] hover:shadow-[0_5px_14px_rgba(16,24,40,0.06)]"
+    >
       <div className="flex items-start gap-3">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#00274c] text-xs font-black text-white">
           {initials(leader.display_name)}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="font-extrabold text-[#15223a]">
-            {leader.display_name}
-          </div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-extrabold text-[#15223a]">
+                {leader.display_name}
+              </div>
 
-          <div className="mt-0.5 text-[11px] text-[#667085]">
-            {leader.default_area_name ||
-              'No default area'}
+              <div className="mt-0.5 text-[11px] text-[#667085]">
+                {leader.default_area_name ||
+                  'No default area'}
+              </div>
+            </div>
+
+            <span className="shrink-0 text-[11px] font-extrabold text-[#175cd3]">
+              Coaching →
+            </span>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -456,7 +467,7 @@ function LeaderCard({
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   )
 }
 

@@ -713,10 +713,13 @@ function DuplicateReview({
             <strong className="text-[#344054]">
               Merge contacts
             </strong>{' '}
-            combines their Follow Up
-            history into the contact you
-            are editing and removes the
-            duplicate record.
+            combines everything we know
+            about this student — survey
+            responses, contact information,
+            ministry interests, assignments,
+            and Follow Up history — into the
+            contact you are editing, then
+            removes the duplicate record.
           </p>
 
           <p>

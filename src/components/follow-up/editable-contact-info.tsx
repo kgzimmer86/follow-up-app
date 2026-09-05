@@ -729,7 +729,8 @@ function DuplicateReview({
             leaves both people intact.
             The matching phone or U-M
             identity will not be copied
-            onto this contact.
+            onto this contact. All other
+            edits will still be applied.
           </p>
         </div>
       </div>

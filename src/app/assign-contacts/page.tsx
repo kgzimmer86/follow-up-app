@@ -30,6 +30,13 @@ type AssignmentWorkspace = {
   }[]
 }
 
+type AssignmentAreaScope = {
+  area_id: string
+  area_name: string
+  contact_ids: string[]
+  assignee_ids: string[]
+}
+
 type PageProps = {
   searchParams: Promise<{
     areaId?: string
@@ -133,6 +140,61 @@ export default async function AssignContactsPage({
   const areaId = params.areaId
   const queue = params.queue
 
+  /*
+   * When this page is opened from a Ministry Area,
+   * narrow the caller's already-authorized assignment
+   * workspace to that area + descendants.
+   *
+   * The helper RPC does NOT grant new permissions.
+   * It returns IDs intersected with the caller's
+   * existing assignment workspace.
+   */
+  if (areaId) {
+    const {
+      data: areaScopeData,
+      error: areaScopeError,
+    } = await supabase.rpc(
+      'get_assignment_area_scope',
+      {
+        p_area_id: areaId,
+      }
+    )
+
+    if (areaScopeError) {
+      throw new Error(
+        areaScopeError.message
+      )
+    }
+
+    const areaScope =
+      areaScopeData as AssignmentAreaScope
+
+    const contactIds = new Set(
+      areaScope.contact_ids ?? []
+    )
+
+    const assigneeIds = new Set(
+      areaScope.assignee_ids ?? []
+    )
+
+    workspace = {
+      ...workspace,
+      scope:
+        areaScope.area_name ||
+        'Selected area',
+      contacts:
+        workspace.contacts.filter(
+          (contact) =>
+            contactIds.has(contact.id)
+        ),
+      assignees:
+        workspace.assignees.filter(
+          (assignee) =>
+            assigneeIds.has(assignee.id)
+        ),
+    }
+  }
+
   const isAttentionMode = Boolean(
     queue &&
       attentionQueueLabels[queue] &&
@@ -163,27 +225,10 @@ export default async function AssignContactsPage({
       (attentionContactIds ?? []) as string[]
     )
 
-    let areaName = 'All Campus'
-
-    if (areaId) {
-      const {
-        data: area,
-        error: areaError,
-      } = await supabase
-        .from('ministry_areas')
-        .select('name')
-        .eq('id', areaId)
-        .maybeSingle()
-
-      if (areaError) {
-        throw new Error(
-          areaError.message
-        )
-      }
-
-      areaName =
-        area?.name ?? 'Selected area'
-    }
+    const areaName =
+      areaId
+        ? workspace.scope
+        : 'All Campus'
 
     workspace = {
       ...workspace,

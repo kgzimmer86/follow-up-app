@@ -259,7 +259,7 @@ export default async function ManageAreaPage({
               />
 
               <Link
-                href="/assign-contacts"
+                href={`/assign-contacts?areaId=${workspace.area.id}`}
                 className="shrink-0 text-xs font-extrabold text-[#175cd3] hover:underline"
               >
                 Assign Contacts

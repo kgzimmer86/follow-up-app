@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from 'react'
@@ -73,6 +74,8 @@ export function AddPersonModal({
     useState<DuplicateCandidate[] | null>(null)
   const [pendingPerson, setPendingPerson] =
     useState<PendingPerson | null>(null)
+  const duplicateReviewRef =
+    useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open || areas.length > 0) return
@@ -126,6 +129,21 @@ export function AddPersonModal({
       cancelled = true
     }
   }, [open, areas.length])
+
+  useEffect(() => {
+    if (!duplicateCandidates || !open) return
+
+    const frame = window.requestAnimationFrame(() => {
+      duplicateReviewRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+    }
+  }, [duplicateCandidates, open])
 
   const areaMap = useMemo(
     () =>
@@ -568,7 +586,10 @@ export function AddPersonModal({
           </fieldset>
 
           {duplicateCandidates && pendingPerson && (
-            <div className="mx-5 mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+            <div
+              ref={duplicateReviewRef}
+              className="mx-5 mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4"
+            >
               <div className="text-sm font-extrabold text-slate-950">
                 {duplicateCandidates.some(
                   (candidate) =>
@@ -584,7 +605,7 @@ export function AddPersonModal({
                     candidate.match_strength === 'strong'
                 )
                   ? 'The phone number or U-M identity exactly matches an existing Follow Up contact. Review that contact instead of creating a duplicate.'
-                  : 'The name, dorm/location, and room/address match an existing Follow Up contact. This may be the same person, so review it before creating another record.'}
+                  : 'The name is compatible, and the dorm/location and room/address match an existing Follow Up contact. This may be the same person, so review it before creating another record.'}
               </p>
 
               <div className="mt-3 grid gap-2">
@@ -773,7 +794,7 @@ function formatMatchReasons(
       case 'phone':
         return 'same phone'
       case 'name_location_room':
-        return 'same name + location + room'
+        return 'compatible name + location + room'
       default:
         return reason
     }

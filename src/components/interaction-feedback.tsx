@@ -1,11 +1,15 @@
 'use client'
 
 import {
+  Suspense,
   useEffect,
   useRef,
   useState,
 } from 'react'
-import { usePathname } from 'next/navigation'
+import {
+  usePathname,
+  useSearchParams,
+} from 'next/navigation'
 
 const INTERACTIVE_SELECTOR = [
   'button',
@@ -16,17 +20,55 @@ const INTERACTIVE_SELECTOR = [
   'input[type="reset"]',
 ].join(',')
 
-const CLICK_FEEDBACK_MS = 900
+const CLICK_FEEDBACK_MS = 1400
 const NAVIGATION_FALLBACK_MS = 8000
+const SPECULATIVE_PROGRESS_DELAY_MS = 140
+const SPECULATIVE_PROGRESS_MS = 900
 
 export function InteractionFeedback() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          aria-hidden="true"
+          className="app-navigation-indicator"
+        />
+      }
+    >
+      <InteractionFeedbackInner />
+    </Suspense>
+  )
+}
+
+function InteractionFeedbackInner() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const routeKey =
+    `${pathname}?${searchParams.toString()}`
+
   const [navigationPending, setNavigationPending] =
     useState(false)
+
   const navigationTimeoutRef =
     useRef<number | null>(null)
 
+  const speculativeStartRef =
+    useRef<number | null>(null)
+
+  const speculativeStopRef =
+    useRef<number | null>(null)
+
+  const lastRouteKeyRef =
+    useRef(routeKey)
+
   useEffect(() => {
+    if (lastRouteKeyRef.current === routeKey) {
+      return
+    }
+
+    lastRouteKeyRef.current = routeKey
+
     setNavigationPending(false)
 
     if (navigationTimeoutRef.current !== null) {
@@ -35,9 +77,111 @@ export function InteractionFeedback() {
       )
       navigationTimeoutRef.current = null
     }
-  }, [pathname])
+
+    if (speculativeStartRef.current !== null) {
+      window.clearTimeout(
+        speculativeStartRef.current
+      )
+      speculativeStartRef.current = null
+    }
+
+    if (speculativeStopRef.current !== null) {
+      window.clearTimeout(
+        speculativeStopRef.current
+      )
+      speculativeStopRef.current = null
+    }
+
+    document
+      .querySelectorAll(
+        '.app-navigation-pending-control'
+      )
+      .forEach((element) => {
+        element.classList.remove(
+          'app-navigation-pending-control',
+          'app-click-acknowledged'
+        )
+      })
+  }, [routeKey])
 
   useEffect(() => {
+    function clearNavigationFallback() {
+      if (navigationTimeoutRef.current !== null) {
+        window.clearTimeout(
+          navigationTimeoutRef.current
+        )
+      }
+
+      navigationTimeoutRef.current =
+        window.setTimeout(() => {
+          setNavigationPending(false)
+
+          document
+            .querySelectorAll(
+              '.app-navigation-pending-control'
+            )
+            .forEach((element) => {
+              element.classList.remove(
+                'app-navigation-pending-control',
+                'app-click-acknowledged'
+              )
+            })
+
+          navigationTimeoutRef.current = null
+        }, NAVIGATION_FALLBACK_MS)
+    }
+
+    function startConfirmedNavigation(
+      interactive: HTMLElement
+    ) {
+      if (speculativeStartRef.current !== null) {
+        window.clearTimeout(
+          speculativeStartRef.current
+        )
+        speculativeStartRef.current = null
+      }
+
+      if (speculativeStopRef.current !== null) {
+        window.clearTimeout(
+          speculativeStopRef.current
+        )
+        speculativeStopRef.current = null
+      }
+
+      interactive.classList.add(
+        'app-navigation-pending-control'
+      )
+
+      setNavigationPending(true)
+      clearNavigationFallback()
+    }
+
+    function startSpeculativeProgress() {
+      if (speculativeStartRef.current !== null) {
+        window.clearTimeout(
+          speculativeStartRef.current
+        )
+      }
+
+      if (speculativeStopRef.current !== null) {
+        window.clearTimeout(
+          speculativeStopRef.current
+        )
+      }
+
+      speculativeStartRef.current =
+        window.setTimeout(() => {
+          setNavigationPending(true)
+          speculativeStartRef.current = null
+
+          speculativeStopRef.current =
+            window.setTimeout(() => {
+              setNavigationPending(false)
+              speculativeStopRef.current = null
+            }, SPECULATIVE_PROGRESS_MS)
+        }, SPECULATIVE_PROGRESS_DELAY_MS)
+    }
+
     function handleClick(event: MouseEvent) {
       if (event.defaultPrevented) return
       if (event.button !== 0) return
@@ -65,8 +209,7 @@ export function InteractionFeedback() {
       }
 
       /*
-       * Keep a visible "I received your tap" state
-       * briefly after the pointer is released.
+       * Immediate acknowledgement for every button/link.
        */
       interactive.classList.remove(
         'app-click-acknowledged'
@@ -78,68 +221,82 @@ export function InteractionFeedback() {
         )
       })
 
+      /*
+       * Same-origin links are confirmed navigation immediately.
+       * Query-string changes count too, which is important for
+       * contact detail tabs.
+       */
+      if (interactive instanceof HTMLAnchorElement) {
+        if (
+          interactive.target === '_blank' ||
+          interactive.hasAttribute('download')
+        ) {
+          window.setTimeout(() => {
+            interactive.classList.remove(
+              'app-click-acknowledged'
+            )
+          }, CLICK_FEEDBACK_MS)
+          return
+        }
+
+        let destination: URL
+
+        try {
+          destination = new URL(
+            interactive.href,
+            window.location.href
+          )
+        } catch {
+          window.setTimeout(() => {
+            interactive.classList.remove(
+              'app-click-acknowledged'
+            )
+          }, CLICK_FEEDBACK_MS)
+          return
+        }
+
+        const current =
+          new URL(window.location.href)
+
+        if (
+          destination.origin ===
+            window.location.origin &&
+          !(
+            destination.pathname ===
+              current.pathname &&
+            destination.search ===
+              current.search
+          )
+        ) {
+          startConfirmedNavigation(
+            interactive
+          )
+          return
+        }
+
+        window.setTimeout(() => {
+          interactive.classList.remove(
+            'app-click-acknowledged'
+          )
+        }, CLICK_FEEDBACK_MS)
+        return
+      }
+
+      /*
+       * Buttons can navigate through router.push(), submit a form,
+       * open a modal, or perform an in-place action. There is no
+       * browser-level way to know which one before its click handler
+       * runs, so briefly start a global working indicator after a
+       * small delay. If a route actually changes, the routeKey effect
+       * above ends it as soon as the new route/query renders.
+       */
+      startSpeculativeProgress()
+
       window.setTimeout(() => {
         interactive.classList.remove(
           'app-click-acknowledged'
         )
       }, CLICK_FEEDBACK_MS)
-
-      if (!(interactive instanceof HTMLAnchorElement)) {
-        return
-      }
-
-      if (
-        interactive.target === '_blank' ||
-        interactive.hasAttribute('download')
-      ) {
-        return
-      }
-
-      let destination: URL
-
-      try {
-        destination = new URL(
-          interactive.href,
-          window.location.href
-        )
-      } catch {
-        return
-      }
-
-      if (
-        destination.origin !==
-        window.location.origin
-      ) {
-        return
-      }
-
-      const current =
-        new URL(window.location.href)
-
-      if (
-        destination.pathname ===
-          current.pathname &&
-        destination.search === current.search &&
-        destination.hash === current.hash
-      ) {
-        return
-      }
-
-      setNavigationPending(true)
-
-      if (
-        navigationTimeoutRef.current !== null
-      ) {
-        window.clearTimeout(
-          navigationTimeoutRef.current
-        )
-      }
-
-      navigationTimeoutRef.current =
-        window.setTimeout(() => {
-          setNavigationPending(false)
-          navigationTimeoutRef.current = null
-        }, NAVIGATION_FALLBACK_MS)
     }
 
     document.addEventListener(
@@ -153,11 +310,21 @@ export function InteractionFeedback() {
         handleClick
       )
 
-      if (
-        navigationTimeoutRef.current !== null
-      ) {
+      if (navigationTimeoutRef.current !== null) {
         window.clearTimeout(
           navigationTimeoutRef.current
+        )
+      }
+
+      if (speculativeStartRef.current !== null) {
+        window.clearTimeout(
+          speculativeStartRef.current
+        )
+      }
+
+      if (speculativeStopRef.current !== null) {
+        window.clearTimeout(
+          speculativeStopRef.current
         )
       }
     }

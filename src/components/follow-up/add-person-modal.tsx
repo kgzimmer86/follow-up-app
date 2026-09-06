@@ -315,7 +315,7 @@ export function AddPersonModal({
       data: previewData,
       error: previewError,
     } = await supabase.rpc(
-      'preview_follow_up_duplicate_candidates',
+      'preview_follow_up_field_added_duplicate_candidates',
       {
         p_display_name: name,
         p_phone: phone || null,

@@ -301,13 +301,15 @@ function InteractionFeedbackInner() {
 
     document.addEventListener(
       'click',
-      handleClick
+      handleClick,
+      true
     )
 
     return () => {
       document.removeEventListener(
         'click',
-        handleClick
+        handleClick,
+        true
       )
 
       if (navigationTimeoutRef.current !== null) {

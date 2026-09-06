@@ -12,6 +12,7 @@ type HistoryEvent = {
   event_type: string
   occurred_at: string
   notes: string | null
+  found_home: boolean
   had_spiritual_conversation: boolean
   interview_completed: boolean
   kgp_shared: boolean
@@ -24,6 +25,7 @@ type Stage = 'idle' | 'edit' | 'review' | 'delete'
 type Draft = {
   occurredAt: string
   notes: string
+  foundHome: boolean
   hadSpiritualConversation: boolean
   interviewCompleted: boolean
   kgpShared: boolean
@@ -131,6 +133,8 @@ function HistoryEventActions({
         p_event_id: event.id,
         p_occurred_at: parsedDate.toISOString(),
         p_notes: draft.notes.trim() || null,
+        p_found_home:
+          isKnock ? false : draft.foundHome,
         p_had_spiritual_conversation:
           isKnock ? false : draft.hadSpiritualConversation,
         p_interview_completed:
@@ -269,6 +273,22 @@ function HistoryEventActions({
 
             {!isKnock && (
               <div className="grid gap-2 rounded-[11px] bg-[#f9fafb] p-3">
+                <div className="rounded-[10px] border border-[#a6f4c5] bg-[#ecfdf3] p-2.5">
+                  <CheckRow
+                    label="I found them home"
+                    checked={draft.foundHome}
+                    onChange={(checked) =>
+                      setDraft((current) => ({
+                        ...current,
+                        foundHome: checked,
+                      }))
+                    }
+                  />
+                  <p className="mt-1 pl-6 text-[11px] leading-4 text-[#027a48]">
+                    Records a green schedule observation.
+                  </p>
+                </div>
+
                 <CheckRow
                   label="Spiritual conversation"
                   checked={draft.hadSpiritualConversation}
@@ -544,6 +564,7 @@ function draftFromEvent(event: HistoryEvent): Draft {
   return {
     occurredAt: toLocalDateTimeValue(event.occurred_at),
     notes: event.notes ?? '',
+    foundHome: Boolean(event.found_home),
     hadSpiritualConversation: Boolean(event.had_spiritual_conversation),
     interviewCompleted: Boolean(event.interview_completed),
     kgpShared: Boolean(event.kgp_shared),
@@ -609,6 +630,11 @@ function buildChanges(
   push('Notes', original.notes.trim(), draft.notes.trim())
 
   if (!isKnock) {
+    push(
+      'Found home',
+      original.foundHome,
+      draft.foundHome
+    )
     push(
       'Spiritual conversation',
       original.hadSpiritualConversation,

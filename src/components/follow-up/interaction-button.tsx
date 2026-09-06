@@ -82,6 +82,8 @@ export function InteractionButton({
         p_status_after: statusAfter || null,
         p_make_primary:
           formData.get('makePrimary') === 'on',
+        p_found_home:
+          formData.get('foundHome') === 'on',
       }
     )
 
@@ -221,6 +223,12 @@ export function InteractionButton({
                   </div>
 
                   <div className="mt-3 space-y-2">
+                    <CheckOption
+                      name="foundHome"
+                      label="I found them home"
+                      emphasize
+                    />
+
                     <CheckOption
                       name="hadSpiritual"
                       label="Had a spiritual conversation"

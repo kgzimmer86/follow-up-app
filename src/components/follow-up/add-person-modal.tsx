@@ -25,6 +25,32 @@ type CreateFieldAddedResult = {
   display_name?: string
 }
 
+type DuplicateCandidate = {
+  contact_id: string
+  student_id: string
+  display_name: string
+  uniqname: string | null
+  umich_email: string | null
+  phone: string | null
+  contact_origin: string | null
+  survey_submitted_at: string | null
+  ministry_location_id: string | null
+  location_name: string | null
+  room_or_address: string | null
+  primary_owner_id: string | null
+  match_strength: 'strong' | 'weak'
+  match_reasons: string[]
+}
+
+type PendingPerson = {
+  name: string
+  gender: string
+  phone: string
+  uniqname: string
+  areaId: string
+  room: string
+}
+
 type AddPersonModalProps = {
   open: boolean
   onClose: () => void
@@ -43,6 +69,10 @@ export function AddPersonModal({
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null)
+  const [duplicateCandidates, setDuplicateCandidates] =
+    useState<DuplicateCandidate[] | null>(null)
+  const [pendingPerson, setPendingPerson] =
+    useState<PendingPerson | null>(null)
 
   useEffect(() => {
     if (!open || areas.length > 0) return
@@ -118,6 +148,96 @@ export function AddPersonModal({
       : area.name
   }
 
+  function contactUrl(contactId: string) {
+    const params =
+      new URLSearchParams({
+        tab: 'overview',
+        interaction: '1',
+        from: pathname || '/',
+      })
+
+    return `/contacts/${contactId}?${params.toString()}`
+  }
+
+  function openExistingContact(contactId: string) {
+    setErrorMessage(null)
+    setDuplicateCandidates(null)
+    setPendingPerson(null)
+    onClose()
+    router.push(contactUrl(contactId))
+  }
+
+  function backToEdit() {
+    if (saving) return
+
+    setErrorMessage(null)
+    setDuplicateCandidates(null)
+    setPendingPerson(null)
+  }
+
+  function closeModal() {
+    if (saving) return
+
+    setErrorMessage(null)
+    setDuplicateCandidates(null)
+    setPendingPerson(null)
+    onClose()
+  }
+
+  async function createPerson(
+    person: PendingPerson
+  ) {
+    setSaving(true)
+    setErrorMessage(null)
+
+    const supabase = createClient()
+
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      'create_field_added_contact_v2',
+      {
+        p_display_name: person.name,
+        p_gender: person.gender || null,
+        p_phone: person.phone || null,
+        p_uniqname: person.uniqname || null,
+        p_source_contact_id: null,
+        p_ministry_location_id:
+          person.areaId || null,
+        p_room_or_address:
+          person.room || null,
+        p_relationship: null,
+      }
+    )
+
+    if (error) {
+      setErrorMessage(error.message)
+      setSaving(false)
+      return
+    }
+
+    const result =
+      data as CreateFieldAddedResult | null
+
+    if (!result?.contact_id) {
+      setErrorMessage(
+        'The person was not added. Please try again.'
+      )
+      setSaving(false)
+      return
+    }
+
+    setSaving(false)
+    setDuplicateCandidates(null)
+    setPendingPerson(null)
+    onClose()
+
+    router.push(
+      contactUrl(result.contact_id)
+    )
+  }
+
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -177,70 +297,59 @@ export function AddPersonModal({
       return
     }
 
+    const person: PendingPerson = {
+      name,
+      gender,
+      phone,
+      uniqname,
+      areaId,
+      room,
+    }
+
     setSaving(true)
     setErrorMessage(null)
 
     const supabase = createClient()
 
     const {
-      data,
-      error,
+      data: previewData,
+      error: previewError,
     } = await supabase.rpc(
-      'create_field_added_contact_v2',
+      'preview_follow_up_duplicate_candidates',
       {
         p_display_name: name,
-        p_gender: gender || null,
         p_phone: phone || null,
-        p_uniqname: uniqname || null,
-        p_source_contact_id: null,
+        p_umich_identity: uniqname || null,
         p_ministry_location_id:
           areaId || null,
         p_room_or_address:
           room || null,
-        p_relationship: null,
+        p_exclude_contact_id: null,
+        p_source_contact_id: null,
       }
     )
 
-    if (error) {
-      setErrorMessage(error.message)
-      setSaving(false)
-      return
-    }
-
-    const result =
-      data as CreateFieldAddedResult | null
-
-    if (!result?.contact_id) {
+    if (previewError) {
       setErrorMessage(
-        'The person was not added. Please try again.'
+        `Could not check for existing contacts: ${previewError.message}`
       )
       setSaving(false)
       return
     }
 
-    if (
-      result.matched_existing &&
-      !window.confirm(
-        'A Follow Up contact with that phone or uniqname already exists. Open that contact and log this interaction there?'
-      )
-    ) {
+    const candidates =
+      Array.isArray(previewData)
+        ? previewData as DuplicateCandidate[]
+        : []
+
+    if (candidates.length > 0) {
+      setPendingPerson(person)
+      setDuplicateCandidates(candidates)
       setSaving(false)
       return
     }
 
-    const params =
-      new URLSearchParams({
-        tab: 'overview',
-        interaction: '1',
-        from: pathname || '/',
-      })
-
-    setSaving(false)
-    onClose()
-
-    router.push(
-      `/contacts/${result.contact_id}?${params.toString()}`
-    )
+    await createPerson(person)
   }
 
   if (!open) return null
@@ -267,10 +376,7 @@ export function AddPersonModal({
             <button
               type="button"
               disabled={saving}
-              onClick={() => {
-                setErrorMessage(null)
-                onClose()
-              }}
+              onClick={closeModal}
               className="rounded-full px-3 py-1 text-2xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
               aria-label="Close add person form"
             >
@@ -280,7 +386,10 @@ export function AddPersonModal({
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="space-y-5 p-5">
+          <fieldset
+            disabled={saving || Boolean(duplicateCandidates)}
+            className="space-y-5 border-0 p-5 disabled:opacity-75"
+          >
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-3 text-sm font-semibold text-blue-900">
               If this person is someone’s roommate, use <strong>Add roommate</strong> from that student’s contact instead so the room and relationship are preserved automatically.
             </div>
@@ -456,35 +565,221 @@ export function AddPersonModal({
                 {errorMessage}
               </div>
             )}
-          </div>
+          </fieldset>
+
+          {duplicateCandidates && pendingPerson && (
+            <div className="mx-5 mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+              <div className="text-sm font-extrabold text-slate-950">
+                {duplicateCandidates.some(
+                  (candidate) =>
+                    candidate.match_strength === 'strong'
+                )
+                  ? 'Existing contact found'
+                  : 'Possible existing contact'}
+              </div>
+
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                {duplicateCandidates.some(
+                  (candidate) =>
+                    candidate.match_strength === 'strong'
+                )
+                  ? 'The phone number or U-M identity exactly matches an existing Follow Up contact. Review that contact instead of creating a duplicate.'
+                  : 'The name, dorm/location, and room/address match an existing Follow Up contact. This may be the same person, so review it before creating another record.'}
+              </p>
+
+              <div className="mt-3 grid gap-2">
+                {duplicateCandidates.map(
+                  (candidate) => (
+                    <div
+                      key={candidate.contact_id}
+                      className="rounded-xl border border-amber-200 bg-white p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-extrabold text-slate-950">
+                            {candidate.display_name}
+                          </div>
+
+                          <div className="mt-1 text-xs font-semibold text-slate-500">
+                            {[
+                              candidate.location_name,
+                              candidate.room_or_address,
+                            ]
+                              .filter(Boolean)
+                              .join(' • ') ||
+                              'No location entered'}
+                          </div>
+
+                          {(candidate.umich_email ||
+                            candidate.uniqname ||
+                            candidate.phone) && (
+                            <div className="mt-1 text-xs text-slate-500">
+                              {candidate.umich_email ||
+                                candidate.uniqname ||
+                                formatStoredPhone(
+                                  candidate.phone || ''
+                                )}
+                            </div>
+                          )}
+                        </div>
+
+                        <span
+                          className={[
+                            'shrink-0 rounded-full px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide',
+                            candidate.match_strength ===
+                            'strong'
+                              ? 'bg-red-50 text-red-700'
+                              : 'bg-amber-100 text-amber-800',
+                          ].join(' ')}
+                        >
+                          {candidate.match_strength ===
+                          'strong'
+                            ? 'Exact match'
+                            : 'Possible match'}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 text-[11px] font-semibold text-slate-500">
+                        Match: {formatMatchReasons(
+                          candidate.match_reasons
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() =>
+                          openExistingContact(
+                            candidate.contact_id
+                          )
+                        }
+                        className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Open existing contact
+                      </button>
+                    </div>
+                  )
+                )}
+              </div>
+
+              {duplicateCandidates.filter(
+                (candidate) =>
+                  candidate.match_strength === 'strong'
+              ).length > 1 && (
+                <div className="mt-3 rounded-xl bg-red-50 px-3 py-2.5 text-xs font-semibold leading-5 text-red-700">
+                  More than one exact match was found. Do not create another contact. Open the matching contacts to review the conflicting data.
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="sticky bottom-0 flex gap-3 border-t border-slate-200 bg-white p-5">
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => {
-                setErrorMessage(null)
-                onClose()
-              }}
-              className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              Cancel
-            </button>
+            {duplicateCandidates && pendingPerson ? (
+              <>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={backToEdit}
+                  className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Back to edit
+                </button>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 rounded-xl bg-blue-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-900 disabled:opacity-50"
-            >
-              {saving
-                ? 'Adding...'
-                : 'Add person'}
-            </button>
+                {duplicateCandidates.filter(
+                  (candidate) =>
+                    candidate.match_strength === 'strong'
+                ).length === 1 ? (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      void createPerson(
+                        pendingPerson
+                      )
+                    }}
+                    className="flex-1 rounded-xl bg-blue-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-900 disabled:opacity-50"
+                  >
+                    {saving
+                      ? 'Opening...'
+                      : 'Use existing contact'}
+                  </button>
+                ) : duplicateCandidates.some(
+                    (candidate) =>
+                      candidate.match_strength ===
+                      'strong'
+                  ) ? null : (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      void createPerson(
+                        pendingPerson
+                      )
+                    }}
+                    className="flex-1 rounded-xl bg-blue-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-900 disabled:opacity-50"
+                  >
+                    {saving
+                      ? 'Adding...'
+                      : 'Create new anyway'}
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={closeModal}
+                  className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 rounded-xl bg-blue-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-900 disabled:opacity-50"
+                >
+                  {saving
+                    ? 'Checking...'
+                    : 'Add person'}
+                </button>
+              </>
+            )}
           </div>
         </form>
       </div>
     </div>
   )
+}
+
+function formatStoredPhone(value: string) {
+  const digits = phoneDigits(value)
+
+  if (digits.length !== 10) {
+    return value
+  }
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
+function formatMatchReasons(
+  reasons: string[]
+) {
+  const labels = reasons.map((reason) => {
+    switch (reason) {
+      case 'uniqname':
+        return 'same U-M identity'
+      case 'phone':
+        return 'same phone'
+      case 'name_location_room':
+        return 'same name + location + room'
+      default:
+        return reason
+    }
+  })
+
+  return labels.join(' + ')
 }
 
 function phoneDigits(value: string) {

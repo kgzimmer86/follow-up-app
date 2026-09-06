@@ -4,6 +4,7 @@ import './globals.css'
 
 import { createClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/follow-up/app-shell'
+import { InteractionFeedback } from '@/components/interaction-feedback'
 
 export const metadata: Metadata = {
   title: 'Follow Up | Michigan Cru',
@@ -60,7 +61,10 @@ export default async function RootLayout({
   if (!user) {
     return (
       <html lang="en">
-        <body>{children}</body>
+        <body>
+          <InteractionFeedback />
+          {children}
+        </body>
       </html>
     )
   }
@@ -78,7 +82,10 @@ export default async function RootLayout({
   ) {
     return (
       <html lang="en">
-        <body>{children}</body>
+        <body>
+          <InteractionFeedback />
+          {children}
+        </body>
       </html>
     )
   }
@@ -127,6 +134,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
+        <InteractionFeedback />
         <AppShell
           displayName={displayName}
           role={profile.role}

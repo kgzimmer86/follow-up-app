@@ -1,6 +1,8 @@
 'use client'
 
 import {
+  useEffect,
+  useRef,
   useState,
   type FormEvent,
 } from 'react'
@@ -23,6 +25,30 @@ type CreateRoommateResult = {
   display_name?: string
 }
 
+type DuplicateCandidate = {
+  contact_id: string
+  student_id: string
+  display_name: string
+  uniqname: string | null
+  umich_email: string | null
+  phone: string | null
+  contact_origin: string | null
+  survey_submitted_at: string | null
+  ministry_location_id: string | null
+  location_name: string | null
+  room_or_address: string | null
+  primary_owner_id: string | null
+  match_strength: 'strong' | 'weak'
+  match_reasons: string[]
+}
+
+type PendingRoommate = {
+  name: string
+  gender: string
+  phone: string
+  uniqname: string
+}
+
 export function AddRoommateButton({
   sourceContactId,
   locationName,
@@ -35,6 +61,110 @@ export function AddRoommateButton({
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null)
+  const [duplicateCandidates, setDuplicateCandidates] =
+    useState<DuplicateCandidate[] | null>(null)
+  const [pendingRoommate, setPendingRoommate] =
+    useState<PendingRoommate | null>(null)
+  const duplicateReviewRef =
+    useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!duplicateCandidates || !open) return
+
+    const frame = window.requestAnimationFrame(() => {
+      duplicateReviewRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+    }
+  }, [duplicateCandidates, open])
+
+  function contactUrl(contactId: string) {
+    const params =
+      new URLSearchParams({
+        tab: 'overview',
+        interaction: '1',
+      })
+
+    if (returnTo) {
+      params.set('from', returnTo)
+    }
+
+    return `/contacts/${contactId}?${params.toString()}`
+  }
+
+  function openExistingContact(contactId: string) {
+    setErrorMessage(null)
+    setDuplicateCandidates(null)
+    setPendingRoommate(null)
+    setOpen(false)
+    router.push(contactUrl(contactId))
+  }
+
+  function backToEdit() {
+    if (saving) return
+
+    setErrorMessage(null)
+    setDuplicateCandidates(null)
+    setPendingRoommate(null)
+  }
+
+  async function createRoommate(
+    roommate: PendingRoommate
+  ) {
+    setSaving(true)
+    setErrorMessage(null)
+
+    const supabase = createClient()
+
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      'create_roommate_contact_v2',
+      {
+        p_source_contact_id:
+          sourceContactId,
+        p_display_name: roommate.name,
+        p_gender:
+          roommate.gender || null,
+        p_phone:
+          roommate.phone || null,
+        p_uniqname:
+          roommate.uniqname || null,
+      }
+    )
+
+    if (error) {
+      setErrorMessage(error.message)
+      setSaving(false)
+      return
+    }
+
+    const result =
+      data as CreateRoommateResult | null
+
+    if (!result?.contact_id) {
+      setErrorMessage(
+        'The roommate was not created. Please try again.'
+      )
+      setSaving(false)
+      return
+    }
+
+    setSaving(false)
+    setDuplicateCandidates(null)
+    setPendingRoommate(null)
+    setOpen(false)
+
+    router.push(
+      contactUrl(result.contact_id)
+    )
+  }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -87,73 +217,65 @@ export function AddRoommateButton({
       return
     }
 
+    const roommate: PendingRoommate = {
+      name,
+      gender,
+      phone,
+      uniqname,
+    }
+
     setSaving(true)
     setErrorMessage(null)
 
     const supabase = createClient()
 
     const {
-      data,
-      error,
+      data: previewData,
+      error: previewError,
     } = await supabase.rpc(
-      'create_roommate_contact_v2',
+      'preview_follow_up_field_added_duplicate_candidates',
       {
+        p_display_name: name,
+        p_phone: phone || null,
+        p_umich_identity:
+          uniqname || null,
+        p_ministry_location_id: null,
+        p_room_or_address: null,
+        p_exclude_contact_id: null,
         p_source_contact_id:
           sourceContactId,
-        p_display_name: name,
-        p_gender: gender || null,
-        p_phone: phone || null,
-        p_uniqname:
-          uniqname || null,
       }
     )
 
-    if (error) {
-      setErrorMessage(error.message)
-      setSaving(false)
-      return
-    }
-
-    const result =
-      data as CreateRoommateResult | null
-
-    if (!result?.contact_id) {
+    if (previewError) {
       setErrorMessage(
-        'The roommate was not created. Please try again.'
+        `Could not check for existing contacts: ${previewError.message}`
       )
       setSaving(false)
       return
     }
 
-    if (
-      result.matched_existing &&
-      !window.confirm(
-        'A Follow Up contact with that phone or uniqname already exists. Open that contact and log this interaction there?'
-      )
-    ) {
+    const candidates =
+      Array.isArray(previewData)
+        ? previewData as DuplicateCandidate[]
+        : []
+
+    if (candidates.length > 0) {
+      setPendingRoommate(roommate)
+      setDuplicateCandidates(candidates)
       setSaving(false)
       return
     }
 
-    const params =
-      new URLSearchParams({
-        tab: 'overview',
-        interaction: '1',
-      })
-
-    if (returnTo) {
-      params.set('from', returnTo)
-    }
-
-    router.push(
-      `/contacts/${result.contact_id}?${params.toString()}`
-    )
+    await createRoommate(roommate)
   }
 
   function closeForm() {
     if (saving) return
 
     setErrorMessage(null)
+    setDuplicateCandidates(null)
+    setPendingRoommate(null)
     setOpen(false)
   }
 
@@ -170,6 +292,8 @@ export function AddRoommateButton({
         type="button"
         onClick={() => {
           setErrorMessage(null)
+          setDuplicateCandidates(null)
+          setPendingRoommate(null)
           setOpen(true)
         }}
         className="w-full rounded-[11px] border border-[#b2ddff] bg-[#eff8ff] px-3 py-2.5 text-sm font-extrabold text-[#175cd3] transition hover:bg-[#dff1ff]"
@@ -209,7 +333,13 @@ export function AddRoommateButton({
             </div>
 
             <form onSubmit={handleSubmit}>
-              <div className="space-y-5 p-5">
+              <fieldset
+                disabled={
+                  saving ||
+                  Boolean(duplicateCandidates)
+                }
+                className="space-y-5 border-0 p-5 disabled:opacity-75"
+              >
                 {inheritedLocation ? (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                     <div className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
@@ -345,27 +475,194 @@ export function AddRoommateButton({
                     {errorMessage}
                   </div>
                 )}
-              </div>
+              </fieldset>
+
+              {duplicateCandidates && pendingRoommate && (
+                <div
+                  ref={duplicateReviewRef}
+                  className="mx-5 mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4"
+                >
+                  <div className="text-sm font-extrabold text-slate-950">
+                    {duplicateCandidates.some(
+                      (candidate) =>
+                        candidate.match_strength ===
+                        'strong'
+                    )
+                      ? 'Existing contact found'
+                      : 'Possible existing contact'}
+                  </div>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    {duplicateCandidates.some(
+                      (candidate) =>
+                        candidate.match_strength ===
+                        'strong'
+                    )
+                      ? 'The phone number or U-M identity exactly matches an existing Follow Up contact. Review that contact instead of creating a duplicate.'
+                      : 'The name is compatible, and the inherited dorm/location and room/address match an existing Follow Up contact. This may be the same person, so review it before creating another record.'}
+                  </p>
+
+                  <div className="mt-3 grid gap-2">
+                    {duplicateCandidates.map(
+                      (candidate) => (
+                        <div
+                          key={candidate.contact_id}
+                          className="rounded-xl border border-amber-200 bg-white p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-extrabold text-slate-950">
+                                {candidate.display_name}
+                              </div>
+
+                              <div className="mt-1 text-xs font-semibold text-slate-500">
+                                {[
+                                  candidate.location_name,
+                                  candidate.room_or_address,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' • ') ||
+                                  'No location entered'}
+                              </div>
+
+                              {(candidate.umich_email ||
+                                candidate.uniqname ||
+                                candidate.phone) && (
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {candidate.umich_email ||
+                                    candidate.uniqname ||
+                                    formatStoredPhone(
+                                      candidate.phone || ''
+                                    )}
+                                </div>
+                              )}
+                            </div>
+
+                            <span
+                              className={[
+                                'shrink-0 rounded-full px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide',
+                                candidate.match_strength ===
+                                'strong'
+                                  ? 'bg-red-50 text-red-700'
+                                  : 'bg-amber-100 text-amber-800',
+                              ].join(' ')}
+                            >
+                              {candidate.match_strength ===
+                              'strong'
+                                ? 'Exact match'
+                                : 'Possible match'}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 text-[11px] font-semibold text-slate-500">
+                            Match: {formatMatchReasons(
+                              candidate.match_reasons
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() =>
+                              openExistingContact(
+                                candidate.contact_id
+                              )
+                            }
+                            className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Open existing contact
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  {duplicateCandidates.filter(
+                    (candidate) =>
+                      candidate.match_strength ===
+                      'strong'
+                  ).length > 1 && (
+                    <div className="mt-3 rounded-xl bg-red-50 px-3 py-2.5 text-xs font-semibold leading-5 text-red-700">
+                      More than one exact match was found. Do not create another contact. Open the matching contacts to review the conflicting data.
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="sticky bottom-0 flex gap-3 border-t border-slate-200 bg-white p-5">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={closeForm}
-                  className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
+                {duplicateCandidates && pendingRoommate ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={backToEdit}
+                      className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Back to edit
+                    </button>
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 rounded-xl bg-blue-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-900 disabled:opacity-50"
-                >
-                  {saving
-                    ? 'Adding...'
-                    : 'Add roommate'}
-                </button>
+                    {duplicateCandidates.filter(
+                      (candidate) =>
+                        candidate.match_strength ===
+                        'strong'
+                    ).length === 1 ? (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => {
+                          void createRoommate(
+                            pendingRoommate
+                          )
+                        }}
+                        className="flex-1 rounded-xl bg-blue-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-900 disabled:opacity-50"
+                      >
+                        {saving
+                          ? 'Opening...'
+                          : 'Use existing contact'}
+                      </button>
+                    ) : duplicateCandidates.some(
+                        (candidate) =>
+                          candidate.match_strength ===
+                          'strong'
+                      ) ? null : (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => {
+                          void createRoommate(
+                            pendingRoommate
+                          )
+                        }}
+                        className="flex-1 rounded-xl bg-blue-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-900 disabled:opacity-50"
+                      >
+                        {saving
+                          ? 'Adding...'
+                          : 'Create new anyway'}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={closeForm}
+                      className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="flex-1 rounded-xl bg-blue-950 px-4 py-3 text-sm font-extrabold text-white hover:bg-blue-900 disabled:opacity-50"
+                    >
+                      {saving
+                        ? 'Checking...'
+                        : 'Add roommate'}
+                    </button>
+                  </>
+                )}
               </div>
             </form>
           </div>
@@ -373,6 +670,35 @@ export function AddRoommateButton({
       )}
     </>
   )
+}
+
+function formatStoredPhone(value: string) {
+  const digits = phoneDigits(value)
+
+  if (digits.length !== 10) {
+    return value
+  }
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
+function formatMatchReasons(
+  reasons: string[]
+) {
+  const labels = reasons.map((reason) => {
+    switch (reason) {
+      case 'uniqname':
+        return 'same U-M identity'
+      case 'phone':
+        return 'same phone'
+      case 'name_location_room':
+        return 'compatible name + location + room'
+      default:
+        return reason
+    }
+  })
+
+  return labels.join(' + ')
 }
 
 function phoneDigits(value: string) {

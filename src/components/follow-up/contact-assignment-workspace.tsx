@@ -5,6 +5,10 @@ import {
   useMemo,
   useState,
 } from 'react'
+import {
+  usePathname,
+  useSearchParams,
+} from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/client'
 
@@ -49,6 +53,18 @@ export function ContactAssignmentWorkspace({
   initialWorkspace: AssignmentWorkspace
   focused?: boolean
 }) {
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const returnTo = useMemo(() => {
+    const queryString =
+      searchParams.toString()
+
+    return queryString
+      ? `${pathname}?${queryString}`
+      : pathname
+  }, [pathname, searchParams])
+
   const [contacts, setContacts] = useState(
     initialWorkspace.contacts
   )
@@ -538,6 +554,7 @@ export function ContactAssignmentWorkspace({
                 <ContactAssignmentRow
                   key={contact.id}
                   contact={contact}
+                  returnTo={returnTo}
                   assignees={
                     initialWorkspace.assignees
                   }
@@ -592,6 +609,7 @@ export function ContactAssignmentWorkspace({
 
 function ContactAssignmentRow({
   contact,
+  returnTo,
   assignees,
   selected,
   selectedAssigneeId,
@@ -601,6 +619,7 @@ function ContactAssignmentRow({
   onSave,
 }: {
   contact: AssignableContact
+  returnTo: string
   assignees: Assignee[]
   selected: boolean
   selectedAssigneeId: string
@@ -653,7 +672,12 @@ function ContactAssignmentRow({
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <Link
-                href={`/contacts/${contact.id}`}
+                href={{
+                  pathname: `/contacts/${contact.id}`,
+                  query: {
+                    from: returnTo,
+                  },
+                }}
                 className="truncate text-base font-extrabold text-[#15223a] hover:text-[#175cd3]"
               >
                 {contact.display_name}

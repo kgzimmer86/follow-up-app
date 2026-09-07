@@ -20,7 +20,7 @@ export function ReturnToDefaultArea({ userId, areaName }: { userId: string; area
       <button
         type="submit"
         disabled={pending}
-        className="flex w-full items-center justify-between gap-3 rounded-[14px] bg-[#eef4ff] px-[13px] py-[11px] text-left text-xs font-bold text-[#3538cd] hover:underline disabled:opacity-60"
+        className="flex w-full items-center justify-between gap-3 rounded-[14px] bg-[#fff8eb] px-[13px] py-[11px] text-left text-xs font-bold text-[#b54708] hover:underline disabled:opacity-60"
       >
         <span>Return to default ministry area: <strong>{areaName}</strong></span>
         <span aria-hidden="true">↻</span>

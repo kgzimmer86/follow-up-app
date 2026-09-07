@@ -118,12 +118,23 @@ export function assignedAreaFilters(area: FilterArea | null) {
   return filters
 }
 
+export function clearedPersonalFilters(area: FilterArea | null) {
+  const empty = Object.fromEntries(personalFilterKeys.map((key) => [key, ''])) as Record<typeof personalFilterKeys[number], string>
+  const defaults = assignedAreaFilters(area)
+  return {
+    ...empty,
+    campus: defaults.campus,
+    location: defaults.location,
+    affinity: defaults.affinity,
+  }
+}
+
 export function homeFilterAreaContext(
   saved: Partial<Record<typeof personalFilterKeys[number], string>> | undefined,
   areas: FilterArea[],
   defaultArea: FilterArea | null,
 ) {
-  // An absent preference starts in the assigned area; an explicitly cleared
+  // An absent preference starts in the assigned area; an explicitly empty
   // preference means All Campus.
   const defaults = assignedAreaFilters(defaultArea)
   const filters = saved ?? defaults

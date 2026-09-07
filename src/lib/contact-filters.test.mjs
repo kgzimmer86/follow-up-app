@@ -10,6 +10,7 @@ import {
   smartCardCriteria,
   resetChangedDormFilters,
   assignedAreaFilters,
+  clearedPersonalFilters,
   homeFilterAreaContext,
   resetChangedCampusFilters,
   withoutGeographicFilters,
@@ -136,6 +137,39 @@ const north = { id: 'north', name: 'North Campus', area_type: 'campus_region', p
 const central = { ...north, id: 'central', name: 'Central Campus' }
 const bursley = { id: 'bursley', name: 'Bursley', area_type: 'dorm', parent_id: north.id }
 const areas = [north, central, bursley]
+
+test('Clear Filters restores only the assigned campus and location and clears other personal choices', () => {
+  const offCampus = { id: 'off-north', name: 'Off Campus — North', area_type: 'off_campus', parent_id: north.id }
+  for (const [area, expected] of [
+    [north, { campus: north.id }],
+    [central, { campus: central.id }],
+    [bursley, { campus: north.id, location: bursley.id }],
+    [offCampus, { campus: north.id, location: offCampus.id }],
+    [null, {}],
+  ]) {
+    const reset = clearedPersonalFilters(area)
+    const merged = { ...travelling, ...cardOnly, ...reset }
+    assert.deepEqual(readPersonalFilters(JSON.stringify(merged)), expected)
+    for (const key of ['floor', 'wing', 'gender', 'status', 'jesus', 'community', 'interview', 'kgp', 'interviewDone', 'roomOnly']) {
+      assert.equal(reset[key], '')
+    }
+  }
+
+  const affinity = { id: 'greek', name: 'Greek Life', area_type: 'affinity', parent_id: null }
+  assert.deepEqual(clearedPersonalFilters(affinity), {
+    campus: '', location: '', floor: '', wing: '', gender: '', status: '', jesus: '',
+    community: '', interview: '', kgp: '', interviewDone: '', affinity: affinity.id, roomOnly: '',
+  })
+})
+
+test('clearing in No Address saves the default area for other cards while keeping its own results campus-wide', () => {
+  const reset = clearedPersonalFilters(bursley)
+  const stored = JSON.stringify({ ...reset, view: 'noaddress' })
+  assert.deepEqual(withoutGeographicFilters(readPersonalFilters(stored)), {})
+  assert.deepEqual(filtersForContactView(readPersonalFilters(stored), 'noaddress', 'cg'), {
+    campus: north.id, location: bursley.id,
+  })
+})
 
 test('assigned areas map to visible filters for regions, dorms, off-campus and affinities', () => {
   for (const name of ['North Campus', 'Central Campus', 'The Hill', 'The Village']) {

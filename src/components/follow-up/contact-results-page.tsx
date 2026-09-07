@@ -10,6 +10,7 @@ import {
   smartCardCriteria,
   resetChangedDormFilters,
   assignedAreaFilters,
+  clearedPersonalFilters,
   resetChangedCampusFilters,
   withoutGeographicFilters,
   geographicFilterKeys,
@@ -701,7 +702,16 @@ export async function ContactResultsPage({
         : (values[0] ?? '').slice(0, 200)
     }
     if (formData.get('clearPersonalFilters') === '1') {
-      return saveFilters(displayOnlyFilters, false)
+      const cleared = { ...displayOnlyFilters, ...clearedPersonalFilters(defaultArea) }
+      const href = await saveFilters(cleared, false)
+      // Save the assigned geography for other cards without excluding the
+      // contacts whose location is unknown on the No Address card.
+      return view === 'noaddress'
+        ? resultsHref({
+            basePath, sort: sortBy, dir: sortDir,
+            filters: { ...displayOnlyFilters, ...withoutGeographicFilters(cleared) },
+          })
+        : href
     }
     if (formData.get('useAssignedArea') === '1' && view !== 'noaddress') {
       return saveFilters({ ...nextFilters, ...assignedFilters })

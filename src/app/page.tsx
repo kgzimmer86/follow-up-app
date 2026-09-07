@@ -1,6 +1,12 @@
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { GoogleLoginButton } from '@/components/google-login-button'
+import {
+  personalFilterCookie,
+  readPersonalFilters,
+  withoutGeographicFilters,
+} from '@/lib/contact-filters'
 
 type PageProps = {
   searchParams: Promise<{
@@ -153,7 +159,7 @@ export default async function HomePage({
     )
   }
 
-  const counts: DashboardCounts = {
+  let counts: DashboardCounts = {
     my_contacts:
       dashboard.counts
         ?.my_contacts ?? 0,
@@ -172,6 +178,58 @@ export default async function HomePage({
     no_address:
       dashboard.counts
         ?.no_address ?? 0,
+  }
+
+  const storedFilters = (await cookies()).get(
+    personalFilterCookie(userId)
+  )?.value
+
+  if (storedFilters !== undefined) {
+    const saved = readPersonalFilters(storedFilters)
+    const noAddressFilters = withoutGeographicFilters(saved)
+    const countViews = [
+      ['my_contacts', 'mine', saved],
+      ['go_back', 'goback', saved],
+      ['share_gospel', 'gospel', saved],
+      ['meet_new', 'new', saved],
+      ['invite_cg', 'cg', saved],
+      ['no_address', 'noaddress', noAddressFilters],
+    ] as const
+
+    const countResponses = await Promise.all(
+      countViews.map(async ([, view, filters]) => {
+        const { data, error } = await supabase.rpc(
+          'get_follow_up_contact_results_v2',
+          {
+            p_view: view,
+            p_sort: 'name',
+            p_dir: 'asc',
+            p_page: 1,
+            p_page_size: 1,
+            p_campus: filters.campus || null,
+            p_location: filters.location || null,
+            p_gender: filters.gender || null,
+            p_status: filters.status || null,
+            p_jesus: filters.jesus || null,
+            p_community: filters.community || null,
+            p_interview: filters.interview || null,
+            p_kgp: filters.kgp || null,
+            p_interview_done: filters.interviewDone || null,
+            p_affinity: filters.affinity || null,
+            p_floor: filters.floor || null,
+            p_wing: filters.wing || null,
+            p_room_only: filters.roomOnly === '1',
+          }
+        )
+
+        if (error) throw new Error(error.message)
+        return Number((data as { total_count?: number } | null)?.total_count) || 0
+      })
+    )
+
+    counts = Object.fromEntries(
+      countViews.map(([key], index) => [key, countResponses[index]])
+    ) as DashboardCounts
   }
 
   const recentContacts =

@@ -10,6 +10,7 @@ const launches = new Map<string, ReturnType<typeof startFilterSession>>()
 const completed = new Set<string>()
 
 const contactListPaths = new Set([
+  '/',
   '/contacts',
   '/contacts/area',
   '/opportunities/go-back',

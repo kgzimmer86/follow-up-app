@@ -126,8 +126,20 @@ export function AutomaticFilterForm({
         scheduleUpdate()
       }}
     >
-      <div role="status" aria-live="polite" className="mb-3 text-xs text-[#667085]">
-        {scheduled || pending ? 'Updating…' : 'Filters update automatically.'}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {showAssignedArea && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => scheduleUpdate(0, 'assigned')}
+            className="rounded-[11px] border border-[#e4e7ec] bg-white px-4 py-2.5 text-sm font-extrabold text-[#15223a] disabled:opacity-60"
+          >
+            Use my assigned area
+          </button>
+        )}
+        <span role="status" aria-live="polite" className="text-xs text-[#667085]">
+          {scheduled || pending ? 'Updating…' : ''}
+        </span>
       </div>
       {/* Keep the surrounding details open, but refresh uncontrolled values when
           new server results arrive (including back/forward navigation). */}

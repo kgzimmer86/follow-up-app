@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import './globals.css'
 
 import { createClient } from '@/lib/supabase/server'
+import { FilterSession } from '@/components/follow-up/filter-session'
 import { AppShell } from '@/components/follow-up/app-shell'
 import { InteractionFeedback } from '@/components/interaction-feedback'
 
@@ -135,6 +136,7 @@ export default async function RootLayout({
     <html lang="en">
       <body>
         <InteractionFeedback />
+        <FilterSession key={user.id} userId={user.id}>
         <AppShell
           displayName={displayName}
           role={profile.role}
@@ -142,6 +144,7 @@ export default async function RootLayout({
         >
           {children}
         </AppShell>
+        </FilterSession>
       </body>
     </html>
   )

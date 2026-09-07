@@ -16,6 +16,6 @@ The SQL creates `get_follow_up_contact_results_v2`. It leaves the original funct
 - Reach Out to No Address starts without geographic filters when entered from Home. Returning to another card preserves that card family's geographic context. Other personal filters still travel.
 - Open a contact, return, change sort, and use pagination: the current filter snapshot remains intact.
 
-Previously saved personal choices take precedence over the assigned-area starting point. Use “Use my assigned area” to reset geographic context on an existing browser. For a first-visit test, use a browser profile that has no saved Follow Up filter preferences.
+Personal choices remain in place while the app session stays open. A new browser/app session restores the assigned area while preserving non-area filters. Refreshes, screen locks and app switching do not intentionally start a new session. Browser session restoration may preserve the old session; verify full close/reopen on the actual installed PWA. “Use my assigned area” remains available for a manual reset.
 
 If the app deployment must be rolled back, roll back Vercel to the previous deployment. The original function remains available; the unused v2 function can remain in place.

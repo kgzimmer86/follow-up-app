@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useTransition, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { startFilterSession } from '@/app/filter-session-actions'
 import { filterSessionUrl } from '@/lib/filter-session'
@@ -23,9 +23,6 @@ export function FilterSession({ userId, children }: { userId: string; children: 
   const router = useRouter()
   const pathname = usePathname()
   const [, startTransition] = useTransition()
-  const [ready, setReady] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!contactListPaths.has(pathname)) {
@@ -59,31 +56,17 @@ export function FilterSession({ userId, children }: { userId: string; children: 
           startTransition(() => {
             if (href) router.replace(href, { scroll: false })
             else router.refresh()
-            setReady(true)
           })
         } finally {
           if (!cancelled) launches.delete(userId)
         }
       }
-      if (existing && !cancelled) setReady(true)
     }
-    initialize().catch(() => {
-      if (!cancelled) setFailed(true)
+    initialize().catch((error) => {
+      if (!cancelled) console.error('Follow Up session initialization failed.', error)
     })
     return () => { cancelled = true }
-  }, [userId, pathname, router, attempt, startTransition])
+  }, [userId, pathname, router, startTransition])
 
-  if (!contactListPaths.has(pathname) || ready) return children
-  return (
-    <div className="p-6 text-sm text-[#667085]" role="status">
-      {failed ? (
-        <>
-          Couldn’t load your assigned area.{' '}
-          <button className="font-bold text-[#175cd3]" onClick={() => { setFailed(false); setAttempt((value) => value + 1) }}>
-            Retry
-          </button>
-        </>
-      ) : 'Loading Follow Up…'}
-    </div>
-  )
+  return children
 }

@@ -6,12 +6,14 @@ import {
   readPersonalFilters,
   shouldRestorePersonalFilters,
   smartCardCriteria,
+  resetChangedDormFilters,
 } from '@/lib/contact-filters'
 import type { ReactNode } from 'react'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
+import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { ContactAssignmentCell } from '@/components/follow-up/contact-assignment-cell'
 
 export type ContactView =
@@ -650,7 +652,7 @@ export async function ContactResultsPage({
         maxAge: 60 * 60 * 24 * 30,
       })
     }
-    redirect(`${resultsHref({ basePath, sort: sortBy, dir: sortDir, filters: nextFilters })}#results`)
+    return resultsHref({ basePath, sort: sortBy, dir: sortDir, filters: nextFilters })
   }
 
   async function applyFilters(formData: FormData) {
@@ -663,17 +665,12 @@ export async function ContactResultsPage({
         ? normalizeMultiFilter(values)
         : (values[0] ?? '').slice(0, 200)
     }
-    await saveFilters(nextFilters)
-  }
-
-  async function clearFilters() {
-    'use server'
-    await saveFilters(displayOnlyFilters)
+    return saveFilters(resetChangedDormFilters(nextFilters, filters.location))
   }
 
   async function toggleRoomFilter() {
     'use server'
-    await saveFilters(roomToggleFilters)
+    redirect(`${await saveFilters(roomToggleFilters)}#results`)
   }
 
   const cardCriteria = smartCardCriteria(view, results.default_area_name || 'All Campus')
@@ -746,7 +743,7 @@ export async function ContactResultsPage({
       </section>
 
       <details
-        key={`filters-${filterStateKey || 'none'}`}
+        key={`filters-${view}`}
         className="mt-5 overflow-hidden rounded-[18px] border border-[#e4e7ec] bg-white"
       >
         <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5">
@@ -771,9 +768,9 @@ export async function ContactResultsPage({
           </span>
         </summary>
 
-        <form
-          action={applyFilters}
-          className="border-t border-[#e4e7ec] p-4"
+        <AutomaticFilterForm
+          applyFilters={applyFilters}
+          filterStateKey={filterStateKey}
         >
           {cardCriteria.length > 0 && (
             <div className="mb-4 rounded-[11px] border border-[#d8dee8] bg-[#f9fafb] p-3">
@@ -1110,23 +1107,7 @@ export async function ContactResultsPage({
             Hide missing rooms (room or address contains a number)
           </label>
 
-          <div className="mt-4 flex flex-wrap gap-2 border-t border-[#eef0f3] pt-4">
-            <button
-              type="submit"
-              className="rounded-[11px] bg-[#00274c] px-4 py-2.5 text-sm font-extrabold text-white"
-            >
-              Apply Filters
-            </button>
-
-            <button
-              type="submit"
-              formAction={clearFilters}
-              className="rounded-[11px] border border-[#e4e7ec] bg-white px-4 py-2.5 text-sm font-extrabold text-[#15223a]"
-            >
-              Clear Filters
-            </button>
-          </div>
-        </form>
+        </AutomaticFilterForm>
       </details>
 
       <section className="mt-5">
@@ -2358,4 +2339,3 @@ function phoneHref(
     ? `+${digits}`
     : digits
 }
-

@@ -7,6 +7,15 @@ export function personalFilterCookie(userId: string) {
   return `follow-up-filters-${userId}`
 }
 
+export function resetChangedDormFilters<T extends { location: string; floor: string; wing: string }>(
+  filters: T,
+  previousLocation: string,
+): T {
+  return filters.location === previousLocation
+    ? filters
+    : { ...filters, floor: '', wing: '' }
+}
+
 // Keep only filter values; card identity, pagination and display never travel.
 export function readPersonalFilters(value: string) {
   try {

@@ -5,7 +5,23 @@ import {
   readPersonalFilters,
   shouldRestorePersonalFilters,
   smartCardCriteria,
+  resetChangedDormFilters,
 } from './contact-filters.ts'
+
+test('changing or removing a dorm clears its floor and wing without dropping other choices', () => {
+  for (const location of ['bursley', '', 'no_address', 'needs_area_assignment']) {
+    const filters = { location, floor: '3', wing: '2', gender: 'male', jesus: 'yes,maybe' }
+    assert.deepEqual(resetChangedDormFilters(filters, 'markley'), {
+      ...filters, floor: '', wing: '',
+    })
+    assert.equal(filters.floor, '3')
+  }
+})
+
+test('selecting a floor or changing another filter in the same dorm preserves floor and wing', () => {
+  const filters = { location: 'bursley', floor: '4', wing: '2', gender: 'female' }
+  assert.deepEqual(resetChangedDormFilters(filters, 'bursley'), filters)
+})
 
 test('fresh visits to every home card restore personal context; area browsing does not', () => {
   for (const view of ['mine', 'goback', 'gospel', 'new', 'cg', 'noaddress']) {

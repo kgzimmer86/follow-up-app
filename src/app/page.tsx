@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { GoogleLoginButton } from '@/components/google-login-button'
+import { ReturnToDefaultArea } from '@/components/follow-up/return-to-default-area'
 import {
+  homeFilterAreaContext,
   personalFilterCookie,
   readPersonalFilters,
   withoutGeographicFilters,
@@ -131,18 +133,23 @@ export default async function HomePage({
     )
   }
 
-  const {
-    data: dashboardData,
-    error: dashboardError,
-  } = await supabase.rpc(
-    'get_follow_up_home_dashboard'
-  )
+  const [
+    { data: dashboardData, error: dashboardError },
+    { data: areaData, error: areaError },
+  ] = await Promise.all([
+    supabase.rpc('get_follow_up_home_dashboard'),
+    supabase.from('ministry_areas')
+      .select('id, name, area_type, parent_id')
+      .eq('is_active', true),
+  ])
 
   if (dashboardError) {
     throw new Error(
       dashboardError.message
     )
   }
+
+  if (areaError) throw new Error(areaError.message)
 
   const dashboard =
     dashboardData as HomeDashboard | null
@@ -183,9 +190,9 @@ export default async function HomePage({
   const storedFilters = (await cookies()).get(
     personalFilterCookie(userId)
   )?.value
+  const saved = storedFilters === undefined ? undefined : readPersonalFilters(storedFilters)
 
-  if (storedFilters !== undefined) {
-    const saved = readPersonalFilters(storedFilters)
+  if (saved !== undefined) {
     const noAddressFilters = withoutGeographicFilters(saved)
     const countViews = [
       ['my_contacts', 'mine', saved],
@@ -235,16 +242,23 @@ export default async function HomePage({
   const recentContacts =
     dashboard.recent_contacts ?? []
 
-  const areaLabel =
+  const defaultAreaLabel =
     dashboard.default_area_name ||
     'All Campus'
+  const areas = areaData ?? []
+  const defaultArea = areas.find((area) => area.id === dashboard.default_area_id) ?? null
+  const { areaLabel, showReturnToDefault } = homeFilterAreaContext(saved, areas, defaultArea)
 
   return (
     <main className="mx-auto max-w-[1000px] px-[18px] py-[18px] md:px-7 md:pb-12 md:pt-6">
-      <div className="mb-3 rounded-[14px] bg-[#eef4ff] px-[13px] py-[11px] text-xs font-bold text-[#3538cd]">
-        Default ministry area:{' '}
-        <strong>{areaLabel}</strong>
-      </div>
+      {showReturnToDefault ? (
+        <ReturnToDefaultArea userId={userId} areaName={defaultAreaLabel} />
+      ) : (
+        <div className="mb-3 rounded-[14px] bg-[#eef4ff] px-[13px] py-[11px] text-xs font-bold text-[#3538cd]">
+          Default ministry area:{' '}
+          <strong>{defaultAreaLabel}</strong>
+        </div>
+      )}
 
       <section className="mb-[18px] rounded-[28px] border border-[#f4e8a6] bg-[linear-gradient(135deg,#fff9d8,#ffffff_62%)] p-6 shadow-[0_8px_28px_rgba(19,33,68,0.08)]">
         <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-[#175cd3]">

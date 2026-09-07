@@ -7,6 +7,7 @@ import {
   smartCardCriteria,
   resetChangedDormFilters,
   assignedAreaFilters,
+  homeFilterAreaContext,
   resetChangedCampusFilters,
   withoutGeographicFilters,
 } from './contact-filters.ts'
@@ -113,4 +114,57 @@ test('assigned area is no longer a hidden fixed card criterion', () => {
   for (const view of ['gospel', 'new', 'cg']) {
     assert.ok(smartCardCriteria(view).every((rule) => !rule.includes('Ministry area')))
   }
+})
+
+test('Home follows the saved area, including an explicit choice to see All Campus', () => {
+  assert.deepEqual(homeFilterAreaContext(undefined, areas, bursley), {
+    areaLabel: 'Bursley', showReturnToDefault: false,
+  })
+  assert.deepEqual(homeFilterAreaContext({}, areas, bursley), {
+    areaLabel: 'All Campus', showReturnToDefault: true,
+  })
+  assert.deepEqual(homeFilterAreaContext({ campus: central.id }, areas, bursley), {
+    areaLabel: 'Central Campus', showReturnToDefault: true,
+  })
+  assert.deepEqual(homeFilterAreaContext({ campus: north.id, location: bursley.id }, areas, north), {
+    areaLabel: 'Bursley', showReturnToDefault: true,
+  })
+})
+
+test('Home recognizes the assigned dorm with or without its campus and keeps non-area choices separate', () => {
+  for (const campus of ['', north.id]) {
+    assert.deepEqual(homeFilterAreaContext({
+      campus, location: bursley.id, floor: '3', wing: '2', gender: 'male', jesus: 'yes,maybe',
+    }, areas, bursley), {
+      areaLabel: 'Bursley', showReturnToDefault: false,
+    })
+  }
+})
+
+test('Home handles affinity, off-campus, and combined area selections', () => {
+  const affinity = { id: 'greek', name: 'Greek Life', area_type: 'affinity', parent_id: null }
+  const offCampus = { id: 'off-north', name: 'Off Campus — North', area_type: 'off_campus', parent_id: north.id }
+  const allAreas = [...areas, affinity, offCampus]
+  for (const area of [affinity, offCampus]) {
+    assert.deepEqual(homeFilterAreaContext(assignedAreaFilters(area), allAreas, area), {
+      areaLabel: area.name, showReturnToDefault: false,
+    })
+  }
+  assert.deepEqual(homeFilterAreaContext({ campus: north.id, affinity: affinity.id }, allAreas, affinity), {
+    areaLabel: 'North Campus · Greek Life', showReturnToDefault: true,
+  })
+  assert.deepEqual(homeFilterAreaContext({ location: bursley.id, affinity: affinity.id }, allAreas, bursley), {
+    areaLabel: 'Bursley · Greek Life', showReturnToDefault: true,
+  })
+})
+
+test('Home labels special locations and offers no default-area reset without an assignment', () => {
+  for (const [location, areaLabel] of [['no_address', 'No Address'], ['needs_area_assignment', 'Needs Area Assignment']]) {
+    assert.deepEqual(homeFilterAreaContext({ location }, areas, bursley), {
+      areaLabel, showReturnToDefault: true,
+    })
+  }
+  assert.deepEqual(homeFilterAreaContext({ campus: north.id }, areas, null), {
+    areaLabel: 'North Campus', showReturnToDefault: false,
+  })
 })

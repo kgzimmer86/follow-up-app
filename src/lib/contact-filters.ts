@@ -86,6 +86,34 @@ export function assignedAreaFilters(area: FilterArea | null) {
   return filters
 }
 
+export function homeFilterAreaContext(
+  saved: Partial<Record<typeof personalFilterKeys[number], string>> | undefined,
+  areas: FilterArea[],
+  defaultArea: FilterArea | null,
+) {
+  // An absent preference starts in the assigned area; an explicitly cleared
+  // preference means All Campus.
+  const defaults = assignedAreaFilters(defaultArea)
+  const filters = saved ?? defaults
+  const location = areas.find((area) => area.id === filters.location)
+  const campus = areas.find((area) => area.id === filters.campus)
+  const affinity = areas.find((area) => area.id === filters.affinity)
+  const locationLabel = filters.location === 'no_address' ? 'No Address'
+    : filters.location === 'needs_area_assignment' ? 'Needs Area Assignment'
+      : location?.name
+  const areaLabel = [locationLabel || campus?.name, affinity?.name]
+    .filter(Boolean).join(' · ') || 'All Campus'
+
+  // Selecting the assigned dorm under All areas has the same scope as
+  // selecting that dorm along with its parent campus.
+  const selectedCampus = filters.campus || location?.parent_id || ''
+  const isDefaultArea = selectedCampus === defaults.campus &&
+    (filters.location || '') === defaults.location &&
+    (filters.affinity || '') === defaults.affinity
+
+  return { areaLabel, showReturnToDefault: Boolean(defaultArea) && !isDefaultArea }
+}
+
 export function withoutGeographicFilters<T extends Partial<Record<typeof geographicFilterKeys[number], string>>>(filters: T): T {
   const next = { ...filters }
   for (const key of geographicFilterKeys) delete next[key]

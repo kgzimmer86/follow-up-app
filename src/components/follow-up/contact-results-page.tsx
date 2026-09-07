@@ -7,6 +7,10 @@ import {
   shouldRestorePersonalFilters,
   smartCardCriteria,
   resetChangedDormFilters,
+  assignedAreaFilters,
+  resetChangedCampusFilters,
+  withoutGeographicFilters,
+  geographicFilterKeys,
 } from '@/lib/contact-filters'
 import type { ReactNode } from 'react'
 import { revalidatePath } from 'next/cache'
@@ -295,13 +299,12 @@ export async function ContactResultsPage({
   if (
     shouldRestorePersonalFilters(view, searchParams)
   ) {
-    const saved = readPersonalFilters(
-      (await cookies()).get(personalFilterCookie(userId))?.value ?? ''
-    )
-    if (Object.keys(saved).length) {
+    const stored = (await cookies()).get(personalFilterCookie(userId))?.value
+    const saved = readPersonalFilters(stored ?? '')
+    if (stored !== undefined) {
       redirect(resultsHref({
         basePath, sort: sortBy, dir: sortDir,
-        filters: { ...filters, ...saved }, page: requestedPage,
+        filters: { ...filters, ...(view === 'noaddress' ? withoutGeographicFilters(saved) : saved) }, page: requestedPage,
       }))
     }
   }
@@ -352,11 +355,18 @@ export async function ContactResultsPage({
       a.name.localeCompare(b.name)
     )
 
+  // Older saved links can contain a dorm from a different campus. Keep the
+  // effective filters consistent with the options that the form can display.
+  const normalizedLocationFilters = resetChangedCampusFilters(filters, '', areas)
+  if (normalizedLocationFilters.location !== filters.location) {
+    redirect(resultsHref({ basePath, sort: sortBy, dir: sortDir, filters: normalizedLocationFilters }))
+  }
+
   const {
     data: resultsData,
     error: resultsError,
   } = await supabase.rpc(
-    'get_follow_up_contact_results',
+    'get_follow_up_contact_results_v2',
     {
       p_view: view,
       p_sort: sortBy,
@@ -506,6 +516,21 @@ export async function ContactResultsPage({
         ) ?? null
       : null
 
+  const assignedFilters = assignedAreaFilters(defaultArea)
+  if (shouldRestorePersonalFilters(view, searchParams) && view !== 'noaddress') {
+    redirect(resultsHref({
+      basePath, sort: sortBy, dir: sortDir,
+      filters: { ...filters, ...assignedFilters }, page: requestedPage,
+    }))
+  }
+
+  const selectedAreaName =
+    selectedLocationArea?.name ||
+    campusAreas.find((area) => area.id === filters.campus)?.name ||
+    affinityAreas.find((area) => area.id === filters.affinity)?.name ||
+    (filters.location === 'no_address' ? 'No Address' :
+      filters.location === 'needs_area_assignment' ? 'Needs Area Assignment' : 'All areas')
+
   const isDormContactContext =
     view !== 'noaddress' &&
     (
@@ -515,7 +540,7 @@ export async function ContactResultsPage({
           ? isDormLocation(
               selectedLocationArea
             )
-          : isDormLocation(defaultArea)
+          : false
       )
     )
 
@@ -610,8 +635,7 @@ export async function ContactResultsPage({
 
   const viewInfo = getViewInfo(
     view,
-    results.default_area_name ||
-      'All Campus'
+    selectedAreaName
   )
 
   const displayOnlyFilters: FilterValues = {
@@ -634,16 +658,24 @@ export async function ContactResultsPage({
         : '',
   }
 
-  async function saveFilters(nextFilters: FilterValues) {
+  async function saveFilters(nextFilters: FilterValues, preserveGeography = true) {
     'use server'
 
     const client = await createClient()
     const { data: { user: currentUser } } = await client.auth.getUser()
     if (!currentUser || currentUser.id !== userId) redirect('/')
 
-    if (view !== 'area') {
-      const personal = readPersonalFilters(JSON.stringify(nextFilters))
+    {
       const cookieStore = await cookies()
+      let personal = readPersonalFilters(JSON.stringify(nextFilters))
+      // No-address browsing is campus-wide; retain the other lists' geography.
+      if (view === 'noaddress' && preserveGeography) {
+        const saved = readPersonalFilters(cookieStore.get(personalFilterCookie(currentUser.id))?.value ?? JSON.stringify(assignedFilters))
+        personal = withoutGeographicFilters(personal)
+        for (const key of geographicFilterKeys) {
+          if (saved[key]) personal[key] = saved[key]
+        }
+      }
       cookieStore.set(personalFilterCookie(currentUser.id), JSON.stringify(personal), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -665,7 +697,15 @@ export async function ContactResultsPage({
         ? normalizeMultiFilter(values)
         : (values[0] ?? '').slice(0, 200)
     }
-    return saveFilters(resetChangedDormFilters(nextFilters, filters.location))
+    if (formData.get('clearPersonalFilters') === '1') {
+      return saveFilters(displayOnlyFilters, false)
+    }
+    if (formData.get('useAssignedArea') === '1' && view !== 'noaddress') {
+      return saveFilters({ ...nextFilters, ...assignedFilters })
+    }
+    return saveFilters(resetChangedDormFilters(
+      resetChangedCampusFilters(nextFilters, filters.campus, areas), filters.location,
+    ))
   }
 
   async function toggleRoomFilter() {
@@ -673,7 +713,7 @@ export async function ContactResultsPage({
     redirect(`${await saveFilters(roomToggleFilters)}#results`)
   }
 
-  const cardCriteria = smartCardCriteria(view, results.default_area_name || 'All Campus')
+  const cardCriteria = smartCardCriteria(view)
 
   const cardsFilters: FilterValues = {
     ...filters,
@@ -771,6 +811,7 @@ export async function ContactResultsPage({
         <AutomaticFilterForm
           applyFilters={applyFilters}
           filterStateKey={filterStateKey}
+          showAssignedArea={Boolean(defaultArea) && view !== 'noaddress'}
         >
           {cardCriteria.length > 0 && (
             <div className="mb-4 rounded-[11px] border border-[#d8dee8] bg-[#f9fafb] p-3">
@@ -788,15 +829,13 @@ export async function ContactResultsPage({
               </div>
             </div>
           )}
-          {view !== 'area' && (
-            <div className="mb-3">
+          <div className="mb-3">
               <div className="text-xs font-extrabold text-[#15223a]">Your additional filters</div>
               <p className="mt-1 text-xs leading-5 text-[#667085]">
-                Applied in addition to the card criteria. These travel between cards in this browser.
-                Any means no additional restriction.
+                These travel between cards in this browser. Any means no additional restriction.
+                {view === 'noaddress' && ' This list starts without geographic filters; your area choices are kept for the other lists.'}
               </p>
-            </div>
-          )}
+          </div>
           <input
             type="hidden"
             name="sort"
@@ -826,7 +865,7 @@ export async function ContactResultsPage({
               }
             >
               <option value="">
-                Any
+                All areas
               </option>
 
               {campusAreas.map(
@@ -852,7 +891,7 @@ export async function ContactResultsPage({
                 Any
               </option>
 
-              {campusAreas.map(
+              {campusAreas.filter((campus) => !filters.campus || campus.id === filters.campus).map(
                 (campus) => {
                   const children =
                     locationAreas.filter(
@@ -880,6 +919,7 @@ export async function ContactResultsPage({
                           <option
                             key={area.id}
                             value={area.id}
+                            data-campus={campus.id}
                           >
                             {area.name}
                           </option>
@@ -890,7 +930,7 @@ export async function ContactResultsPage({
                 }
               )}
 
-              <optgroup label="Other">
+              {!filters.campus && <optgroup label="Other">
                 <option value="no_address">
                   No Address
                 </option>
@@ -898,7 +938,7 @@ export async function ContactResultsPage({
                 <option value="needs_area_assignment">
                   Needs Area Assignment
                 </option>
-              </optgroup>
+              </optgroup>}
             </FilterSelect>
 
             <FilterSelect
@@ -1822,7 +1862,7 @@ function getViewInfo(
         eyebrow: 'Browse Your Area',
         title: `Contacts in ${areaName}`,
         description:
-          'Browse all Follow Up contacts in your default ministry area.',
+          'Browse Follow Up contacts in your selected area.',
       }
   }
 }

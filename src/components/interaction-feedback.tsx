@@ -22,8 +22,15 @@ const INTERACTIVE_SELECTOR = [
 
 const CLICK_FEEDBACK_MS = 1400
 const NAVIGATION_FALLBACK_MS = 8000
-const SPECULATIVE_PROGRESS_DELAY_MS = 140
-const SPECULATIVE_PROGRESS_MS = 900
+const NAVIGATION_PROGRESS_DELAY_MS = 350
+
+const MANAGE_TAB_PATHS = new Set([
+  '/manage',
+  '/manage/leaders',
+  '/assign-contacts',
+  '/manage/import-survey',
+  '/admin/users',
+])
 
 export function InteractionFeedback() {
   return (
@@ -53,10 +60,7 @@ function InteractionFeedbackInner() {
   const navigationTimeoutRef =
     useRef<number | null>(null)
 
-  const speculativeStartRef =
-    useRef<number | null>(null)
-
-  const speculativeStopRef =
+  const progressStartRef =
     useRef<number | null>(null)
 
   const lastRouteKeyRef =
@@ -78,30 +82,14 @@ function InteractionFeedbackInner() {
       navigationTimeoutRef.current = null
     }
 
-    if (speculativeStartRef.current !== null) {
+    if (progressStartRef.current !== null) {
       window.clearTimeout(
-        speculativeStartRef.current
+        progressStartRef.current
       )
-      speculativeStartRef.current = null
+      progressStartRef.current = null
     }
 
-    if (speculativeStopRef.current !== null) {
-      window.clearTimeout(
-        speculativeStopRef.current
-      )
-      speculativeStopRef.current = null
-    }
-
-    document
-      .querySelectorAll(
-        '.app-navigation-pending-control'
-      )
-      .forEach((element) => {
-        element.classList.remove(
-          'app-navigation-pending-control',
-          'app-click-acknowledged'
-        )
-      })
+    clearPendingVisuals()
   }, [routeKey])
 
   useEffect(() => {
@@ -116,70 +104,63 @@ function InteractionFeedbackInner() {
         window.setTimeout(() => {
           setNavigationPending(false)
 
-          document
-            .querySelectorAll(
-              '.app-navigation-pending-control'
+          if (progressStartRef.current !== null) {
+            window.clearTimeout(
+              progressStartRef.current
             )
-            .forEach((element) => {
-              element.classList.remove(
-                'app-navigation-pending-control',
-                'app-click-acknowledged'
-              )
-            })
+            progressStartRef.current = null
+          }
 
+          clearPendingVisuals()
           navigationTimeoutRef.current = null
         }, NAVIGATION_FALLBACK_MS)
     }
 
+    function scheduleNavigationProgress() {
+      if (progressStartRef.current !== null) {
+        window.clearTimeout(
+          progressStartRef.current
+        )
+      }
+
+      progressStartRef.current =
+        window.setTimeout(() => {
+          setNavigationPending(true)
+          progressStartRef.current = null
+        }, NAVIGATION_PROGRESS_DELAY_MS)
+    }
+
     function startConfirmedNavigation(
-      interactive: HTMLElement
+      interactive: HTMLAnchorElement,
+      destination: URL
     ) {
-      if (speculativeStartRef.current !== null) {
-        window.clearTimeout(
-          speculativeStartRef.current
-        )
-        speculativeStartRef.current = null
-      }
-
-      if (speculativeStopRef.current !== null) {
-        window.clearTimeout(
-          speculativeStopRef.current
-        )
-        speculativeStopRef.current = null
-      }
-
       interactive.classList.add(
         'app-navigation-pending-control'
       )
 
-      setNavigationPending(true)
+      if (isStrongTabNavigation(interactive)) {
+        interactive.classList.add(
+          'app-navigation-pending-tab'
+        )
+      }
+
+      if (
+        destination.pathname.startsWith(
+          '/contacts/'
+        )
+      ) {
+        const contactCard =
+          interactive.closest<HTMLElement>(
+            'article[id^="contact-"]'
+          )
+
+        contactCard?.classList.add(
+          'app-click-acknowledged-card'
+        )
+      }
+
+      scheduleNavigationProgress()
       clearNavigationFallback()
-    }
-
-    function startSpeculativeProgress() {
-      if (speculativeStartRef.current !== null) {
-        window.clearTimeout(
-          speculativeStartRef.current
-        )
-      }
-
-      if (speculativeStopRef.current !== null) {
-        window.clearTimeout(
-          speculativeStopRef.current
-        )
-      }
-
-      speculativeStartRef.current =
-        window.setTimeout(() => {
-          setNavigationPending(true)
-          speculativeStartRef.current = null
-
-          speculativeStopRef.current =
-            window.setTimeout(() => {
-              setNavigationPending(false)
-              speculativeStopRef.current = null
-            }, SPECULATIVE_PROGRESS_MS)
-        }, SPECULATIVE_PROGRESS_DELAY_MS)
     }
 
     function handleClick(event: MouseEvent) {
@@ -208,9 +189,6 @@ function InteractionFeedbackInner() {
         return
       }
 
-      /*
-       * Immediate acknowledgement for every button/link.
-       */
       interactive.classList.remove(
         'app-click-acknowledged'
       )
@@ -221,21 +199,14 @@ function InteractionFeedbackInner() {
         )
       })
 
-      /*
-       * Same-origin links are confirmed navigation immediately.
-       * Query-string changes count too, which is important for
-       * contact detail tabs.
-       */
       if (interactive instanceof HTMLAnchorElement) {
         if (
           interactive.target === '_blank' ||
           interactive.hasAttribute('download')
         ) {
-          window.setTimeout(() => {
-            interactive.classList.remove(
-              'app-click-acknowledged'
-            )
-          }, CLICK_FEEDBACK_MS)
+          removeClickAcknowledgementLater(
+            interactive
+          )
           return
         }
 
@@ -247,11 +218,9 @@ function InteractionFeedbackInner() {
             window.location.href
           )
         } catch {
-          window.setTimeout(() => {
-            interactive.classList.remove(
-              'app-click-acknowledged'
-            )
-          }, CLICK_FEEDBACK_MS)
+          removeClickAcknowledgementLater(
+            interactive
+          )
           return
         }
 
@@ -269,34 +238,21 @@ function InteractionFeedbackInner() {
           )
         ) {
           startConfirmedNavigation(
-            interactive
+            interactive,
+            destination
           )
           return
         }
 
-        window.setTimeout(() => {
-          interactive.classList.remove(
-            'app-click-acknowledged'
-          )
-        }, CLICK_FEEDBACK_MS)
+        removeClickAcknowledgementLater(
+          interactive
+        )
         return
       }
 
-      /*
-       * Buttons can navigate through router.push(), submit a form,
-       * open a modal, or perform an in-place action. There is no
-       * browser-level way to know which one before its click handler
-       * runs, so briefly start a global working indicator after a
-       * small delay. If a route actually changes, the routeKey effect
-       * above ends it as soon as the new route/query renders.
-       */
-      startSpeculativeProgress()
-
-      window.setTimeout(() => {
-        interactive.classList.remove(
-          'app-click-acknowledged'
-        )
-      }, CLICK_FEEDBACK_MS)
+      removeClickAcknowledgementLater(
+        interactive
+      )
     }
 
     document.addEventListener(
@@ -318,15 +274,9 @@ function InteractionFeedbackInner() {
         )
       }
 
-      if (speculativeStartRef.current !== null) {
+      if (progressStartRef.current !== null) {
         window.clearTimeout(
-          speculativeStartRef.current
-        )
-      }
-
-      if (speculativeStopRef.current !== null) {
-        window.clearTimeout(
-          speculativeStopRef.current
+          progressStartRef.current
         )
       }
     }
@@ -345,4 +295,89 @@ function InteractionFeedbackInner() {
         .join(' ')}
     />
   )
+}
+
+function removeClickAcknowledgementLater(
+  interactive: HTMLElement
+) {
+  window.setTimeout(() => {
+    interactive.classList.remove(
+      'app-click-acknowledged'
+    )
+  }, CLICK_FEEDBACK_MS)
+}
+
+function clearPendingVisuals() {
+  document
+    .querySelectorAll(
+      [
+        '.app-navigation-pending-control',
+        '.app-navigation-pending-tab',
+        '.app-click-acknowledged',
+        '.app-click-acknowledged-card',
+      ].join(',')
+    )
+    .forEach((element) => {
+      element.classList.remove(
+        'app-navigation-pending-control',
+        'app-navigation-pending-tab',
+        'app-click-acknowledged',
+        'app-click-acknowledged-card'
+      )
+    })
+}
+
+function isStrongTabNavigation(
+  interactive: HTMLAnchorElement
+) {
+  const nav = interactive.closest('nav')
+
+  if (!nav) return false
+
+  const navLinks = Array.from(
+    nav.querySelectorAll<HTMLAnchorElement>(
+      'a[href]'
+    )
+  )
+
+  const contactTabLinks =
+    navLinks.filter((link) => {
+      try {
+        const url = new URL(
+          link.href,
+          window.location.href
+        )
+
+        return (
+          url.pathname.startsWith(
+            '/contacts/'
+          ) &&
+          url.searchParams.has('tab')
+        )
+      } catch {
+        return false
+      }
+    })
+
+  if (contactTabLinks.length >= 2) {
+    return true
+  }
+
+  const manageTabLinks =
+    navLinks.filter((link) => {
+      try {
+        const url = new URL(
+          link.href,
+          window.location.href
+        )
+
+        return MANAGE_TAB_PATHS.has(
+          url.pathname
+        )
+      } catch {
+        return false
+      }
+    })
+
+  return manageTabLinks.length >= 2
 }

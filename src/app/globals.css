@@ -42,13 +42,6 @@ body {
 
 }
 
-/*
- * Global field-use click acknowledgement.
- *
- * :active gives immediate feedback while the finger/mouse is down.
- * .app-click-acknowledged keeps that acknowledgement visible briefly
- * after release so a slower action never feels like a missed tap.
- */
 :is(
   button,
   a[href],
@@ -81,17 +74,7 @@ body {
   transform: translateY(1px) scale(0.985);
 }
 
-/*
- * Tabs and nav links need stronger feedback than ordinary buttons.
- * While the next route/query is loading, the clicked tab immediately
- * looks selected and gets a maize underline. This applies to the
- * contact Overview/Survey/History/Schedule tabs, Manage tabs, and
- * other real navigation controls without editing each component.
- */
-nav a.app-click-acknowledged,
-nav a.app-navigation-pending-control,
-nav [role="button"].app-click-acknowledged,
-nav [role="button"].app-navigation-pending-control {
+.app-navigation-pending-tab {
   background: #00274c !important;
   color: #ffffff !important;
   opacity: 1 !important;
@@ -101,14 +84,21 @@ nav [role="button"].app-navigation-pending-control {
     0 2px 8px rgba(0, 39, 76, 0.16);
 }
 
-/*
- * Global working/navigation indicator.
- *
- * Confirmed same-origin links remain visible until pathname OR query
- * parameters change. Button-driven router.push() calls are also caught
- * with a short speculative working pulse, so a slow programmatic
- * navigation never feels like a dead tap.
- */
+article[id^="contact-"] {
+  transition:
+    filter 90ms ease,
+    transform 90ms ease,
+    box-shadow 90ms ease;
+}
+
+.app-click-acknowledged-card {
+  filter: brightness(0.95);
+  transform: translateY(1px) scale(0.992);
+  box-shadow:
+    inset 0 0 0 2px rgba(23, 92, 211, 0.14),
+    0 1px 3px rgba(16, 24, 40, 0.06) !important;
+}
+
 .app-navigation-indicator {
   position: fixed;
   z-index: 99999;
@@ -158,7 +148,8 @@ nav [role="button"].app-navigation-pending-control {
     input[type="button"],
     input[type="submit"],
     input[type="reset"]
-  ) {
+  ),
+  article[id^="contact-"] {
     transition: none;
   }
 

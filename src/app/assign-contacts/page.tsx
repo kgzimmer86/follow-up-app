@@ -246,7 +246,13 @@ export default async function AssignContactsPage({
   return (
     <main className="mx-auto max-w-[1040px] px-[18px] py-[18px] md:px-7 md:pb-12 md:pt-6">
       <div className="mb-3">
-        <DiscipleBackButton />
+        <DiscipleBackButton
+          href={
+            areaId
+              ? `/manage/areas/${encodeURIComponent(areaId)}`
+              : undefined
+          }
+        />
       </div>
 
       <ManageTabs

@@ -2,10 +2,21 @@
 
 import { useRouter } from 'next/navigation'
 
-export function DiscipleBackButton() {
+type DiscipleBackButtonProps = {
+  href?: string
+}
+
+export function DiscipleBackButton({
+  href,
+}: DiscipleBackButtonProps) {
   const router = useRouter()
 
   function goBack() {
+    if (href) {
+      router.push(href)
+      return
+    }
+
     if (window.history.length > 1) {
       router.back()
       return

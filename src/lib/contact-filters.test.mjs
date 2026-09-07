@@ -3,6 +3,9 @@ import test from 'node:test'
 import {
   personalFilterCookie,
   readPersonalFilters,
+  readPersonalFilterView,
+  filtersForContactView,
+  rememberContactFilterView,
   shouldRestorePersonalFilters,
   smartCardCriteria,
   resetChangedDormFilters,
@@ -41,7 +44,7 @@ test('result snapshots and existing filtered links take precedence over saved pr
   assert.equal(shouldRestorePersonalFilters('cg', { interview: ['yes', 'maybe'] }), false)
 })
 
-test('saved preferences carry manual survey filters but never card or navigation state', () => {
+test('personal values remain separate from card identity and navigation state', () => {
   const personal = { gender: 'male', location: 'bursley-id', jesus: 'yes', floor: '3' }
   assert.deepEqual(readPersonalFilters(JSON.stringify({
     ...personal, view: 'gospel', page: '4', display: 'sheet', sort: 'room',
@@ -49,6 +52,65 @@ test('saved preferences carry manual survey filters but never card or navigation
   })), personal)
   assert.deepEqual(readPersonalFilters('{}'), {})
   assert.notEqual(personalFilterCookie('user-a'), personalFilterCookie('user-b'))
+})
+
+const travelling = { campus: 'north', location: 'bursley', floor: '3', wing: '2', gender: 'male', affinity: 'greek' }
+const cardOnly = { status: 'go_back', jesus: 'yes,maybe', community: 'no', interview: 'yes', kgp: 'not_shared', interviewDone: 'not_completed', roomOnly: '1' }
+
+test('switching smart cards carries only location, gender, and affinity choices', () => {
+  const saved = { ...travelling, ...cardOnly }
+  for (const previous of ['mine', 'goback', 'gospel', 'new', 'cg', 'area']) {
+    for (const next of ['mine', 'goback', 'gospel', 'new', 'cg', 'area']) {
+      assert.deepEqual(filtersForContactView(saved, previous, next), previous === next ? saved : travelling)
+    }
+  }
+  assert.deepEqual(saved, { ...travelling, ...cardOnly })
+})
+
+test('Home count filters match card entry, and visiting another card discards old card-only choices', () => {
+  const original = JSON.stringify({ ...travelling, ...cardOnly, view: 'gospel' })
+  const homePreview = filtersForContactView(readPersonalFilters(original), readPersonalFilterView(original), 'cg')
+  const afterVisit = rememberContactFilterView(original, 'cg')
+  assert.equal(readPersonalFilterView(afterVisit), 'cg')
+  assert.deepEqual(homePreview, readPersonalFilters(afterVisit))
+  const backToGospel = rememberContactFilterView(afterVisit, 'gospel')
+  assert.deepEqual(readPersonalFilters(backToGospel), travelling)
+  assert.ok(smartCardCriteria('cg').includes('Community: Yes or Maybe'))
+  assert.ok(smartCardCriteria('gospel').includes('KGP shared: No'))
+})
+
+test('returning to the same card keeps its extra filters, including explicit empty selections', () => {
+  const original = JSON.stringify({ ...travelling, ...cardOnly, view: 'gospel' })
+  const returned = rememberContactFilterView(original, 'gospel')
+  assert.deepEqual(readPersonalFilters(returned), { ...travelling, ...cardOnly })
+  const cleared = rememberContactFilterView(JSON.stringify({ view: 'gospel' }), 'cg')
+  assert.deepEqual(readPersonalFilters(cleared), {})
+  assert.equal(readPersonalFilterView(cleared), 'cg')
+})
+
+test('No Address entry ignores geography while remembering it for the next smart card', () => {
+  const original = JSON.stringify({ ...travelling, ...cardOnly, view: 'gospel' })
+  const saved = rememberContactFilterView(original, 'noaddress')
+  assert.deepEqual(filtersForContactView(readPersonalFilters(original), 'gospel', 'noaddress'), {
+    gender: 'male', affinity: 'greek',
+  })
+  assert.deepEqual(readPersonalFilters(saved), travelling)
+  const edited = JSON.stringify({ ...readPersonalFilters(saved), status: 'attempted_contact', view: 'noaddress' })
+  assert.deepEqual(filtersForContactView(readPersonalFilters(edited), 'noaddress', 'noaddress'), {
+    gender: 'male', affinity: 'greek', status: 'attempted_contact',
+  })
+  assert.deepEqual(readPersonalFilters(rememberContactFilterView(edited, 'cg')), travelling)
+})
+
+test('existing cookies keep shared context without carrying unknown card-only choices', () => {
+  const legacy = JSON.stringify({ ...travelling, ...cardOnly })
+  assert.equal(readPersonalFilterView(legacy), undefined)
+  assert.deepEqual(filtersForContactView(readPersonalFilters(legacy), undefined, 'cg'), travelling)
+  assert.deepEqual(readPersonalFilters(rememberContactFilterView(legacy, 'cg')), travelling)
+  for (const invalid of ['', 'broken json', 'null', '[]', '{"view":"other"}', '{"view":["gospel"]}']) {
+    assert.equal(readPersonalFilterView(invalid), undefined)
+  }
+  assert.throws(() => rememberContactFilterView(legacy, 'other'), /Invalid contact list/)
 })
 
 test('invalid stored preferences do not break results', () => {

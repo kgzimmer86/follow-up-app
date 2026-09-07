@@ -2,7 +2,10 @@
 
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { assignedAreaFilters, personalFilterCookie, readPersonalFilters } from '@/lib/contact-filters'
+import {
+  assignedAreaFilters, personalFilterCookie, readPersonalFilters,
+  readPersonalFilterView, rememberContactFilterView,
+} from '@/lib/contact-filters'
 
 export async function startFilterSession(expectedUserId: string) {
   const supabase = await createClient()
@@ -30,11 +33,32 @@ export async function startFilterSession(expectedUserId: string) {
     }
   }
   const cookieStore = await cookies()
-  const saved = readPersonalFilters(cookieStore.get(personalFilterCookie(user.id))?.value ?? '')
+  const stored = cookieStore.get(personalFilterCookie(user.id))?.value ?? ''
+  const saved = readPersonalFilters(stored)
   const defaults = assignedAreaFilters(area)
-  cookieStore.set(personalFilterCookie(user.id), JSON.stringify({ ...saved, ...defaults }), {
+  cookieStore.set(personalFilterCookie(user.id), JSON.stringify({ ...saved, ...defaults, view: readPersonalFilterView(stored) }), {
     httpOnly: true, secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30,
   })
   return defaults
+}
+
+export async function activateContactFilterView(expectedUserId: string, view: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.id !== expectedUserId) throw new Error('Please sign in again.')
+  const { data: profile, error } = await supabase.from('profiles')
+    .select('is_active, role').eq('id', user.id).maybeSingle()
+  if (error || !profile?.is_active || profile.role === 'pending') throw new Error('Active access is required.')
+
+  const cookieStore = await cookies()
+  const name = personalFilterCookie(user.id)
+  const stored = cookieStore.get(name)?.value
+  // With no saved choices, normal assigned-area initialization still applies.
+  if (stored === undefined) return
+  if (readPersonalFilterView(stored) === view) return
+  cookieStore.set(name, rememberContactFilterView(stored, view), {
+    httpOnly: true, secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30,
+  })
 }

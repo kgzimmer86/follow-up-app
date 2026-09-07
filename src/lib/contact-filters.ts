@@ -3,6 +3,10 @@ export const personalFilterKeys = [
   'interview', 'kgp', 'interviewDone', 'affinity', 'floor', 'wing', 'roomOnly',
 ] as const
 
+const contactFilterViews = ['mine', 'goback', 'gospel', 'new', 'cg', 'noaddress', 'area'] as const
+const travellingFilterKeys = ['campus', 'location', 'floor', 'wing', 'gender', 'affinity'] as const
+type PersonalFilters = Partial<Record<typeof personalFilterKeys[number], string>>
+
 export function personalFilterCookie(userId: string) {
   return `follow-up-filters-${userId}`
 }
@@ -16,7 +20,7 @@ export function resetChangedDormFilters<T extends { location: string; floor: str
     : { ...filters, floor: '', wing: '' }
 }
 
-// Keep only filter values; card identity, pagination and display never travel.
+// Keep only filter values. The owning card is read separately from the cookie.
 export function readPersonalFilters(value: string) {
   try {
     const parsed: unknown = JSON.parse(value)
@@ -33,11 +37,39 @@ export function readPersonalFilters(value: string) {
   }
 }
 
+export function readPersonalFilterView(value: string) {
+  try {
+    const view: unknown = JSON.parse(value)?.view
+    return contactFilterViews.find((candidate) => candidate === view)
+  } catch {
+    return undefined
+  }
+}
+
+function filtersForCardChange(filters: PersonalFilters, savedView: string | undefined, view: string): PersonalFilters {
+  return savedView === view ? { ...filters }
+    : Object.fromEntries(travellingFilterKeys.flatMap((key) => filters[key] ? [[key, filters[key]]] : []))
+}
+
+export function filtersForContactView(filters: PersonalFilters, savedView: string | undefined, view: string) {
+  const personal = filtersForCardChange(filters, savedView, view)
+  return view === 'noaddress' ? withoutGeographicFilters(personal) : personal
+}
+
+export function rememberContactFilterView(value: string, view: string) {
+  if (!contactFilterViews.some((candidate) => candidate === view)) throw new Error('Invalid contact list.')
+  const filters = readPersonalFilters(value)
+  // Keep the saved geography while visiting No Address, so it is available
+  // when the user returns to a list that can use it.
+  const personal = filtersForCardChange(filters, readPersonalFilterView(value), view)
+  return JSON.stringify({ ...personal, view })
+}
+
 export function shouldRestorePersonalFilters(
   view: string,
   params: { context?: string } & Partial<Record<typeof personalFilterKeys[number], string | string[]>>,
 ) {
-  return ['mine', 'goback', 'gospel', 'new', 'cg', 'noaddress', 'area'].includes(view) && params.context !== '1' &&
+  return contactFilterViews.some((candidate) => candidate === view) && params.context !== '1' &&
     !personalFilterKeys.some((key) => params[key] !== undefined)
 }
 

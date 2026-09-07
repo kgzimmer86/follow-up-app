@@ -7,7 +7,8 @@ import {
   homeFilterAreaContext,
   personalFilterCookie,
   readPersonalFilters,
-  withoutGeographicFilters,
+  readPersonalFilterView,
+  filtersForContactView,
 } from '@/lib/contact-filters'
 
 type PageProps = {
@@ -193,18 +194,19 @@ export default async function HomePage({
   const saved = storedFilters === undefined ? undefined : readPersonalFilters(storedFilters)
 
   if (saved !== undefined) {
-    const noAddressFilters = withoutGeographicFilters(saved)
+    const savedView = readPersonalFilterView(storedFilters ?? '')
     const countViews = [
-      ['my_contacts', 'mine', saved],
-      ['go_back', 'goback', saved],
-      ['share_gospel', 'gospel', saved],
-      ['meet_new', 'new', saved],
-      ['invite_cg', 'cg', saved],
-      ['no_address', 'noaddress', noAddressFilters],
+      ['my_contacts', 'mine'],
+      ['go_back', 'goback'],
+      ['share_gospel', 'gospel'],
+      ['meet_new', 'new'],
+      ['invite_cg', 'cg'],
+      ['no_address', 'noaddress'],
     ] as const
 
     const countResponses = await Promise.all(
-      countViews.map(async ([, view, filters]) => {
+      countViews.map(async ([, view]) => {
+        const filters = filtersForContactView(saved, savedView, view)
         const { data, error } = await supabase.rpc(
           'get_follow_up_contact_results_v2',
           {

@@ -4,6 +4,8 @@ import {
   personalFilterKeys,
   personalFilterCookie,
   readPersonalFilters,
+  readPersonalFilterView,
+  filtersForContactView,
   shouldRestorePersonalFilters,
   smartCardCriteria,
   resetChangedDormFilters,
@@ -18,6 +20,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
+import { FilterViewSession } from '@/components/follow-up/filter-view-session'
 import { ContactAssignmentCell } from '@/components/follow-up/contact-assignment-cell'
 
 export type ContactView =
@@ -296,15 +299,15 @@ export async function ContactResultsPage({
 
   // Explicit result URLs are snapshots, including an explicitly empty set.
   // A fresh smart-card visit restores only this user's personal context.
+  const storedFilters = (await cookies()).get(personalFilterCookie(userId))?.value
   if (
     shouldRestorePersonalFilters(view, searchParams)
   ) {
-    const stored = (await cookies()).get(personalFilterCookie(userId))?.value
-    const saved = readPersonalFilters(stored ?? '')
-    if (stored !== undefined) {
+    const saved = readPersonalFilters(storedFilters ?? '')
+    if (storedFilters !== undefined) {
       redirect(resultsHref({
         basePath, sort: sortBy, dir: sortDir,
-        filters: { ...filters, ...(view === 'noaddress' ? withoutGeographicFilters(saved) : saved) }, page: requestedPage,
+        filters: { ...filters, ...filtersForContactView(saved, readPersonalFilterView(storedFilters), view) }, page: requestedPage,
       }))
     }
   }
@@ -676,7 +679,7 @@ export async function ContactResultsPage({
           if (saved[key]) personal[key] = saved[key]
         }
       }
-      cookieStore.set(personalFilterCookie(currentUser.id), JSON.stringify(personal), {
+      cookieStore.set(personalFilterCookie(currentUser.id), JSON.stringify({ ...personal, view }), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -752,6 +755,11 @@ export async function ContactResultsPage({
           : 'max-w-[1000px]',
       ].join(' ')}
     >
+      <FilterViewSession
+        userId={userId}
+        view={view}
+        needsActivation={storedFilters !== undefined && readPersonalFilterView(storedFilters) !== view}
+      />
       <section>
         <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-[#175cd3]">
           {viewInfo.eyebrow}
@@ -832,7 +840,7 @@ export async function ContactResultsPage({
           <div className="mb-3">
               <div className="text-xs font-extrabold text-[#15223a]">Your additional filters</div>
               <p className="mt-1 text-xs leading-5 text-[#667085]">
-                These travel between cards in this browser. Any means no additional restriction.
+                Campus area, dorm/location, floor, wing/house #, gender and affinity travel between cards. Other personal filters reset when you switch cards. Any means no additional restriction.
                 {view === 'noaddress' && ' This list starts without geographic filters; your area choices are kept for the other lists.'}
               </p>
           </div>

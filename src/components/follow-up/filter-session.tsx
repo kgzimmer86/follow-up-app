@@ -35,8 +35,15 @@ export function FilterSession({ userId, children }: { userId: string; children: 
     let cancelled = false
     async function initialize() {
       const key = `follow-up-area-session-${userId}`
+      const navigation = window.performance.getEntriesByType('navigation')[0]
+      const isReload = navigation?.entryType === 'navigation' &&
+        (navigation as PerformanceNavigationTiming).type === 'reload'
       let existing = completed.has(userId)
-      try { existing ||= sessionStorage.getItem(key) === '1' } catch { /* Storage may be disabled. */ }
+      // Keep the area through a refresh, but reset it when a fresh document
+      // starts after the app/browser was closed and reopened.
+      if (isReload) {
+        try { existing ||= sessionStorage.getItem(key) === '1' } catch { /* Storage may be disabled. */ }
+      }
       if (!existing) {
         let launch = launches.get(userId)
         if (!launch) {

@@ -158,13 +158,35 @@ test('Home handles affinity, off-campus, and combined area selections', () => {
   })
 })
 
-test('Home labels special locations and offers no default-area reset without an assignment', () => {
+test('Home labels special locations', () => {
   for (const [location, areaLabel] of [['no_address', 'No Address'], ['needs_area_assignment', 'Needs Area Assignment']]) {
     assert.deepEqual(homeFilterAreaContext({ location }, areas, bursley), {
       areaLabel, showReturnToDefault: true,
     })
   }
-  assert.deepEqual(homeFilterAreaContext({ campus: north.id }, areas, null), {
-    areaLabel: 'North Campus', showReturnToDefault: false,
-  })
+})
+
+test('All Campus defaults offer a return from narrower areas, then hide it after resetting', () => {
+  const affinity = { id: 'greek', name: 'Greek Life', area_type: 'affinity', parent_id: null }
+  const allAreas = [...areas, affinity]
+  for (const [selection, areaLabel] of [
+    [{ campus: north.id }, 'North Campus'],
+    [{ campus: north.id, location: bursley.id, floor: '3', wing: '2' }, 'Bursley'],
+    [{ affinity: affinity.id }, 'Greek Life'],
+  ]) {
+    const saved = { ...selection, gender: 'male', jesus: 'yes,maybe' }
+    assert.deepEqual(homeFilterAreaContext(saved, allAreas, null), {
+      areaLabel, showReturnToDefault: true,
+    })
+    const restored = readPersonalFilters(JSON.stringify({ ...saved, ...assignedAreaFilters(null) }))
+    assert.deepEqual(restored, { gender: 'male', jesus: 'yes,maybe' })
+    assert.deepEqual(homeFilterAreaContext(restored, allAreas, null), {
+      areaLabel: 'All Campus', showReturnToDefault: false,
+    })
+  }
+  for (const saved of [undefined, {}, { gender: 'male' }]) {
+    assert.deepEqual(homeFilterAreaContext(saved, allAreas, null), {
+      areaLabel: 'All Campus', showReturnToDefault: false,
+    })
+  }
 })

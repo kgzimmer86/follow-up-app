@@ -111,7 +111,8 @@ export function homeFilterAreaContext(
     (filters.location || '') === defaults.location &&
     (filters.affinity || '') === defaults.affinity
 
-  return { areaLabel, showReturnToDefault: Boolean(defaultArea) && !isDefaultArea }
+  // No specific assignment means All Campus, which is still a valid default.
+  return { areaLabel, showReturnToDefault: !isDefaultArea }
 }
 
 export function withoutGeographicFilters<T extends Partial<Record<typeof geographicFilterKeys[number], string>>>(filters: T): T {

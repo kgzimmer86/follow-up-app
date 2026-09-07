@@ -811,7 +811,7 @@ export async function ContactResultsPage({
         <AutomaticFilterForm
           applyFilters={applyFilters}
           filterStateKey={filterStateKey}
-          showAssignedArea={Boolean(defaultArea) && view !== 'noaddress'}
+          showAssignedArea={view !== 'noaddress'}
         >
           {cardCriteria.length > 0 && (
             <div className="mb-4 rounded-[11px] border border-[#d8dee8] bg-[#f9fafb] p-3">

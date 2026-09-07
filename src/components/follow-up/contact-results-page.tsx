@@ -1,4 +1,12 @@
 import Link from 'next/link'
+import { cookies } from 'next/headers'
+import {
+  personalFilterKeys,
+  personalFilterCookie,
+  readPersonalFilters,
+  shouldRestorePersonalFilters,
+  smartCardCriteria,
+} from '@/lib/contact-filters'
 import type { ReactNode } from 'react'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -16,6 +24,7 @@ export type ContactView =
   | 'area'
 
 export type ContactResultsSearchParams = {
+  context?: string
   sort?: string
   dir?: string
   campus?: string
@@ -279,6 +288,22 @@ export async function ContactResultsPage({
     redirect('/')
   }
 
+  // Explicit result URLs are snapshots, including an explicitly empty set.
+  // A fresh smart-card visit restores only this user's personal context.
+  if (
+    shouldRestorePersonalFilters(view, searchParams)
+  ) {
+    const saved = readPersonalFilters(
+      (await cookies()).get(personalFilterCookie(userId))?.value ?? ''
+    )
+    if (Object.keys(saved).length) {
+      redirect(resultsHref({
+        basePath, sort: sortBy, dir: sortDir,
+        filters: { ...filters, ...saved }, page: requestedPage,
+      }))
+    }
+  }
+
   const {
     data: areaData,
     error: areaError,
@@ -502,14 +527,6 @@ export async function ContactResultsPage({
       : '1',
   }
 
-  const roomToggleHref =
-    `${resultsHref({
-      basePath,
-      sort: sortBy,
-      dir: sortDir,
-      filters: roomToggleFilters,
-    })}#results`
-
   const totalPages = Math.max(
     1,
     Math.ceil(
@@ -615,13 +632,51 @@ export async function ContactResultsPage({
         : '',
   }
 
-  const clearFiltersHref =
-    `${resultsHref({
-      basePath,
-      sort: sortBy,
-      dir: sortDir,
-      filters: displayOnlyFilters,
-    })}#results`
+  async function saveFilters(nextFilters: FilterValues) {
+    'use server'
+
+    const client = await createClient()
+    const { data: { user: currentUser } } = await client.auth.getUser()
+    if (!currentUser || currentUser.id !== userId) redirect('/')
+
+    if (view !== 'area') {
+      const personal = readPersonalFilters(JSON.stringify(nextFilters))
+      const cookieStore = await cookies()
+      cookieStore.set(personalFilterCookie(currentUser.id), JSON.stringify(personal), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      })
+    }
+    redirect(`${resultsHref({ basePath, sort: sortBy, dir: sortDir, filters: nextFilters })}#results`)
+  }
+
+  async function applyFilters(formData: FormData) {
+    'use server'
+
+    const nextFilters = { ...displayOnlyFilters }
+    for (const key of personalFilterKeys) {
+      const values = formData.getAll(key).filter((value): value is string => typeof value === 'string')
+      nextFilters[key] = ['jesus', 'community', 'interview'].includes(key)
+        ? normalizeMultiFilter(values)
+        : (values[0] ?? '').slice(0, 200)
+    }
+    await saveFilters(nextFilters)
+  }
+
+  async function clearFilters() {
+    'use server'
+    await saveFilters(displayOnlyFilters)
+  }
+
+  async function toggleRoomFilter() {
+    'use server'
+    await saveFilters(roomToggleFilters)
+  }
+
+  const cardCriteria = smartCardCriteria(view, results.default_area_name || 'All Campus')
 
   const cardsFilters: FilterValues = {
     ...filters,
@@ -709,16 +764,42 @@ export async function ContactResultsPage({
 
           <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#3538cd]">
             {activeFilterCount > 0
-              ? `${activeFilterCount} active`
-              : 'Open'}
+              ? cardCriteria.length
+                ? `${activeFilterCount} personal · ${cardCriteria.length} fixed`
+                : `${activeFilterCount} active`
+              : cardCriteria.length ? `${cardCriteria.length} fixed` : 'Open'}
           </span>
         </summary>
 
         <form
-          method="get"
-          action={`${basePath}#results`}
+          action={applyFilters}
           className="border-t border-[#e4e7ec] p-4"
         >
+          {cardCriteria.length > 0 && (
+            <div className="mb-4 rounded-[11px] border border-[#d8dee8] bg-[#f9fafb] p-3">
+              <div className="text-xs font-extrabold text-[#15223a]">{viewInfo.title} criteria · Fixed</div>
+              <p className="mt-1 text-xs leading-5 text-[#667085]">
+                These belong to this card and change when you choose a different card.
+              </p>
+              <div className="mt-2 grid gap-2">
+                {cardCriteria.map((criterion) => (
+                  <label key={criterion} className="flex items-start gap-2 text-xs font-bold text-[#475467]">
+                    <input type="checkbox" checked disabled readOnly className="mt-0.5 h-4 w-4 accent-[#175cd3]" />
+                    <span>{criterion}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {view !== 'area' && (
+            <div className="mb-3">
+              <div className="text-xs font-extrabold text-[#15223a]">Your additional filters</div>
+              <p className="mt-1 text-xs leading-5 text-[#667085]">
+                Applied in addition to the card criteria. These travel between cards in this browser.
+                Any means no additional restriction.
+              </p>
+            </div>
+          )}
           <input
             type="hidden"
             name="sort"
@@ -730,14 +811,6 @@ export async function ContactResultsPage({
             name="dir"
             value={sortDir}
           />
-
-          {roomOnlyActive && (
-            <input
-              type="hidden"
-              name="roomOnly"
-              value="1"
-            />
-          )}
 
           {displayMode === 'sheet' && (
             <input
@@ -835,7 +908,7 @@ export async function ContactResultsPage({
               label="Floor"
               name="floor"
               value={filters.floor}
-              disabled={!floorFilterAvailable}
+              disabled={!floorFilterAvailable && !filters.floor}
             >
               <option value="">
                 {!hasSpecificLocation
@@ -845,6 +918,9 @@ export async function ContactResultsPage({
                     : 'Any'}
               </option>
 
+              {filters.floor && !floorOptions.includes(filters.floor) && (
+                <option value={filters.floor}>{filters.floor}</option>
+              )}
               {floorOptions.map(
                 (floor) => (
                   <option
@@ -861,7 +937,7 @@ export async function ContactResultsPage({
               label="Wing / house #"
               name="wing"
               value={filters.wing}
-              disabled={!wingFilterAvailable}
+              disabled={!wingFilterAvailable && !filters.wing}
             >
               <option value="">
                 {!hasSpecificLocation
@@ -871,6 +947,9 @@ export async function ContactResultsPage({
                     : 'Any'}
               </option>
 
+              {filters.wing && !wingOptions.includes(filters.wing) && (
+                <option value={filters.wing}>{filters.wing}</option>
+              )}
               {wingOptions.map(
                 (wing) => (
                   <option
@@ -1026,6 +1105,11 @@ export async function ContactResultsPage({
             </FilterSelect>
           </div>
 
+          <label className="mt-3 flex items-center gap-2 text-xs font-bold text-[#475467]">
+            <input type="checkbox" name="roomOnly" value="1" defaultChecked={roomOnlyActive} className="h-4 w-4 rounded border-[#d0d5dd]" />
+            Hide missing rooms (room or address contains a number)
+          </label>
+
           <div className="mt-4 flex flex-wrap gap-2 border-t border-[#eef0f3] pt-4">
             <button
               type="submit"
@@ -1034,12 +1118,13 @@ export async function ContactResultsPage({
               Apply Filters
             </button>
 
-            <a
-              href={clearFiltersHref}
+            <button
+              type="submit"
+              formAction={clearFilters}
               className="rounded-[11px] border border-[#e4e7ec] bg-white px-4 py-2.5 text-sm font-extrabold text-[#15223a]"
             >
               Clear Filters
-            </a>
+            </button>
           </div>
         </form>
       </details>
@@ -1056,7 +1141,7 @@ export async function ContactResultsPage({
               ? ` • page ${currentPage} of ${totalPages}`
               : ''}
             {activeFilterCount > 0
-              ? ` • ${activeFilterCount} filters active`
+              ? ` • ${activeFilterCount} ${view === 'area' ? 'filters' : 'personal filters'} active`
               : ''}
           </div>
 
@@ -1088,19 +1173,21 @@ export async function ContactResultsPage({
             </div>
 
             {isDormContactContext && (
-              <Link
-                href={roomToggleHref}
-                className={[
-                  'rounded-[10px] border px-3 py-2 text-xs font-extrabold',
-                  roomOnlyActive
-                    ? 'border-[#13795b] bg-[#ecfdf3] text-[#027a48]'
-                    : 'border-[#e4e7ec] bg-white text-[#475467]',
-                ].join(' ')}
-              >
-                {roomOnlyActive
-                  ? 'Show missing rooms'
-                  : 'Hide missing rooms'}
-              </Link>
+              <form action={toggleRoomFilter}>
+                <button
+                  type="submit"
+                  className={[
+                    'rounded-[10px] border px-3 py-2 text-xs font-extrabold',
+                    roomOnlyActive
+                      ? 'border-[#13795b] bg-[#ecfdf3] text-[#027a48]'
+                      : 'border-[#e4e7ec] bg-white text-[#475467]',
+                  ].join(' ')}
+                >
+                  {roomOnlyActive
+                    ? 'Show missing rooms'
+                    : 'Hide missing rooms'}
+                </button>
+              </form>
             )}
 
             <SortLink
@@ -1775,6 +1862,7 @@ function resultsHref({
   const params =
     new URLSearchParams()
 
+  params.set('context', '1')
   params.set('sort', sort)
   params.set('dir', dir)
 

@@ -44,6 +44,11 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     startupImage: appleStartupImages,
   },
+  other: {
+    // Next emits only mobile-web-app-capable; iOS launch images also need this.
+    // https://github.com/vercel/next.js/issues/74524
+    'apple-mobile-web-app-capable': 'yes',
+  },
 }
 
 export const viewport: Viewport = {

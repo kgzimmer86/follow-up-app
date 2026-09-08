@@ -14,7 +14,6 @@ import {
   personalFilterCookie,
   readPersonalFilters,
   readPersonalFilterView,
-  filtersForContactView,
 } from '@/lib/contact-filters'
 
 type PageProps = {
@@ -162,6 +161,9 @@ export default async function HomePage({
     )
   }
 
+  const areas = areaData ?? []
+  const defaultArea = areas.find((area) => area.id === dashboard.default_area_id) ?? null
+
   let counts: DashboardCounts = {
     my_contacts:
       dashboard.counts
@@ -190,51 +192,36 @@ export default async function HomePage({
 
   if (saved !== undefined) {
     const savedView = readPersonalFilterView(storedFilters ?? '')
-    const countViews = [
-      ['my_contacts', 'mine'],
-      ['go_back', 'goback'],
-      ['share_gospel', 'gospel'],
-      ['meet_new', 'new'],
-      ['invite_cg', 'cg'],
-      ['no_address', 'noaddress'],
-    ] as const
-
-    const countResponses = await Promise.all(
-      countViews.map(async ([, view]) => {
-        const filters = filtersForContactView(saved, savedView, view)
-        const { data, error } = await supabase.rpc(
-          'get_follow_up_contact_results_v2',
-          {
-            p_view: view,
-            p_sort: 'name',
-            p_dir: 'asc',
-            p_page: 1,
-            p_page_size: 1,
-            p_campus: filters.campus || null,
-            p_location: filters.location || null,
-            p_gender: filters.gender || null,
-            p_status: filters.status || null,
-            p_jesus: filters.jesus || null,
-            p_community: filters.community || null,
-            p_interview: filters.interview || null,
-            p_kgp: filters.kgp || null,
-            p_interview_done: filters.interviewDone || null,
-            p_invited_to_cg: filters.invitedCg || null,
-            p_affinity: filters.affinity || null,
-            p_floor: filters.floor || null,
-            p_wing: filters.wing || null,
-            p_room_only: filters.roomOnly === '1',
-          }
-        )
-
-        if (error) throw new Error(error.message)
-        return Number((data as { total_count?: number } | null)?.total_count) || 0
-      })
+    const { data: filteredCountData, error: filteredCountError } = await supabase.rpc(
+      'get_follow_up_home_filtered_counts',
+      {
+        p_current_view: savedView ?? null,
+        p_campus: saved.campus ?? null,
+        p_location: saved.location ?? null,
+        p_gender: saved.gender ?? null,
+        p_status: saved.status ?? null,
+        p_jesus: saved.jesus ?? null,
+        p_community: saved.community ?? null,
+        p_interview: saved.interview ?? null,
+        p_kgp: saved.kgp ?? null,
+        p_interview_done: saved.interviewDone ?? null,
+        p_affinity: saved.affinity ?? null,
+        p_floor: saved.floor ?? null,
+        p_wing: saved.wing ?? null,
+        p_room_only: saved.roomOnly === '1',
+        p_invited_to_cg: saved.invitedCg ?? null,
+      }
     )
 
-    counts = Object.fromEntries(
-      countViews.map(([key], index) => [key, countResponses[index]])
-    ) as DashboardCounts
+    if (filteredCountError) throw new Error(filteredCountError.message)
+
+    const filteredCounts =
+      (filteredCountData as { counts?: Partial<DashboardCounts> } | null)?.counts
+
+    counts = {
+      ...counts,
+      ...filteredCounts,
+    }
   }
 
   const recentContactRows = dashboard.recent_contacts ?? []
@@ -259,8 +246,6 @@ export default async function HomePage({
   const defaultAreaLabel =
     dashboard.default_area_name ||
     'All Campus'
-  const areas = areaData ?? []
-  const defaultArea = areas.find((area) => area.id === dashboard.default_area_id) ?? null
   const { areaLabel, showReturnToDefault } = homeFilterAreaContext(saved, areas, defaultArea)
 
   return (

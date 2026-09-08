@@ -47,7 +47,7 @@ type DashboardRecentContact = {
   latest_event_type: string
   latest_event_at: string
   recent_notes: DashboardNote[]
-  invited_to_community_group: boolean
+  invited_to_community_group?: boolean
 }
 
 type HomeDashboard = {
@@ -158,23 +158,9 @@ export default async function HomePage({
   const areas = areaData ?? []
   const defaultArea = areas.find((area) => area.id === dashboard.default_area_id) ?? null
 
-  const recentContactRows = dashboard.recent_contacts ?? []
-  const recentInvitedContactIds = new Set<string>()
-  if (recentContactRows.length > 0) {
-    const { data: invitedEvents, error: invitedEventsError } = await supabase
-      .from('follow_up_events')
-      .select('contact_id')
-      .in('contact_id', recentContactRows.map((contact) => contact.id))
-      .eq('event_type', 'interaction')
-      .eq('invited_to_community_group', true)
-
-    if (invitedEventsError) throw new Error(invitedEventsError.message)
-    for (const event of invitedEvents ?? []) recentInvitedContactIds.add(event.contact_id)
-  }
-
-  const recentContacts = recentContactRows.map((contact) => ({
+  const recentContacts = (dashboard.recent_contacts ?? []).map((contact) => ({
     ...contact,
-    invited_to_community_group: recentInvitedContactIds.has(contact.id),
+    invited_to_community_group: contact.invited_to_community_group ?? false,
   }))
 
   const defaultAreaLabel =

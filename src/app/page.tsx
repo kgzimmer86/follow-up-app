@@ -229,6 +229,7 @@ export default async function HomePage({
             p_interview: filters.interview || null,
             p_kgp: filters.kgp || null,
             p_interview_done: filters.interviewDone || null,
+            p_invited_to_cg: filters.invitedCg || null,
             p_affinity: filters.affinity || null,
             p_floor: filters.floor || null,
             p_wing: filters.wing || null,

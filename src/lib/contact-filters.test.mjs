@@ -56,7 +56,7 @@ test('personal values remain separate from card identity and navigation state', 
 })
 
 const travelling = { campus: 'north', location: 'bursley', floor: '3', wing: '2', gender: 'male', affinity: 'greek' }
-const cardOnly = { status: 'go_back', jesus: 'yes,maybe', community: 'no', interview: 'yes', kgp: 'not_shared', interviewDone: 'not_completed', roomOnly: '1' }
+const cardOnly = { status: 'go_back', jesus: 'yes,maybe', community: 'no', interview: 'yes', kgp: 'not_shared', interviewDone: 'not_completed', invitedCg: 'invited', roomOnly: '1' }
 
 test('switching smart cards carries only location, gender, and affinity choices', () => {
   const saved = { ...travelling, ...cardOnly }
@@ -150,7 +150,7 @@ test('Clear Filters restores only the assigned campus and location and clears ot
     const reset = clearedPersonalFilters(area)
     const merged = { ...travelling, ...cardOnly, ...reset }
     assert.deepEqual(readPersonalFilters(JSON.stringify(merged)), expected)
-    for (const key of ['floor', 'wing', 'gender', 'status', 'jesus', 'community', 'interview', 'kgp', 'interviewDone', 'roomOnly']) {
+    for (const key of ['floor', 'wing', 'gender', 'status', 'jesus', 'community', 'interview', 'kgp', 'interviewDone', 'invitedCg', 'roomOnly']) {
       assert.equal(reset[key], '')
     }
   }
@@ -158,7 +158,7 @@ test('Clear Filters restores only the assigned campus and location and clears ot
   const affinity = { id: 'greek', name: 'Greek Life', area_type: 'affinity', parent_id: null }
   assert.deepEqual(clearedPersonalFilters(affinity), {
     campus: '', location: '', floor: '', wing: '', gender: '', status: '', jesus: '',
-    community: '', interview: '', kgp: '', interviewDone: '', affinity: affinity.id, roomOnly: '',
+    community: '', interview: '', kgp: '', interviewDone: '', invitedCg: '', affinity: affinity.id, roomOnly: '',
   })
 })
 

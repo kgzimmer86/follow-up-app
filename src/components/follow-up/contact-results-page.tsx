@@ -50,6 +50,7 @@ export type ContactResultsSearchParams = {
   interview?: string | string[]
   kgp?: string
   interviewDone?: string
+  invitedCg?: string
   affinity?: string
   floor?: string
   wing?: string
@@ -77,6 +78,7 @@ type FilterValues = {
   interview: string
   kgp: string
   interviewDone: string
+  invitedCg: string
   affinity: string
   floor: string
   wing: string
@@ -232,6 +234,8 @@ export async function ContactResultsPage({
     kgp: searchParams.kgp ?? '',
     interviewDone:
       searchParams.interviewDone ?? '',
+    invitedCg:
+      searchParams.invitedCg ?? '',
     affinity:
       searchParams.affinity ?? '',
     floor:
@@ -270,6 +274,7 @@ export async function ContactResultsPage({
     filters.interview,
     filters.kgp,
     filters.interviewDone,
+    filters.invitedCg,
     filters.affinity,
     filters.floor,
     filters.wing,
@@ -401,6 +406,8 @@ export async function ContactResultsPage({
         filters.kgp || null,
       p_interview_done:
         filters.interviewDone || null,
+      p_invited_to_cg:
+        filters.invitedCg || null,
       p_affinity:
         filters.affinity || null,
       p_floor:
@@ -594,24 +601,8 @@ export async function ContactResultsPage({
     (currentPage - 1) *
     RESULTS_PAGE_SIZE
 
-  const resultRows = (results.rows ?? []) as ContactResultRow[]
-  const invitedContactIds = new Set<string>()
-  if (resultRows.length > 0) {
-    const { data: invitedEvents, error: invitedEventsError } = await supabase
-      .from('follow_up_events')
-      .select('contact_id')
-      .in('contact_id', resultRows.map((contact) => contact.id))
-      .eq('event_type', 'interaction')
-      .eq('invited_to_community_group', true)
-
-    if (invitedEventsError) throw new Error(invitedEventsError.message)
-    for (const event of invitedEvents ?? []) invitedContactIds.add(event.contact_id)
-  }
-
-  const paginatedContacts = resultRows.map((contact) => ({
-    ...contact,
-    invited_to_community_group: invitedContactIds.has(contact.id),
-  }))
+  const paginatedContacts =
+    (results.rows ?? []) as ContactResultRow[]
 
   const returnToResults =
     resultsHref({
@@ -673,6 +664,7 @@ export async function ContactResultsPage({
     interview: '',
     kgp: '',
     interviewDone: '',
+    invitedCg: '',
     affinity: '',
     floor: '',
     wing: '',
@@ -1153,6 +1145,22 @@ export async function ContactResultsPage({
                 Yes
               </option>
               <option value="not_completed">
+                No
+              </option>
+            </FilterSelect>
+
+            <FilterSelect
+              label="Invited to CG"
+              name="invitedCg"
+              value={filters.invitedCg}
+            >
+              <option value="">
+                Any
+              </option>
+              <option value="invited">
+                Yes
+              </option>
+              <option value="not_invited">
                 No
               </option>
             </FilterSelect>

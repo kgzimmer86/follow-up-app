@@ -1,7 +1,10 @@
--- Install before deploying the matching app changes. The original function is unchanged.
+-- Install before deploying the matching app changes. This version adds the
+-- Invited to Community Group filter to the existing results function.
 BEGIN;
 
-CREATE OR REPLACE FUNCTION public.get_follow_up_contact_results_v2(p_view text, p_sort text DEFAULT 'name'::text, p_dir text DEFAULT 'asc'::text, p_page integer DEFAULT 1, p_page_size integer DEFAULT 50, p_campus text DEFAULT NULL::text, p_location text DEFAULT NULL::text, p_gender text DEFAULT NULL::text, p_status text DEFAULT NULL::text, p_jesus text DEFAULT NULL::text, p_community text DEFAULT NULL::text, p_interview text DEFAULT NULL::text, p_kgp text DEFAULT NULL::text, p_interview_done text DEFAULT NULL::text, p_affinity text DEFAULT NULL::text, p_floor text DEFAULT NULL::text, p_wing text DEFAULT NULL::text, p_room_only boolean DEFAULT false)
+DROP FUNCTION IF EXISTS public.get_follow_up_contact_results_v2(text, text, text, integer, integer, text, text, text, text, text, text, text, text, text, text, text, text, boolean);
+
+CREATE OR REPLACE FUNCTION public.get_follow_up_contact_results_v2(p_view text, p_sort text DEFAULT 'name'::text, p_dir text DEFAULT 'asc'::text, p_page integer DEFAULT 1, p_page_size integer DEFAULT 50, p_campus text DEFAULT NULL::text, p_location text DEFAULT NULL::text, p_gender text DEFAULT NULL::text, p_status text DEFAULT NULL::text, p_jesus text DEFAULT NULL::text, p_community text DEFAULT NULL::text, p_interview text DEFAULT NULL::text, p_kgp text DEFAULT NULL::text, p_interview_done text DEFAULT NULL::text, p_affinity text DEFAULT NULL::text, p_floor text DEFAULT NULL::text, p_wing text DEFAULT NULL::text, p_room_only boolean DEFAULT false, p_invited_to_cg text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -40,6 +43,7 @@ declare
   end;
   v_kgp text := nullif(lower(btrim(coalesce(p_kgp, ''))), '');
   v_interview_done text := nullif(lower(btrim(coalesce(p_interview_done, ''))), '');
+  v_invited_to_cg text := nullif(lower(btrim(coalesce(p_invited_to_cg, ''))), '');
   v_affinity text := nullif(btrim(coalesce(p_affinity, '')), '');
   v_floor text := nullif(btrim(coalesce(p_floor, '')), '');
   v_wing text := nullif(btrim(coalesce(p_wing, '')), '');
@@ -209,6 +213,14 @@ begin
           and e.event_type = 'interaction'
       ) as has_any_interaction,
 
+      exists (
+        select 1
+        from public.follow_up_events e
+        where e.contact_id = c.id
+          and e.event_type = 'interaction'
+          and e.invited_to_community_group = true
+      ) as invited_to_community_group,
+
       case
         when v_affinity is null then true
         else exists (
@@ -305,6 +317,12 @@ begin
         v_interview_done is null
         or (v_interview_done = 'completed' and b.interview_completed_at is not null)
         or (v_interview_done = 'not_completed' and b.interview_completed_at is null)
+      )
+
+      and (
+        v_invited_to_cg is null
+        or (v_invited_to_cg = 'invited' and b.invited_to_community_group)
+        or (v_invited_to_cg = 'not_invited' and not b.invited_to_community_group)
       )
 
       and b.matches_affinity_filter
@@ -487,7 +505,8 @@ begin
           'affinity_names', r.affinity_names,
           'interaction_notes', r.interaction_notes,
           'interaction_count', r.interaction_count,
-          'last_interaction_at', r.last_interaction_at
+          'last_interaction_at', r.last_interaction_at,
+          'invited_to_community_group', r.invited_to_community_group
         )
         order by r.sort_ordinal
       ) filter (where r.id is not null),
@@ -524,7 +543,7 @@ begin
 end;
 $function$;
 
-REVOKE ALL ON FUNCTION public.get_follow_up_contact_results_v2(text, text, text, integer, integer, text, text, text, text, text, text, text, text, text, text, text, text, boolean) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_follow_up_contact_results_v2(text, text, text, integer, integer, text, text, text, text, text, text, text, text, text, text, text, text, boolean) TO authenticated;
+REVOKE ALL ON FUNCTION public.get_follow_up_contact_results_v2(text, text, text, integer, integer, text, text, text, text, text, text, text, text, text, text, text, text, boolean, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_follow_up_contact_results_v2(text, text, text, integer, integer, text, text, text, text, text, text, text, text, text, text, text, text, boolean, text) TO authenticated;
 
 COMMIT;

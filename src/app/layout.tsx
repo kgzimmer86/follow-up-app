@@ -3,8 +3,10 @@ import type { ReactNode } from 'react'
 import './globals.css'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAppAccess } from '@/lib/supabase/access'
 import { FilterSession } from '@/components/follow-up/filter-session'
 import { AppShell } from '@/components/follow-up/app-shell'
+import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { InteractionFeedback } from '@/components/interaction-feedback'
 
 export const metadata: Metadata = {
@@ -49,11 +51,20 @@ export default async function RootLayout({
 }: Readonly<{
   children: ReactNode
 }>) {
-  const supabase = await createClient()
+  const access = await getAppAccess()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (access.status === 'unavailable') {
+    return (
+      <html lang="en">
+        <body>
+          <InteractionFeedback />
+          <LoadRecovery fullScreen />
+        </body>
+      </html>
+    )
+  }
+
+  const { user, profile } = access
 
   /*
    * Login, pending-approval, and inactive-account
@@ -69,12 +80,6 @@ export default async function RootLayout({
       </html>
     )
   }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name, role, is_active')
-    .eq('id', user.id)
-    .maybeSingle()
 
   if (
     !profile ||
@@ -95,6 +100,7 @@ export default async function RootLayout({
    * Find the user's default Follow Up ministry area.
    */
   let areaLabel = 'All Campus'
+  const supabase = await createClient()
 
   const { data: campaign } = await supabase
     .from('follow_up_campaigns')

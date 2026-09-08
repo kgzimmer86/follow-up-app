@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { getAppAccess } from '@/lib/supabase/access'
+import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { GoogleLoginButton } from '@/components/google-login-button'
 import { ReturnToDefaultArea } from '@/components/follow-up/return-to-default-area'
 import {
@@ -73,11 +75,9 @@ export default async function HomePage({
   searchParams,
 }: PageProps) {
   const params = await searchParams
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const access = await getAppAccess()
+  if (access.status === 'unavailable') return <LoadRecovery fullScreen />
+  const { user, profile } = access
 
   if (!user) {
     return (
@@ -110,17 +110,6 @@ export default async function HomePage({
 
   const userId = user.id
 
-  const { data: profile, error: profileError } =
-    await supabase
-      .from('profiles')
-      .select('display_name, role, is_active')
-      .eq('id', userId)
-      .maybeSingle()
-
-  if (profileError) {
-    throw new Error(profileError.message)
-  }
-
   if (!profile || profile.role === 'pending') {
     return (
       <AccessScreen
@@ -139,6 +128,7 @@ export default async function HomePage({
     )
   }
 
+  const supabase = await createClient()
   const [
     { data: dashboardData, error: dashboardError },
     { data: areaData, error: areaError },

@@ -1486,8 +1486,8 @@ function ScheduleTab({
     )
 
   return (
-    <div className="grid gap-4">
-      <Panel title="Observed schedule">
+    <div className="grid min-w-0 gap-4">
+      <Panel title="Observed schedule" className="min-w-0">
         <p className="mb-4 text-xs leading-5 text-[#667085]">
           Green means someone was found
           home. Red means someone knocked
@@ -1500,7 +1500,7 @@ function ScheduleTab({
           for the breakdown.
         </p>
 
-        <div className="overflow-x-auto">
+        <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
           <div className="grid min-w-[760px] grid-cols-[90px_repeat(7,1fr)] gap-1.5">
             <div />
 
@@ -1724,12 +1724,17 @@ function DetailTabLink({
 function Panel({
   title,
   children,
+  className = '',
 }: {
   title: string
   children: ReactNode
+  className?: string
 }) {
   return (
-    <section className="rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_5px_rgba(16,24,40,0.03)] md:p-5">
+    <section className={[
+      'rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_5px_rgba(16,24,40,0.03)] md:p-5',
+      className,
+    ].join(' ')}>
       <h3 className="mb-4 text-[17px] font-extrabold tracking-[-0.02em] text-[#15223a]">
         {title}
       </h3>

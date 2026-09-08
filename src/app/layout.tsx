@@ -10,6 +10,7 @@ import { AppShell } from '@/components/follow-up/app-shell'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { AppLoading } from '@/components/follow-up/app-loading'
 import { InteractionFeedback } from '@/components/interaction-feedback'
+import { appleStartupImages } from '@/lib/startup-images'
 
 export const metadata: Metadata = {
   title: 'Follow Up | Michigan Cru',
@@ -19,12 +20,12 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/icon-192.png',
+        url: '/icon-192(1).png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        url: '/icon-512.png',
+        url: '/icon-512(1).png',
         sizes: '512x512',
         type: 'image/png',
       },
@@ -41,6 +42,7 @@ export const metadata: Metadata = {
     capable: true,
     title: 'Follow Up',
     statusBarStyle: 'default',
+    startupImage: appleStartupImages,
   },
 }
 

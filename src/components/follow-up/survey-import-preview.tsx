@@ -508,8 +508,37 @@ export function SurveyImportPreview({
     useState<Record<string, number>>({})
   const [confirmedDuplicateChoices, setConfirmedDuplicateChoices] =
     useState<Record<string, number>>({})
-  const [reviewPage, setReviewPage] =
-    useState(0)
+  const [reviewPageState, setReviewPageState] =
+    useState({ key: 'all:', page: 0 })
+
+  const reviewPageKey =
+    `${reviewFilter}:${issueFilter ?? ''}`
+
+  // A changed filter renders page one immediately without an effect-driven
+  // state update. Page navigation still remembers the active filter key.
+  const reviewPage =
+    reviewPageState.key === reviewPageKey
+      ? reviewPageState.page
+      : 0
+
+  function setReviewPage(
+    nextPage: number | ((currentPage: number) => number)
+  ) {
+    setReviewPageState((current) => {
+      const currentPage =
+        current.key === reviewPageKey
+          ? current.page
+          : 0
+
+      return {
+        key: reviewPageKey,
+        page:
+          typeof nextPage === 'function'
+            ? nextPage(currentPage)
+            : nextPage,
+      }
+    })
+  }
   const [excludedRows, setExcludedRows] =
     useState<Set<number>>(new Set())
   const [error, setError] = useState<string | null>(null)
@@ -1389,13 +1418,6 @@ export function SurveyImportPreview({
       unresolvedDuplicateGroupKeys,
     ]
   )
-
-  useEffect(() => {
-    setReviewPage(0)
-  }, [
-    reviewFilter,
-    issueFilter,
-  ])
 
   useEffect(() => {
     if (!hasUnsavedImportWork) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -29,8 +29,8 @@ export function DiscipleContactAssignment({
   contacts: EligibleContact[]
 }) {
   const router = useRouter()
-  const [availableContacts, setAvailableContacts] =
-    useState(contacts)
+  const [locallyRemovedContactIds, setLocallyRemovedContactIds] =
+    useState<Set<string>>(() => new Set())
   const [query, setQuery] = useState('')
   const [selectedIds, setSelectedIds] =
     useState<string[]>([])
@@ -40,18 +40,29 @@ export function DiscipleContactAssignment({
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null)
 
-  // Keep the client-side picker synchronized with fresh server data.
-  // This matters when a contact is unassigned elsewhere on this same page:
-  // router.refresh() updates the `contacts` prop, but React preserves this
-  // component's local state unless we explicitly sync it.
-  useEffect(() => {
-    setAvailableContacts(contacts)
-    setSelectedIds((current) =>
-      current.filter((id) =>
-        contacts.some((contact) => contact.id === id)
+  // Keep server-provided contacts authoritative while remembering only the
+  // contacts removed optimistically after a successful assignment.
+  const availableContacts = useMemo(
+    () =>
+      contacts.filter(
+        (contact) =>
+          !locallyRemovedContactIds.has(contact.id)
+      ),
+    [contacts, locallyRemovedContactIds]
+  )
+
+  const selectedContactIds = useMemo(
+    () => {
+      const availableIds = new Set(
+        availableContacts.map((contact) => contact.id)
       )
-    )
-  }, [contacts])
+
+      return selectedIds.filter((id) =>
+        availableIds.has(id)
+      )
+    },
+    [availableContacts, selectedIds]
+  )
 
   const visibleContacts = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -96,7 +107,7 @@ export function DiscipleContactAssignment({
   }
 
   async function assignSelected() {
-    if (selectedIds.length === 0) {
+    if (selectedContactIds.length === 0) {
       setErrorMessage(
         'Choose at least one contact to assign.'
       )
@@ -111,7 +122,7 @@ export function DiscipleContactAssignment({
     const { error } = await supabase.rpc(
       'assign_contacts_to_follow_up_user',
       {
-        p_contact_ids: selectedIds,
+        p_contact_ids: selectedContactIds,
         p_assignee_id: targetId,
       }
     )
@@ -122,13 +133,13 @@ export function DiscipleContactAssignment({
       return
     }
 
-    const assignedCount = selectedIds.length
+    const assignedCount = selectedContactIds.length
 
-    setAvailableContacts((current) =>
-      current.filter(
-        (contact) =>
-          !selectedIds.includes(contact.id)
-      )
+    setLocallyRemovedContactIds((current) =>
+      new Set([
+        ...current,
+        ...selectedContactIds,
+      ])
     )
     setSelectedIds([])
     setMessage(
@@ -208,7 +219,7 @@ export function DiscipleContactAssignment({
                     >
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(
+                        checked={selectedContactIds.includes(
                           contact.id
                         )}
                         onChange={(event) =>
@@ -265,14 +276,14 @@ export function DiscipleContactAssignment({
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
               <div className="text-[11px] font-bold text-[#667085]">
-                {selectedIds.length}{' '}
+                {selectedContactIds.length}{' '}
                 selected
               </div>
 
               <button
                 type="button"
                 disabled={
-                  saving || selectedIds.length === 0
+                  saving || selectedContactIds.length === 0
                 }
                 onClick={assignSelected}
                 className="rounded-[10px] bg-[#00274c] px-3.5 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:bg-[#98a2b3]"

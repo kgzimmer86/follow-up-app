@@ -129,23 +129,30 @@ export default async function HomePage({
   }
 
   const supabase = await createClient()
-  const [
-    { data: dashboardData, error: dashboardError },
-    { data: areaData, error: areaError },
-  ] = await Promise.all([
-    supabase.rpc('get_follow_up_home_dashboard'),
-    supabase.from('ministry_areas')
-      .select('id, name, area_type, parent_id')
-      .eq('is_active', true),
-  ])
+  const storedFilters = (await cookies()).get(
+    personalFilterCookie(userId)
+  )?.value
+  const saved = storedFilters === undefined ? undefined : readPersonalFilters(storedFilters)
+  const countViews = [
+    ['my_contacts', 'mine'],
+    ['go_back', 'goback'],
+    ['share_gospel', 'gospel'],
+    ['meet_new', 'new'],
+    ['invite_cg', 'cg'],
+    ['no_address', 'noaddress'],
+  ] as const
+
+  const dashboardPromise = supabase.rpc('get_follow_up_home_dashboard')
+  const areaPromise = supabase.from('ministry_areas')
+    .select('id, name, area_type, parent_id')
+    .eq('is_active', true)
+  const { data: dashboardData, error: dashboardError } = await dashboardPromise
 
   if (dashboardError) {
     throw new Error(
       dashboardError.message
     )
   }
-
-  if (areaError) throw new Error(areaError.message)
 
   const dashboard =
     dashboardData as HomeDashboard | null
@@ -161,6 +168,55 @@ export default async function HomePage({
       />
     )
   }
+
+  const filteredCountsPromise = saved === undefined
+    ? Promise.resolve<DashboardCounts | null>(null)
+    : (async () => {
+        const savedView = readPersonalFilterView(storedFilters ?? '')
+        const countResponses = await Promise.all(
+          countViews.map(async ([, view]) => {
+            const filters = filtersForContactView(saved, savedView, view)
+            const { data, error } = await supabase.rpc(
+              'get_follow_up_contact_results_v2',
+              {
+                p_view: view,
+                p_sort: 'name',
+                p_dir: 'asc',
+                p_page: 1,
+                p_page_size: 1,
+                p_campus: filters.campus || null,
+                p_location: filters.location || null,
+                p_gender: filters.gender || null,
+                p_status: filters.status || null,
+                p_jesus: filters.jesus || null,
+                p_community: filters.community || null,
+                p_interview: filters.interview || null,
+                p_kgp: filters.kgp || null,
+                p_interview_done: filters.interviewDone || null,
+                p_invited_to_cg: filters.invitedCg || null,
+                p_affinity: filters.affinity || null,
+                p_floor: filters.floor || null,
+                p_wing: filters.wing || null,
+                p_room_only: filters.roomOnly === '1',
+              }
+            )
+
+            if (error) throw new Error(error.message)
+            return Number((data as { total_count?: number } | null)?.total_count) || 0
+          })
+        )
+
+        return Object.fromEntries(
+          countViews.map(([key], index) => [key, countResponses[index]])
+        ) as DashboardCounts
+      })()
+
+  const [
+    { data: areaData, error: areaError },
+    filteredCounts,
+  ] = await Promise.all([areaPromise, filteredCountsPromise])
+
+  if (areaError) throw new Error(areaError.message)
 
   const areas = areaData ?? []
   const defaultArea = areas.find((area) => area.id === dashboard.default_area_id) ?? null
@@ -186,58 +242,11 @@ export default async function HomePage({
         ?.no_address ?? 0,
   }
 
-  const storedFilters = (await cookies()).get(
-    personalFilterCookie(userId)
-  )?.value
-  const saved = storedFilters === undefined ? undefined : readPersonalFilters(storedFilters)
-
   if (saved !== undefined) {
-    const savedView = readPersonalFilterView(storedFilters ?? '')
-    const countViews = [
-      ['my_contacts', 'mine'],
-      ['go_back', 'goback'],
-      ['share_gospel', 'gospel'],
-      ['meet_new', 'new'],
-      ['invite_cg', 'cg'],
-      ['no_address', 'noaddress'],
-    ] as const
-
-    const countResponses = await Promise.all(
-      countViews.map(async ([, view]) => {
-        const filters = filtersForContactView(saved, savedView, view)
-        const { data, error } = await supabase.rpc(
-          'get_follow_up_contact_results_v2',
-          {
-            p_view: view,
-            p_sort: 'name',
-            p_dir: 'asc',
-            p_page: 1,
-            p_page_size: 1,
-            p_campus: filters.campus || null,
-            p_location: filters.location || null,
-            p_gender: filters.gender || null,
-            p_status: filters.status || null,
-            p_jesus: filters.jesus || null,
-            p_community: filters.community || null,
-            p_interview: filters.interview || null,
-            p_kgp: filters.kgp || null,
-            p_interview_done: filters.interviewDone || null,
-            p_invited_to_cg: filters.invitedCg || null,
-            p_affinity: filters.affinity || null,
-            p_floor: filters.floor || null,
-            p_wing: filters.wing || null,
-            p_room_only: filters.roomOnly === '1',
-          }
-        )
-
-        if (error) throw new Error(error.message)
-        return Number((data as { total_count?: number } | null)?.total_count) || 0
-      })
-    )
-
-    counts = Object.fromEntries(
-      countViews.map(([key], index) => [key, countResponses[index]])
-    ) as DashboardCounts
+    counts = {
+      ...counts,
+      ...(filteredCounts ?? {}),
+    }
   }
 
   const recentContactRows = dashboard.recent_contacts ?? []

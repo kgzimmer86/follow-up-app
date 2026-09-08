@@ -4,6 +4,7 @@
 import {
   ChangeEvent,
   Fragment,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -758,22 +759,22 @@ export function SurveyImportPreview({
     Boolean(fileName) &&
     !importResult
 
-  const rowApprovedAsIs = (
-    row: PreviewRow
-  ) =>
-    (
-      acceptedWarnings[
-        row.rowNumber
-      ] ?? []
-    ).length > 0
+  const rowApprovedAsIs = useCallback(
+    (row: PreviewRow) =>
+      (
+        acceptedWarnings[
+          row.rowNumber
+        ] ?? []
+      ).length > 0,
+    [acceptedWarnings]
+  )
 
-  const isSuggestedExclusionRow = (
-    row: PreviewRow
-  ) =>
-    !rowApprovedAsIs(row) &&
-    shouldSuggestExclusion(
-      row
-    )
+  const isSuggestedExclusionRow = useCallback(
+    (row: PreviewRow) =>
+      !rowApprovedAsIs(row) &&
+      shouldSuggestExclusion(row),
+    [rowApprovedAsIs]
+  )
 
   const matchMap = useMemo(
     () => new Map(matchResults.map((result) => [result.row_number, result])),
@@ -877,86 +878,94 @@ export function SurveyImportPreview({
       }
     ).length
 
-  const isExistingChoiceConfirmed = (
-    rowNumber: number
-  ) => {
-    const matchedStudentId =
-      matchMap.get(
-        rowNumber
-      )?.matched_student_id
+  const isExistingChoiceConfirmed = useCallback(
+    (rowNumber: number) => {
+      const matchedStudentId =
+        matchMap.get(
+          rowNumber
+        )?.matched_student_id
 
-    return (
-      Boolean(matchedStudentId) &&
-      alreadyInCampaignRowNumbers.has(
-        rowNumber
-      ) &&
-      confirmedExistingMatches[
-        rowNumber
-      ] === matchedStudentId
-    )
-  }
+      return (
+        Boolean(matchedStudentId) &&
+        alreadyInCampaignRowNumbers.has(
+          rowNumber
+        ) &&
+        confirmedExistingMatches[
+          rowNumber
+        ] === matchedStudentId
+      )
+    },
+    [
+      matchMap,
+      alreadyInCampaignRowNumbers,
+      confirmedExistingMatches,
+    ]
+  )
 
-  const weakMatchChoiceToken = (
-    rowNumber: number
-  ) => {
-    const choice =
+  const weakMatchChoiceToken = useCallback(
+    (rowNumber: number) => {
+      const choice =
+        weakMatchChoices[
+          rowNumber
+        ]
+
+      const result =
+        weakMatchMap.get(
+          rowNumber
+        )
+
+      if (
+        !choice ||
+        !result ||
+        result.candidate_count === 0
+      ) {
+        return null
+      }
+
+      if (choice === 'keep_separate') {
+        return 'keep_separate'
+      }
+
+      if (
+        choice === 'merge' &&
+        result.candidate_count === 1 &&
+        result.candidates[0]?.contact_id
+      ) {
+        return `merge:${result.candidates[0].contact_id}`
+      }
+
+      return null
+    },
+    [weakMatchChoices, weakMatchMap]
+  )
+
+  const isWeakMatchConfirmed = useCallback(
+    (rowNumber: number) => {
+      const token =
+        weakMatchChoiceToken(
+          rowNumber
+        )
+
+      return Boolean(
+        token &&
+        confirmedWeakMatches[
+          rowNumber
+        ] === token
+      )
+    },
+    [weakMatchChoiceToken, confirmedWeakMatches]
+  )
+
+  const isWeakMergeConfirmed = useCallback(
+    (rowNumber: number) =>
       weakMatchChoices[
         rowNumber
-      ]
-
-    const result =
-      weakMatchMap.get(
+      ] === 'merge' &&
+      isWeakMatchConfirmed(
         rowNumber
-      )
-
-    if (
-      !choice ||
-      !result ||
-      result.candidate_count === 0
-    ) {
-      return null
-    }
-
-    if (choice === 'keep_separate') {
-      return 'keep_separate'
-    }
-
-    if (
-      choice === 'merge' &&
-      result.candidate_count === 1 &&
-      result.candidates[0]?.contact_id
-    ) {
-      return `merge:${result.candidates[0].contact_id}`
-    }
-
-    return null
-  }
-
-  const isWeakMatchConfirmed = (
-    rowNumber: number
-  ) => {
-    const token =
-      weakMatchChoiceToken(
-        rowNumber
-      )
-
-    return Boolean(
-      token &&
-      confirmedWeakMatches[
-        rowNumber
-      ] === token
-    )
-  }
-
-  const isWeakMergeConfirmed = (
-    rowNumber: number
-  ) =>
-    weakMatchChoices[
-      rowNumber
-    ] === 'merge' &&
-    isWeakMatchConfirmed(
-      rowNumber
-    )
+      ),
+    [weakMatchChoices, isWeakMatchConfirmed]
+  )
 
   const rowsToMerge = useMemo(
     () =>
@@ -968,9 +977,7 @@ export function SurveyImportPreview({
       ),
     [
       rowsToAdd,
-      weakMatchChoices,
-      confirmedWeakMatches,
-      weakMatchResults,
+      isWeakMergeConfirmed,
     ]
   )
 
@@ -984,62 +991,67 @@ export function SurveyImportPreview({
       ),
     [
       rowsToAdd,
-      weakMatchChoices,
-      confirmedWeakMatches,
-      weakMatchResults,
+      isWeakMergeConfirmed,
     ]
   )
 
-  const rowNeedsActiveDatabaseReview = (
-    row: PreviewRow
-  ) => {
-    if (
-      identityDirtyRows.has(
-        row.rowNumber
-      )
-    ) {
-      return false
-    }
+  const rowNeedsActiveDatabaseReview = useCallback(
+    (row: PreviewRow) => {
+      if (
+        identityDirtyRows.has(
+          row.rowNumber
+        )
+      ) {
+        return false
+      }
 
-    const weakMatch =
-      weakMatchMap.get(
-        row.rowNumber
-      )
+      const weakMatch =
+        weakMatchMap.get(
+          row.rowNumber
+        )
 
-    if (
-      weakMatch &&
-      weakMatch.candidate_count > 0 &&
-      !isWeakMatchConfirmed(
-        row.rowNumber
-      )
-    ) {
+      if (
+        weakMatch &&
+        weakMatch.candidate_count > 0 &&
+        !isWeakMatchConfirmed(
+          row.rowNumber
+        )
+      ) {
+        return true
+      }
+
+      const status =
+        matchMap.get(
+          row.rowNumber
+        )?.status
+
+      if (
+        !rowNeedsDatabaseReview(
+          status,
+          row
+        )
+      ) {
+        return false
+      }
+
+      if (
+        isExistingChoiceConfirmed(
+          row.rowNumber
+        )
+      ) {
+        return false
+      }
+
       return true
-    }
-
-    const status =
-      matchMap.get(
-        row.rowNumber
-      )?.status
-
-    if (
-      !rowNeedsDatabaseReview(
-        status,
-        row
-      )
-    ) {
-      return false
-    }
-
-    if (
-      isExistingChoiceConfirmed(
-        row.rowNumber
-      )
-    ) {
-      return false
-    }
-
-    return true
-  }
+    },
+    [
+      identityDirtyRows,
+      weakMatchMap,
+      isWeakMatchConfirmed,
+      matchMap,
+      isExistingChoiceConfirmed,
+    ]
+  )
 
   const counts = useMemo(() => {
     const existing =
@@ -1063,11 +1075,6 @@ export function SurveyImportPreview({
     ).length
 
     const ready = importRows.filter((row) => {
-      const status =
-        matchMap.get(
-          row.rowNumber
-        )?.status
-
       return (
         !identityDirtyRows.has(
           row.rowNumber
@@ -1102,26 +1109,13 @@ export function SurveyImportPreview({
   }, [
     importRows,
     excludedPreviewRows,
+    unresolvedExistingChoiceCount,
     matchMap,
-    duplicatesSkipped,
-    unresolvedDuplicateGroupCount,
-    acceptedWarnings,
-    confirmedExistingMatches,
-    alreadyInCampaignRowNumbers,
     identityDirtyRows,
-    weakMatchMap,
-    weakMatchChoices,
-    confirmedWeakMatches,
+    unresolvedDuplicateGroupCount,
+    rowNeedsActiveDatabaseReview,
+    isSuggestedExclusionRow,
   ])
-
-  const blockingCsvCount =
-    useMemo(
-      () =>
-        importRows.filter(
-          rowHasBlockingCsvIssue
-        ).length,
-      [importRows]
-    )
 
   const nonBlockingWarningCount =
     useMemo(
@@ -1148,13 +1142,7 @@ export function SurveyImportPreview({
       ).length,
     [
       rowsToWrite,
-      matchMap,
-      confirmedExistingMatches,
-      alreadyInCampaignRowNumbers,
-      identityDirtyRows,
-      weakMatchMap,
-      weakMatchChoices,
-      confirmedWeakMatches,
+      rowNeedsActiveDatabaseReview,
     ]
   )
 
@@ -1162,7 +1150,7 @@ export function SurveyImportPreview({
     () => rowsToWrite.filter(isSuggestedExclusionRow).length,
     [
       rowsToWrite,
-      acceptedWarnings,
+      isSuggestedExclusionRow,
     ]
   )
 
@@ -1255,10 +1243,7 @@ export function SurveyImportPreview({
   }, [
     matchResults,
     importRows,
-    matchMap,
-    confirmedExistingMatches,
-    alreadyInCampaignRowNumbers,
-    identityDirtyRows,
+    rowNeedsActiveDatabaseReview,
   ])
 
   const filteredRows = useMemo(
@@ -1412,10 +1397,12 @@ export function SurveyImportPreview({
       reviewFilter,
       issueFilter,
       editingRow,
-      confirmedExistingMatches,
       alreadyInCampaignRowNumbers,
       identityDirtyRows,
       unresolvedDuplicateGroupKeys,
+      rowNeedsActiveDatabaseReview,
+      isExistingChoiceConfirmed,
+      isSuggestedExclusionRow,
     ]
   )
 
@@ -4962,14 +4949,6 @@ function matchStatusConfig(status: MatchStatus) {
         className: 'bg-[#fef3f2] text-[#b42318]',
       }
   }
-}
-
-function isExistingStatus(status: MatchStatus | undefined) {
-  return [
-    'matched_by_uniqname',
-    'matched_by_phone',
-    'matched_by_phone_add_uniqname',
-  ].includes(status ?? '')
 }
 
 function isNewStatus(

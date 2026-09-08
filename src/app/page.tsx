@@ -4,6 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { GoogleLoginButton } from '@/components/google-login-button'
 import { ReturnToDefaultArea } from '@/components/follow-up/return-to-default-area'
 import {
+  InvitedToCommunityGroupPill,
+  SurveyInterestRow,
+} from '@/components/follow-up/contact-card-indicators'
+import {
   homeFilterAreaContext,
   personalFilterCookie,
   readPersonalFilters,
@@ -52,6 +56,7 @@ type DashboardRecentContact = {
   latest_event_type: string
   latest_event_at: string
   recent_notes: DashboardNote[]
+  invited_to_community_group: boolean
 }
 
 type HomeDashboard = {
@@ -241,8 +246,24 @@ export default async function HomePage({
     ) as DashboardCounts
   }
 
-  const recentContacts =
-    dashboard.recent_contacts ?? []
+  const recentContactRows = dashboard.recent_contacts ?? []
+  const recentInvitedContactIds = new Set<string>()
+  if (recentContactRows.length > 0) {
+    const { data: invitedEvents, error: invitedEventsError } = await supabase
+      .from('follow_up_events')
+      .select('contact_id')
+      .in('contact_id', recentContactRows.map((contact) => contact.id))
+      .eq('event_type', 'interaction')
+      .eq('invited_to_community_group', true)
+
+    if (invitedEventsError) throw new Error(invitedEventsError.message)
+    for (const event of invitedEvents ?? []) recentInvitedContactIds.add(event.contact_id)
+  }
+
+  const recentContacts = recentContactRows.map((contact) => ({
+    ...contact,
+    invited_to_community_group: recentInvitedContactIds.has(contact.id),
+  }))
 
   const defaultAreaLabel =
     dashboard.default_area_name ||
@@ -420,28 +441,11 @@ export default async function HomePage({
                       />
                     </div>
 
-                    <div className="my-3 flex flex-wrap gap-1.5">
-                      <QuestionBadge
-                        label="Jesus"
-                        value={
-                          contact.jesus_interest
-                        }
-                      />
-
-                      <QuestionBadge
-                        label="Community"
-                        value={
-                          contact.community_interest
-                        }
-                      />
-
-                      <QuestionBadge
-                        label="Interview"
-                        value={
-                          contact.interview_interest
-                        }
-                      />
-                    </div>
+                    <SurveyInterestRow values={[
+                      { label: 'Interview', value: contact.interview_interest },
+                      { label: 'Jesus', value: contact.jesus_interest },
+                      { label: 'Community', value: contact.community_interest },
+                    ]} />
 
                     <div className="flex flex-wrap gap-2 text-[11px]">
                       <ProgressPill
@@ -456,6 +460,10 @@ export default async function HomePage({
                           contact.interview_completed_at
                         )}
                         label="Interview"
+                      />
+
+                      <InvitedToCommunityGroupPill
+                        done={contact.invited_to_community_group}
                       />
 
                       {contact.received_christ_at && (
@@ -572,26 +580,6 @@ function ActionCard({
         {count}
       </div>
     </Link>
-  )
-}
-
-function QuestionBadge({
-  label,
-  value,
-}: {
-  label: string
-  value: string | null
-}) {
-  return (
-    <span
-      className={[
-        'rounded-lg border px-2 py-1.5 text-[11px]',
-        questionClass(value),
-      ].join(' ')}
-    >
-      <strong>{label}</strong>{' '}
-      {formatSurveyAnswer(value)}
-    </span>
   )
 }
 
@@ -746,24 +734,6 @@ function recentCardClass(
   return 'border-[#e4e7ec] bg-white'
 }
 
-function questionClass(
-  value: string | null
-) {
-  switch (value) {
-    case 'yes':
-      return 'border-[#d1fadf] bg-[#edfdf6] text-[#15223a]'
-
-    case 'maybe':
-      return 'border-[#fedf89] bg-[#fff8eb] text-[#15223a]'
-
-    case 'already_have_one':
-      return 'border-[#e9d7fe] bg-[#f4f3ff] text-[#15223a]'
-
-    default:
-      return 'border-[#edf0f3] bg-[#f9fafb] text-[#15223a]'
-  }
-}
-
 function statusClass(
   status: string
 ) {
@@ -806,27 +776,6 @@ function formatStatus(
 
     default:
       return status
-  }
-}
-
-function formatSurveyAnswer(
-  value: string | null
-) {
-  switch (value) {
-    case 'yes':
-      return 'Yes'
-
-    case 'no':
-      return 'No'
-
-    case 'maybe':
-      return 'Maybe'
-
-    case 'already_have_one':
-      return 'Already have one'
-
-    default:
-      return '—'
   }
 }
 

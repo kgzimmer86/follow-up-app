@@ -12,6 +12,10 @@ import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
 import { EditableContactInfo } from '@/components/follow-up/editable-contact-info'
 import { EditableContactLocation } from '@/components/follow-up/editable-contact-location'
 import { HistoryEventActions } from '@/components/follow-up/history-event-actions'
+import {
+  InvitedToCommunityGroupPill,
+  SurveyInterestRow,
+} from '@/components/follow-up/contact-card-indicators'
 
 type PageProps = {
   params: Promise<{
@@ -338,6 +342,12 @@ export default async function ContactDetailPage({
 
   const events =
     (eventsData ?? []) as EventRow[]
+
+  const invitedToCommunityGroup = events.some(
+    (event) =>
+      event.event_type === 'interaction' &&
+      event.invited_to_community_group
+  )
 
   const profileIds = unique([
     ...events
@@ -702,27 +712,21 @@ export default async function ContactDetailPage({
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-1.5">
-            <SurveyChip
-              label="Jesus"
-              value={
-                contact.jesus_interest
-              }
-            />
-
-            <SurveyChip
-              label="Community"
-              value={
-                contact.community_interest
-              }
-            />
-
-            <SurveyChip
-              label="Interview"
-              value={
-                contact.interview_interest
-              }
-            />
+          <div className="mt-5">
+            <SurveyInterestRow values={[
+              {
+                label: 'Interview',
+                value: contact.interview_interest,
+              },
+              {
+                label: 'Jesus',
+                value: contact.jesus_interest,
+              },
+              {
+                label: 'Community',
+                value: contact.community_interest,
+              },
+            ]} />
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
@@ -738,6 +742,10 @@ export default async function ContactDetailPage({
                 contact.interview_completed_at
               )}
               label="Interview"
+            />
+
+            <InvitedToCommunityGroupPill
+              done={invitedToCommunityGroup}
             />
 
             {contact.received_christ_at && (
@@ -1819,26 +1827,6 @@ function ProgressBox({
   )
 }
 
-function SurveyChip({
-  label,
-  value,
-}: {
-  label: string
-  value: string | null
-}) {
-  return (
-    <span
-      className={[
-        'rounded-lg border px-2 py-1.5 text-[11px]',
-        surveyClass(value),
-      ].join(' ')}
-    >
-      <strong>{label}</strong>{' '}
-      {formatSurveyAnswer(value)}
-    </span>
-  )
-}
-
 function ProgressPill({
   done,
   label,
@@ -2102,24 +2090,6 @@ function detailCardClass(
   }
 
   return 'border-[#e4e7ec] bg-white'
-}
-
-function surveyClass(
-  value: string | null
-) {
-  switch (value) {
-    case 'yes':
-      return 'border-[#d1fadf] bg-[#edfdf6] text-[#15223a]'
-
-    case 'maybe':
-      return 'border-[#fedf89] bg-[#fff8eb] text-[#15223a]'
-
-    case 'already_have_one':
-      return 'border-[#e9d7fe] bg-[#f4f3ff] text-[#15223a]'
-
-    default:
-      return 'border-[#edf0f3] bg-[#f9fafb] text-[#15223a]'
-  }
 }
 
 function statusClass(

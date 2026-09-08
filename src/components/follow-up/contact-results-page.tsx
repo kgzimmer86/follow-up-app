@@ -22,6 +22,10 @@ import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
+import {
+  InvitedToCommunityGroupPill,
+  SurveyInterestRow,
+} from '@/components/follow-up/contact-card-indicators'
 import { ContactAssignmentCell } from '@/components/follow-up/contact-assignment-cell'
 
 export type ContactView =
@@ -124,6 +128,7 @@ type ContactResultRow = {
   interaction_notes: ResultNote[]
   interaction_count: number
   last_interaction_at: string | null
+  invited_to_community_group: boolean
 }
 
 type ContactResultsResponse = {
@@ -589,8 +594,24 @@ export async function ContactResultsPage({
     (currentPage - 1) *
     RESULTS_PAGE_SIZE
 
-  const paginatedContacts =
-    (results.rows ?? []) as ContactResultRow[]
+  const resultRows = (results.rows ?? []) as ContactResultRow[]
+  const invitedContactIds = new Set<string>()
+  if (resultRows.length > 0) {
+    const { data: invitedEvents, error: invitedEventsError } = await supabase
+      .from('follow_up_events')
+      .select('contact_id')
+      .in('contact_id', resultRows.map((contact) => contact.id))
+      .eq('event_type', 'interaction')
+      .eq('invited_to_community_group', true)
+
+    if (invitedEventsError) throw new Error(invitedEventsError.message)
+    for (const event of invitedEvents ?? []) invitedContactIds.add(event.contact_id)
+  }
+
+  const paginatedContacts = resultRows.map((contact) => ({
+    ...contact,
+    invited_to_community_group: invitedContactIds.has(contact.id),
+  }))
 
   const returnToResults =
     resultsHref({
@@ -1400,28 +1421,11 @@ export async function ContactResultsPage({
                     />
                   </div>
 
-                  <div className="my-3 flex flex-wrap gap-1.5">
-                    <SurveyChip
-                      label="Jesus"
-                      value={
-                        contact.jesus_interest
-                      }
-                    />
-
-                    <SurveyChip
-                      label="Community"
-                      value={
-                        contact.community_interest
-                      }
-                    />
-
-                    <SurveyChip
-                      label="Interview"
-                      value={
-                        contact.interview_interest
-                      }
-                    />
-                  </div>
+                  <SurveyInterestRow values={[
+                    { label: 'Interview', value: contact.interview_interest },
+                    { label: 'Jesus', value: contact.jesus_interest },
+                    { label: 'Community', value: contact.community_interest },
+                  ]} />
 
                   <div className="flex flex-wrap gap-2 text-[11px]">
                     <ProgressPill
@@ -1436,6 +1440,10 @@ export async function ContactResultsPage({
                         contact.interview_completed_at
                       )}
                       label="Interview"
+                    />
+
+                    <InvitedToCommunityGroupPill
+                      done={contact.invited_to_community_group}
                     />
 
                     {contact.received_christ_at && (
@@ -2065,26 +2073,6 @@ function SpreadsheetCheck({
   )
 }
 
-function SurveyChip({
-  label,
-  value,
-}: {
-  label: string
-  value: string | null
-}) {
-  return (
-    <span
-      className={[
-        'rounded-lg border px-2 py-1.5 text-[11px]',
-        surveyClass(value),
-      ].join(' ')}
-    >
-      <strong>{label}</strong>{' '}
-      {formatSurveyAnswer(value)}
-    </span>
-  )
-}
-
 function ProgressPill({
   done,
   label,
@@ -2257,24 +2245,6 @@ function cardClass(
   }
 
   return 'relative overflow-hidden rounded-[20px] border border-[#e4e7ec] bg-white shadow-[0_1px_5px_rgba(16,24,40,0.03)]'
-}
-
-function surveyClass(
-  value: string | null
-) {
-  switch (value) {
-    case 'yes':
-      return 'border-[#d1fadf] bg-[#edfdf6] text-[#15223a]'
-
-    case 'maybe':
-      return 'border-[#fedf89] bg-[#fff8eb] text-[#15223a]'
-
-    case 'already_have_one':
-      return 'border-[#e9d7fe] bg-[#f4f3ff] text-[#15223a]'
-
-    default:
-      return 'border-[#edf0f3] bg-[#f9fafb] text-[#15223a]'
-  }
 }
 
 function statusClass(

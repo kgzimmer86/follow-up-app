@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { followUpActivityLabel } from '@/lib/text-attempts'
 import {
   notFound,
   redirect,
@@ -524,7 +525,7 @@ export default async function DiscipleDetailPage({
                             activity.event_type ===
                             'knock'
                               ? 'bg-[#b42318]'
-                              : 'bg-[#13795b]',
+                              : activity.event_type === 'text_attempt' ? 'bg-[#f79009]' : 'bg-[#13795b]',
                           ].join(' ')}
                         />
 
@@ -532,10 +533,7 @@ export default async function DiscipleDetailPage({
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
                               <div className="text-sm font-extrabold text-[#15223a]">
-                                {activity.event_type ===
-                                'knock'
-                                  ? 'Knocked'
-                                  : 'Interaction'}{' '}
+                                {followUpActivityLabel(activity.event_type)}{' '}
                                 with{' '}
                                 <Link
                                   href={`/contacts/${activity.contact_id}`}

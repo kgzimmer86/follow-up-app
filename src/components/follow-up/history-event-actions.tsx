@@ -4,8 +4,10 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/client'
+import { textPurposeSummary, validateTextAttempt, type TextAttemptDetails } from '@/lib/text-attempts'
+import { TextPurposeFields } from './text-purpose-fields'
 
-type HistoryEvent = {
+type HistoryEvent = TextAttemptDetails & {
   id: string
   performed_by: string | null
   performerName?: string
@@ -31,6 +33,8 @@ type Draft = {
   kgpShared: boolean
   receivedChrist: boolean
   invitedToCommunityGroup: boolean
+  textPurposes: string[]
+  textEventName: string
 }
 
 function HistoryEventActions({
@@ -48,9 +52,11 @@ function HistoryEventActions({
 }) {
   const router = useRouter()
   const isKnock = event.event_type === 'knock'
+  const isText = event.event_type === 'text_attempt'
+  const eventLabel = isKnock ? 'knock' : isText ? 'text attempt' : 'interaction'
 
   const deletingPrimaryInteraction =
-    !isKnock &&
+    event.event_type === 'interaction' &&
     Boolean(event.performed_by) &&
     event.performed_by === primaryOwnerId
 
@@ -76,8 +82,8 @@ function HistoryEventActions({
   >(null)
 
   const changes = useMemo(
-    () => buildChanges(original, draft, isKnock),
-    [original, draft, isKnock]
+    () => buildChanges(original, draft, event.event_type),
+    [original, draft, event.event_type]
   )
 
   if (!canEdit) {
@@ -110,6 +116,11 @@ function HistoryEventActions({
       return
     }
 
+    if (isText) {
+      const validation = validateTextAttempt(draft.textPurposes, draft.textEventName, draft.notes)
+      if (validation) { setError(validation); return }
+    }
+
     setStage('review')
   }
 
@@ -127,7 +138,13 @@ function HistoryEventActions({
 
     const supabase = createClient()
 
-    const { error: updateError } = await supabase.rpc(
+    const { error: updateError } = isText ? await supabase.rpc('update_text_attempt', {
+      p_event_id: event.id,
+      p_occurred_at: parsedDate.toISOString(),
+      p_notes: draft.notes.trim() || null,
+      p_purposes: draft.textPurposes,
+      p_event_name: draft.textPurposes.includes('invite_event') ? draft.textEventName.trim() : null,
+    }) : await supabase.rpc(
       'update_follow_up_event',
       {
         p_event_id: event.id,
@@ -226,7 +243,7 @@ function HistoryEventActions({
       {stage === 'edit' && (
         <div className="rounded-[12px] bg-white p-3 shadow-sm ring-1 ring-[#e4e7ec]">
           <div className="text-xs font-extrabold text-[#15223a]">
-            Edit {isKnock ? 'knock' : 'interaction'}
+            Edit {eventLabel}
           </div>
 
           <div className="mt-3 grid gap-3">
@@ -265,13 +282,18 @@ function HistoryEventActions({
                 placeholder={
                   isKnock
                     ? 'Optional note about the knock...'
-                    : 'Add or correct interaction notes...'
+                    : isText ? 'Optional note about the text...' : 'Add or correct interaction notes...'
                 }
                 className="resize-y rounded-[10px] border border-[#d0d5dd] bg-white px-3 py-2 text-sm leading-6 text-[#15223a] outline-none focus:border-[#175cd3]"
               />
             </label>
 
-            {!isKnock && (
+            {isText && (
+              <TextPurposeFields purposes={draft.textPurposes} eventName={draft.textEventName}
+                onChange={(textPurposes, textEventName) => setDraft((current) => ({ ...current, textPurposes, textEventName }))} />
+            )}
+
+            {event.event_type === 'interaction' && (
               <div className="grid gap-2 rounded-[11px] bg-[#f9fafb] p-3">
                 <div className="rounded-[10px] border border-[#a6f4c5] bg-[#ecfdf3] p-2.5">
                   <CheckRow
@@ -372,7 +394,7 @@ function HistoryEventActions({
       {stage === 'review' && (
         <div className="rounded-[12px] border border-[#fedf89] bg-[#fff8eb] p-3">
           <div className="text-sm font-extrabold text-[#15223a]">
-            Confirm {isKnock ? 'knock' : 'interaction'} changes
+            Confirm {eventLabel} changes
           </div>
 
           <p className="mt-1 text-xs leading-5 text-[#667085]">
@@ -426,14 +448,13 @@ function HistoryEventActions({
       {stage === 'delete' && (
         <div className="rounded-[12px] border border-[#fecdca] bg-[#fef3f2] p-3">
           <div className="text-sm font-extrabold text-[#b42318]">
-            Delete this {isKnock ? 'knock' : 'interaction'}?
+            Delete this {eventLabel}?
           </div>
 
           <p className="mt-1 text-xs leading-5 text-[#667085]">
-            This permanently removes the history entry and updates related stats,
-            coaching views, and progress markers. If only knocks remain, status
-            becomes Attempted Contact. If no knocks or interactions remain, status
-            becomes Uncontacted.
+            {isText
+              ? 'This removes the text attempt and updates the latest text shown on the card. If it was the only attempt and the contact is still marked Attempted Contact, they return to Uncontacted.'
+              : 'This permanently removes the history entry and updates related stats, coaching views, and progress markers. If only knocks or text attempts remain, status becomes Attempted Contact. If no activity remains, status becomes Uncontacted.'}
           </p>
 
           {deletingPrimaryInteraction && (
@@ -570,6 +591,8 @@ function draftFromEvent(event: HistoryEvent): Draft {
     kgpShared: Boolean(event.kgp_shared),
     receivedChrist: Boolean(event.received_christ),
     invitedToCommunityGroup: Boolean(event.invited_to_community_group),
+    textPurposes: event.text_purposes ?? [],
+    textEventName: event.text_event_name ?? '',
   }
 }
 
@@ -598,7 +621,7 @@ function toLocalDateTimeValue(value: string) {
 function buildChanges(
   original: Draft,
   draft: Draft,
-  isKnock: boolean
+  eventType: string
 ) {
   const changes: Array<{
     label: string
@@ -629,7 +652,12 @@ function buildChanges(
   )
   push('Notes', original.notes.trim(), draft.notes.trim())
 
-  if (!isKnock) {
+  if (eventType === 'text_attempt') {
+    push('Text purpose', textPurposeSummary(original.textPurposes, original.textEventName),
+      textPurposeSummary(draft.textPurposes, draft.textEventName))
+  }
+
+  if (eventType === 'interaction') {
     push(
       'Found home',
       original.foundHome,

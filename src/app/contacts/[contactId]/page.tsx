@@ -9,6 +9,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
+import { AddTextAttemptButton, ContactTextLink } from '@/components/follow-up/text-attempt-session'
+import { textPurposeSummary, type TextAttemptDetails } from '@/lib/text-attempts'
 import { EditableContactInfo } from '@/components/follow-up/editable-contact-info'
 import { EditableContactLocation } from '@/components/follow-up/editable-contact-location'
 import { HistoryEventActions } from '@/components/follow-up/history-event-actions'
@@ -83,7 +85,7 @@ type AffinityRow = {
   ministry_area_id: string
 }
 
-type EventRow = {
+type EventRow = TextAttemptDetails & {
   id: string
   contact_id: string
   performed_by: string | null
@@ -320,7 +322,9 @@ export default async function ContactDetailPage({
       interview_completed,
       kgp_shared,
       received_christ,
-      invited_to_community_group
+      invited_to_community_group,
+      text_purposes,
+      text_event_name
     `)
     .eq('contact_id', contactId)
     .order('occurred_at', {
@@ -422,6 +426,8 @@ export default async function ContactDetailPage({
 
   const latestInteraction =
     interactions[0] ?? null
+
+  const latestText = displayEvents.find((event) => event.event_type === 'text_attempt') ?? null
 
   const ownerName =
     contact.primary_owner_id
@@ -762,14 +768,16 @@ export default async function ContactDetailPage({
 
           <div className="mt-5 grid grid-cols-3 gap-2 border-t border-black/[0.05] pt-4">
             {contact.phone ? (
-              <a
+              <ContactTextLink
+                contactId={contact.id}
+                contactName={student.display_name}
                 href={`sms:${phoneHref(
                   contact.phone
                 )}`}
                 className="block rounded-[11px] border border-[#e4e7ec] bg-white px-2 py-3 text-center text-sm font-extrabold text-[#15223a]"
               >
                 Text
-              </a>
+              </ContactTextLink>
             ) : (
               <DisabledButton
                 label="Text"
@@ -821,7 +829,8 @@ export default async function ContactDetailPage({
             />
           </div>
 
-          <div className="mt-2">
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <AddTextAttemptButton contactId={contact.id} contactName={student.display_name} />
             <AddRoommateButton
               sourceContactId={
                 contact.id
@@ -887,6 +896,7 @@ export default async function ContactDetailPage({
             latestInteraction={
               latestInteraction
             }
+            latestText={latestText}
             knocks={knocks}
             updateStatus={
               updateStatus
@@ -944,6 +954,7 @@ function OverviewTab({
   isPrimary,
   affinityNames,
   latestInteraction,
+  latestText,
   knocks,
   updateStatus,
   claimContact,
@@ -955,6 +966,7 @@ function OverviewTab({
   latestInteraction:
     | DisplayEvent
     | null
+  latestText: DisplayEvent | null
   knocks: DisplayEvent[]
 
   updateStatus: (
@@ -1154,6 +1166,19 @@ function OverviewTab({
           </EmptyState>
         )}
 
+        {latestText && (
+          <div className="mt-4 rounded-[14px] border border-[#fedf89] bg-[#fff8eb] p-3.5">
+            <div className="text-xs font-extrabold text-[#9a4b00]">
+              Latest text attempt • {fullDate(latestText.occurred_at)}
+            </div>
+            <div className="mt-1 text-sm font-bold text-[#15223a]">
+              {textPurposeSummary(latestText.text_purposes, latestText.text_event_name)}
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-[#667085]">{latestText.performerName}</div>
+            {latestText.notes && <p className="mt-2 text-sm leading-6 text-[#475467]">{latestText.notes}</p>}
+          </div>
+        )}
+
         <div className="mt-4 border-t border-[#eef0f3] pt-4 text-sm text-[#667085]">
           {knocks.length > 0 ? (
             <>
@@ -1307,6 +1332,7 @@ function HistoryTab({
 
           <div className="grid gap-4">
             {events.map((event) => {
+              const isText = event.event_type === 'text_attempt'
               const isKnock =
                 event.event_type ===
                 'knock'
@@ -1321,7 +1347,7 @@ function HistoryTab({
                       'absolute left-[3px] top-1.5 h-4 w-4 rounded-full border-[3px] border-white shadow-[0_0_0_1px_rgba(0,0,0,.06)]',
                       isKnock
                         ? 'bg-[#ffcb05]'
-                        : 'bg-[#13795b]',
+                        : isText ? 'bg-[#f79009]' : 'bg-[#13795b]',
                     ].join(' ')}
                   />
 
@@ -1330,14 +1356,14 @@ function HistoryTab({
                       'rounded-[14px] border p-3.5',
                       isKnock
                         ? 'border-[#f4e8a6] bg-[#fffdf1]'
-                        : 'border-[#e4e7ec] bg-[#f9fafb]',
+                        : isText ? 'border-[#fedf89] bg-[#fff8eb]' : 'border-[#e4e7ec] bg-[#f9fafb]',
                     ].join(' ')}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <strong className="text-sm text-[#15223a]">
                         {isKnock
                           ? 'Knocked — no answer'
-                          : 'Interaction'}
+                          : isText ? 'Text attempt' : 'Interaction'}
                       </strong>
 
                       <span className="text-[11px] font-semibold text-[#98a2b3]">
@@ -1353,7 +1379,13 @@ function HistoryTab({
                       }
                     </div>
 
-                    {!isKnock && (
+                    {isText && (
+                      <div className="mt-2 text-xs font-bold text-[#9a4b00]">
+                        {textPurposeSummary(event.text_purposes, event.text_event_name)}
+                      </div>
+                    )}
+
+                    {event.event_type === 'interaction' && (
                       <MinistryActionIndicators
                         event={event}
                       />

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { followUpActivityLabel } from '@/lib/text-attempts'
 import {
   notFound,
   redirect,
@@ -372,10 +373,7 @@ export default async function ManageLeaderDetailPage({
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-sm font-extrabold text-[#15223a]">
-                          {activity.event_type ===
-                          'knock'
-                            ? 'Knocked'
-                            : 'Interaction'}{' '}
+                          {followUpActivityLabel(activity.event_type)}{' '}
                           with{' '}
                           {
                             activity.contact_name

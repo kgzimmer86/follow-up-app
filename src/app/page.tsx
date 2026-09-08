@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { followUpActivityLabel } from '@/lib/text-attempts'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getAppAccess } from '@/lib/supabase/access'
@@ -273,7 +274,7 @@ export default async function HomePage({
 
         {recentContacts.length === 0 ? (
           <div className="rounded-[18px] border border-dashed border-[#d0d5dd] bg-white p-7 text-center text-[#667085]">
-            Your recent knocks and interactions will appear here.
+            Your recent knocks, text attempts, and interactions will appear here.
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
@@ -409,10 +410,7 @@ export default async function HomePage({
 
                     <div className="mt-2 flex justify-between gap-3 text-[11px] text-[#667085]">
                       <span>
-                        {contact.latest_event_type ===
-                        'knock'
-                          ? 'Latest: Knocked'
-                          : 'Latest: Interaction'}
+                        Latest: {followUpActivityLabel(contact.latest_event_type)}
                         {' • '}
                         {shortDate(
                           contact.latest_event_at

@@ -20,6 +20,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
+import { ContactTextLink } from '@/components/follow-up/text-attempt-session'
+import { textPurposeSummary, type TextAttemptDetails } from '@/lib/text-attempts'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
 import {
@@ -130,6 +132,7 @@ type ContactResultRow = {
   interaction_notes: ResultNote[]
   interaction_count: number
   last_interaction_at: string | null
+  latest_text_attempt?: (TextAttemptDetails & { occurred_at: string }) | null
   invited_to_community_group: boolean
 }
 
@@ -1527,6 +1530,14 @@ export async function ContactResultsPage({
                     )}
                   </div>
 
+                  {contact.latest_text_attempt && (
+                    <div className="mt-2 text-[11px] leading-5 text-[#9a4b00]">
+                      <strong>Latest text:</strong>{' '}
+                      {textPurposeSummary(contact.latest_text_attempt.text_purposes, contact.latest_text_attempt.text_event_name)}
+                      {' • '}{shortDate(contact.latest_text_attempt.occurred_at)}
+                    </div>
+                  )}
+
                   <div className="mt-2 flex justify-between gap-3 text-[11px] text-[#667085]">
                     <span>
                       {
@@ -1552,14 +1563,16 @@ export async function ContactResultsPage({
 
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {contact.phone ? (
-                      <a
+                      <ContactTextLink
+                        contactId={contact.id}
+                        contactName={contact.display_name}
                         href={`sms:${phoneHref(
                           contact.phone
                         )}`}
                         className="block rounded-[11px] border border-[#e4e7ec] bg-white px-2 py-2.5 text-center text-sm font-extrabold text-[#15223a]"
                       >
                         Text
-                      </a>
+                      </ContactTextLink>
                     ) : (
                       <DisabledButton
                         label="Text"

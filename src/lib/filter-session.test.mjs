@@ -4,14 +4,14 @@ import { filterSessionUrl } from './filter-session.ts'
 
 const defaults = { campus: 'north', location: 'bursley', floor: '', wing: '', affinity: '' }
 
-test('a fresh session replaces area and resets pagination while preserving other choices', () => {
+test('a fresh session keeps only the assigned area and resets other choices', () => {
   const href = filterSessionUrl('https://example.com/opportunities/share-the-gospel?campus=hill&location=markley&floor=3&wing=2&gender=male&jesus=yes&jesus=maybe&sort=room&display=sheet&page=4#results', defaults)
   const url = new URL(href, 'https://example.com')
   assert.equal(url.searchParams.get('campus'), 'north')
   assert.equal(url.searchParams.get('location'), 'bursley')
-  for (const key of ['floor', 'wing', 'page', 'affinity']) assert.equal(url.searchParams.has(key), false)
-  assert.equal(url.searchParams.get('gender'), 'male')
-  assert.deepEqual(url.searchParams.getAll('jesus'), ['yes', 'maybe'])
+  for (const key of ['floor', 'wing', 'gender', 'jesus', 'community', 'interview', 'kgp', 'interviewDone', 'invitedCg', 'affinity', 'roomOnly', 'page']) {
+    assert.equal(url.searchParams.has(key), false)
+  }
   assert.equal(url.searchParams.get('sort'), 'room')
   assert.equal(url.searchParams.get('display'), 'sheet')
   assert.equal(url.hash, '')
@@ -22,7 +22,7 @@ test('no-address reopening remains campus-wide', () => {
   const url = new URL(href, 'https://example.com')
   assert.equal(url.searchParams.has('campus'), false)
   assert.equal(url.searchParams.has('location'), false)
-  assert.equal(url.searchParams.get('gender'), 'male')
+  assert.equal(url.searchParams.has('gender'), false)
 })
 
 test('affinity assignments and missing assignments are supported', () => {

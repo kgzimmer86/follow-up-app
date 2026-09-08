@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import {
-  assignedAreaFilters, personalFilterCookie, readPersonalFilters,
+  clearedPersonalFilters, personalFilterCookie, readPersonalFilters,
   readPersonalFilterView, rememberContactFilterView,
 } from '@/lib/contact-filters'
 
@@ -34,13 +34,21 @@ export async function startFilterSession(expectedUserId: string) {
   }
   const cookieStore = await cookies()
   const stored = cookieStore.get(personalFilterCookie(user.id))?.value ?? ''
+  const defaults = clearedPersonalFilters(area)
+  const nextValue = JSON.stringify({
+    ...defaults,
+    view: readPersonalFilterView(stored),
+  })
   const saved = readPersonalFilters(stored)
-  const defaults = assignedAreaFilters(area)
-  cookieStore.set(personalFilterCookie(user.id), JSON.stringify({ ...saved, ...defaults, view: readPersonalFilterView(stored) }), {
+  const refreshHome = stored !== '' &&
+    ['campus', 'location', 'affinity'].some((key) =>
+      (saved[key as keyof typeof saved] ?? '') !== defaults[key as keyof typeof defaults]
+    )
+  cookieStore.set(personalFilterCookie(user.id), nextValue, {
     httpOnly: true, secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30,
   })
-  return defaults
+  return { defaults, refreshHome }
 }
 
 export async function activateContactFilterView(expectedUserId: string, view: string) {

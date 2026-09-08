@@ -49,14 +49,14 @@ export function FilterSession({ userId, children }: { userId: string; children: 
           launches.set(userId, launch)
         }
         try {
-          const defaults = await launch
+          const session = await launch
           if (cancelled) return
           try { sessionStorage.setItem(key, '1') } catch { /* Keep the in-memory session. */ }
           completed.add(userId)
-          const href = filterSessionUrl(window.location.href, defaults)
+          const href = filterSessionUrl(window.location.href, session.defaults)
           startTransition(() => {
             if (href) router.replace(href, { scroll: false })
-            else router.refresh()
+            else if (session.refreshHome) router.refresh()
           })
         } finally {
           if (!cancelled) launches.delete(userId)

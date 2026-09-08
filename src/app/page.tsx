@@ -13,23 +13,12 @@ import {
   homeFilterAreaContext,
   personalFilterCookie,
   readPersonalFilters,
-  readPersonalFilterView,
-  filtersForContactView,
 } from '@/lib/contact-filters'
 
 type PageProps = {
   searchParams: Promise<{
     authError?: string
   }>
-}
-
-type DashboardCounts = {
-  my_contacts: number
-  go_back: number
-  share_gospel: number
-  meet_new: number
-  invite_cg: number
-  no_address: number
 }
 
 type DashboardNote = {
@@ -67,7 +56,6 @@ type HomeDashboard = {
   campaign_label?: string
   default_area_id?: string | null
   default_area_name?: string | null
-  counts?: Partial<DashboardCounts>
   recent_contacts?: DashboardRecentContact[]
 }
 
@@ -133,20 +121,16 @@ export default async function HomePage({
     personalFilterCookie(userId)
   )?.value
   const saved = storedFilters === undefined ? undefined : readPersonalFilters(storedFilters)
-  const countViews = [
-    ['my_contacts', 'mine'],
-    ['go_back', 'goback'],
-    ['share_gospel', 'gospel'],
-    ['meet_new', 'new'],
-    ['invite_cg', 'cg'],
-    ['no_address', 'noaddress'],
-  ] as const
 
-  const dashboardPromise = supabase.rpc('get_follow_up_home_dashboard')
-  const areaPromise = supabase.from('ministry_areas')
-    .select('id, name, area_type, parent_id')
-    .eq('is_active', true)
-  const { data: dashboardData, error: dashboardError } = await dashboardPromise
+  const [
+    { data: dashboardData, error: dashboardError },
+    { data: areaData, error: areaError },
+  ] = await Promise.all([
+    supabase.rpc('get_follow_up_home_dashboard'),
+    supabase.from('ministry_areas')
+      .select('id, name, area_type, parent_id')
+      .eq('is_active', true),
+  ])
 
   if (dashboardError) {
     throw new Error(
@@ -169,85 +153,10 @@ export default async function HomePage({
     )
   }
 
-  const filteredCountsPromise = saved === undefined
-    ? Promise.resolve<DashboardCounts | null>(null)
-    : (async () => {
-        const savedView = readPersonalFilterView(storedFilters ?? '')
-        const countResponses = await Promise.all(
-          countViews.map(async ([, view]) => {
-            const filters = filtersForContactView(saved, savedView, view)
-            const { data, error } = await supabase.rpc(
-              'get_follow_up_contact_results_v2',
-              {
-                p_view: view,
-                p_sort: 'name',
-                p_dir: 'asc',
-                p_page: 1,
-                p_page_size: 1,
-                p_campus: filters.campus || null,
-                p_location: filters.location || null,
-                p_gender: filters.gender || null,
-                p_status: filters.status || null,
-                p_jesus: filters.jesus || null,
-                p_community: filters.community || null,
-                p_interview: filters.interview || null,
-                p_kgp: filters.kgp || null,
-                p_interview_done: filters.interviewDone || null,
-                p_invited_to_cg: filters.invitedCg || null,
-                p_affinity: filters.affinity || null,
-                p_floor: filters.floor || null,
-                p_wing: filters.wing || null,
-                p_room_only: filters.roomOnly === '1',
-              }
-            )
-
-            if (error) throw new Error(error.message)
-            return Number((data as { total_count?: number } | null)?.total_count) || 0
-          })
-        )
-
-        return Object.fromEntries(
-          countViews.map(([key], index) => [key, countResponses[index]])
-        ) as DashboardCounts
-      })()
-
-  const [
-    { data: areaData, error: areaError },
-    filteredCounts,
-  ] = await Promise.all([areaPromise, filteredCountsPromise])
-
   if (areaError) throw new Error(areaError.message)
 
   const areas = areaData ?? []
   const defaultArea = areas.find((area) => area.id === dashboard.default_area_id) ?? null
-
-  let counts: DashboardCounts = {
-    my_contacts:
-      dashboard.counts
-        ?.my_contacts ?? 0,
-    go_back:
-      dashboard.counts
-        ?.go_back ?? 0,
-    share_gospel:
-      dashboard.counts
-        ?.share_gospel ?? 0,
-    meet_new:
-      dashboard.counts
-        ?.meet_new ?? 0,
-    invite_cg:
-      dashboard.counts
-        ?.invite_cg ?? 0,
-    no_address:
-      dashboard.counts
-        ?.no_address ?? 0,
-  }
-
-  if (saved !== undefined) {
-    counts = {
-      ...counts,
-      ...(filteredCounts ?? {}),
-    }
-  }
 
   const recentContactRows = dashboard.recent_contacts ?? []
   const recentInvitedContactIds = new Set<string>()
@@ -308,7 +217,6 @@ export default async function HomePage({
           icon="◎"
           title="My Contacts"
           description="Students where you are the primary follow-up person."
-          count={counts.my_contacts}
           href="/contacts"
         />
 
@@ -316,7 +224,6 @@ export default async function HomePage({
           icon="↻"
           title="Go Back"
           description="Continue conversations you have already started."
-          count={counts.go_back}
           href="/opportunities/go-back"
         />
 
@@ -324,7 +231,6 @@ export default async function HomePage({
           icon="✦"
           title="Share the Gospel"
           description="Spiritually open students who have not had KGP shared."
-          count={counts.share_gospel}
           href="/opportunities/share-the-gospel"
         />
 
@@ -332,7 +238,6 @@ export default async function HomePage({
           icon="+"
           title="Meet Someone New"
           description="Interested students with no interaction yet."
-          count={counts.meet_new}
           href="/opportunities/meet-someone-new"
         />
 
@@ -340,7 +245,6 @@ export default async function HomePage({
           icon="⌂"
           title="Invite to Community Group"
           description="Students open to Christian community."
-          count={counts.invite_cg}
           href="/opportunities/community-group"
         />
 
@@ -348,7 +252,6 @@ export default async function HomePage({
           icon="↗"
           title="Reach Out to No Address"
           description="Text or call interested students we cannot geographically place."
-          count={counts.no_address}
           href="/opportunities/no-address"
         />
       </section>
@@ -551,13 +454,11 @@ function ActionCard({
   icon,
   title,
   description,
-  count,
   href,
 }: {
   icon: string
   title: string
   description: string
-  count: number
   href: string
 }) {
   return (
@@ -577,9 +478,6 @@ function ActionCard({
         {description}
       </p>
 
-      <div className="mt-2.5 text-[21px] font-extrabold text-[#00274c]">
-        {count}
-      </div>
     </Link>
   )
 }

@@ -140,6 +140,25 @@ article[id^="contact-"] {
   }
 }
 
+.app-loading-progress {
+  animation: app-loading-progress 1.35s ease-in-out infinite;
+  transform-origin: left center;
+}
+
+@keyframes app-loading-progress {
+  0% {
+    transform: translateX(-115%) scaleX(0.7);
+  }
+
+  50% {
+    transform: translateX(70%) scaleX(1.1);
+  }
+
+  100% {
+    transform: translateX(275%) scaleX(0.7);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :is(
     button,
@@ -156,5 +175,10 @@ article[id^="contact-"] {
   .app-navigation-indicator-visible {
     animation: none;
     transform: scaleX(0.94);
+  }
+
+  .app-loading-progress {
+    animation: none;
+    transform: translateX(0);
   }
 }

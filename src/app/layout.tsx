@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
+import { Suspense } from 'react'
 import './globals.css'
 
 import { createClient } from '@/lib/supabase/server'
@@ -7,6 +8,7 @@ import { getAppAccess } from '@/lib/supabase/access'
 import { FilterSession } from '@/components/follow-up/filter-session'
 import { AppShell } from '@/components/follow-up/app-shell'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
+import { AppLoading } from '@/components/follow-up/app-loading'
 import { InteractionFeedback } from '@/components/interaction-feedback'
 
 export const metadata: Metadata = {
@@ -46,22 +48,28 @@ export const viewport: Viewport = {
   themeColor: '#00274c',
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: ReactNode
 }>) {
+  return (
+    <html lang="en">
+      <body>
+        <InteractionFeedback />
+        <Suspense fallback={<AppLoading />}>
+          <AppRuntime>{children}</AppRuntime>
+        </Suspense>
+      </body>
+    </html>
+  )
+}
+
+async function AppRuntime({ children }: { children: ReactNode }) {
   const access = await getAppAccess()
 
   if (access.status === 'unavailable') {
-    return (
-      <html lang="en">
-        <body>
-          <InteractionFeedback />
-          <LoadRecovery fullScreen />
-        </body>
-      </html>
-    )
+    return <LoadRecovery fullScreen />
   }
 
   const { user, profile } = access
@@ -71,14 +79,7 @@ export default async function RootLayout({
    * screens should remain standalone.
    */
   if (!user) {
-    return (
-      <html lang="en">
-        <body>
-          <InteractionFeedback />
-          {children}
-        </body>
-      </html>
-    )
+    return children
   }
 
   if (
@@ -86,14 +87,7 @@ export default async function RootLayout({
     profile.role === 'pending' ||
     !profile.is_active
   ) {
-    return (
-      <html lang="en">
-        <body>
-          <InteractionFeedback />
-          {children}
-        </body>
-      </html>
-    )
+    return children
   }
 
   /*
@@ -139,10 +133,7 @@ export default async function RootLayout({
     'Follow Up Leader'
 
   return (
-    <html lang="en">
-      <body>
-        <InteractionFeedback />
-        <FilterSession key={user.id} userId={user.id}>
+    <FilterSession key={user.id} userId={user.id}>
         <AppShell
           displayName={displayName}
           role={profile.role}
@@ -150,8 +141,6 @@ export default async function RootLayout({
         >
           {children}
         </AppShell>
-        </FilterSession>
-      </body>
-    </html>
+    </FilterSession>
   )
 }

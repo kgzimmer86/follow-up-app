@@ -13,7 +13,10 @@ for (const { pixelWidth, pixelHeight, scale, url } of startupImages) {
   const width = pixelWidth / scale
   const height = pixelHeight / scale
   const left = (width - 96) / 2
-  const top = (height - 130) / 2
+  // iOS places the live page below the status bar. The native launch image
+  // includes that area, so move the still group down by half the usual
+  // 20 CSS-pixel status-bar height to match the live loading screen.
+  const top = (height - 130) / 2 + 10
   // Match AppLoading: 96px logo, 24px corners, 28px gap, 160x6px bar.
   // iOS displays a still image; the webpage animates the bar once it arrives.
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelWidth}" height="${pixelHeight}" viewBox="0 0 ${width} ${height}">

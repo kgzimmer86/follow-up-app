@@ -264,13 +264,6 @@ export default async function ContactDetailPage({
         ) ?? null
       : null
 
-  const parentArea =
-    contactArea?.parent_id
-      ? areaMap.get(
-          contactArea.parent_id
-        ) ?? null
-      : null
-
   const {
     data: affinityData,
     error: affinityError,

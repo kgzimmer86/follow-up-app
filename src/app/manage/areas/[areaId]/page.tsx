@@ -587,26 +587,6 @@ function ActivityMetric({
   )
 }
 
-function MiniMetric({
-  value,
-  label,
-}: {
-  value: number
-  label: string
-}) {
-  return (
-    <div className="rounded-[11px] bg-[#f9fafb] px-2 py-2.5 text-center">
-      <div className="text-sm font-black text-[#15223a]">
-        {value}
-      </div>
-
-      <div className="mt-0.5 text-[8px] font-bold text-[#667085]">
-        {label}
-      </div>
-    </div>
-  )
-}
-
 function CoverageRow({
   label,
   value,

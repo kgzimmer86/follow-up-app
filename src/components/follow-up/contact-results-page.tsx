@@ -22,7 +22,9 @@ import { createClient } from '@/lib/supabase/server'
 import { contactDisplayName } from '@/lib/contact-name'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { ContactTextLink } from '@/components/follow-up/text-attempt-session'
-import { textPurposeSummary, type TextAttemptDetails } from '@/lib/text-attempts'
+import { textPurposeSummary, textPurposes, type TextAttemptDetails, type TextPurpose } from '@/lib/text-attempts'
+import { SpreadsheetColumnPicker } from '@/components/follow-up/spreadsheet-column-picker'
+import { parseSpreadsheetColumns } from '@/lib/spreadsheet-columns'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
 import {
@@ -59,6 +61,7 @@ export type ContactResultsSearchParams = {
   wing?: string
   roomOnly?: string
   display?: string
+  columns?: string
   page?: string
 }
 
@@ -87,6 +90,7 @@ type FilterValues = {
   wing: string
   roomOnly: string
   display: string
+  columns: string
 }
 
 type AreaRow = {
@@ -136,6 +140,27 @@ type ContactResultRow = {
   latest_text_attempt?: (TextAttemptDetails & { occurred_at: string }) | null
   invited_to_community_group: boolean
 }
+
+type SpreadsheetEventRow = {
+  contact_id: string
+  event_type: string
+  text_purposes: string[] | null
+  text_event_name: string | null
+  invited_to_community_group: boolean | null
+  occurred_at: string
+}
+
+type SpreadsheetTextActivity = {
+  occurred_at: string
+  text_event_name: string | null
+}
+
+type SpreadsheetTextHistory = Map<
+  string,
+  Partial<Record<TextPurpose, SpreadsheetTextActivity>>
+>
+
+type SpreadsheetInvitedHistory = Map<string, string>
 
 type ContactResultsResponse = {
   campaign_id: string
@@ -254,6 +279,7 @@ export async function ContactResultsPage({
       searchParams.display === 'sheet'
         ? 'sheet'
         : '',
+    columns: searchParams.columns ?? '',
   }
 
   const displayMode =
@@ -261,10 +287,13 @@ export async function ContactResultsPage({
       ? 'sheet'
       : 'cards'
 
+  const selectedSpreadsheetColumns = parseSpreadsheetColumns(filters.columns)
+
   const activeFilterCount =
     Object.entries(filters).filter(
       ([key, value]) =>
         key !== 'display' &&
+        key !== 'columns' &&
         Boolean(value)
     ).length
 
@@ -611,6 +640,51 @@ export async function ContactResultsPage({
       display_name: contactDisplayName(contact.display_name),
     })) as ContactResultRow[]
 
+  const spreadsheetTextHistory: SpreadsheetTextHistory = new Map()
+  const spreadsheetInvitedHistory: SpreadsheetInvitedHistory = new Map()
+  const needsSpreadsheetEventHistory = selectedSpreadsheetColumns.some((column) => [
+    'text_cg', 'text_acg', 'text_appointment', 'text_event', 'text_follow_up', 'invited_cg',
+  ].includes(column))
+  if (displayMode === 'sheet' && paginatedContacts.length > 0 && needsSpreadsheetEventHistory) {
+    const { data: spreadsheetEventData, error: spreadsheetEventError } = await supabase
+      .from('follow_up_events')
+      .select('contact_id, event_type, text_purposes, text_event_name, invited_to_community_group, occurred_at')
+      .in('contact_id', paginatedContacts.map((contact) => contact.id))
+
+    if (spreadsheetEventError) {
+      throw new Error(spreadsheetEventError.message)
+    }
+
+    for (const event of (spreadsheetEventData ?? []) as SpreadsheetEventRow[]) {
+      if (event.invited_to_community_group) {
+        const previous = spreadsheetInvitedHistory.get(event.contact_id)
+        if (!previous || Date.parse(event.occurred_at) > Date.parse(previous)) {
+          spreadsheetInvitedHistory.set(event.contact_id, event.occurred_at)
+        }
+      }
+
+      if (event.event_type !== 'text_attempt') continue
+      const purposes = Array.isArray(event.text_purposes)
+        ? event.text_purposes
+        : []
+      const contactHistory = spreadsheetTextHistory.get(event.contact_id) ?? {}
+
+      for (const value of purposes) {
+        if (!textPurposes.some((purpose) => purpose.value === value)) continue
+        const purpose = value as TextPurpose
+        const previous = contactHistory[purpose]
+        if (!previous || Date.parse(event.occurred_at) > Date.parse(previous.occurred_at)) {
+          contactHistory[purpose] = {
+            occurred_at: event.occurred_at,
+            text_event_name: event.text_event_name,
+          }
+        }
+      }
+
+      spreadsheetTextHistory.set(event.contact_id, contactHistory)
+    }
+  }
+
   const returnToResults =
     resultsHref({
       basePath,
@@ -680,6 +754,7 @@ export async function ContactResultsPage({
       displayMode === 'sheet'
         ? 'sheet'
         : '',
+    columns: filters.columns,
   }
 
   async function saveFilters(nextFilters: FilterValues, preserveGeography = true) {
@@ -1247,6 +1322,13 @@ export async function ContactResultsPage({
               </Link>
             </div>
 
+            {displayMode === 'sheet' && (
+              <SpreadsheetColumnPicker
+                userId={userId}
+                selectedColumns={selectedSpreadsheetColumns}
+              />
+            )}
+
             {isDormContactContext && (
               <form action={toggleRoomFilter}>
                 <button
@@ -1654,12 +1736,36 @@ export async function ContactResultsPage({
                 <th className="min-w-[85px] px-3 py-3">Year</th>
                 <th className="min-w-[90px] px-3 py-3">Gender</th>
                 <th className="min-w-[125px] px-3 py-3">Phone</th>
+                {selectedSpreadsheetColumns.includes('email') && (
+                  <th className="min-w-[220px] px-3 py-3">Email</th>
+                )}
                 <th className="min-w-[95px] px-3 py-3">Jesus</th>
                 <th className="min-w-[105px] px-3 py-3">Community</th>
                 <th className="min-w-[100px] px-3 py-3">Interview</th>
                 <th className="min-w-[105px] px-3 py-3">Survey done</th>
                 <th className="min-w-[95px] px-3 py-3">KGP shared</th>
                 <th className="min-w-[105px] px-3 py-3">New believer</th>
+                {selectedSpreadsheetColumns.includes('text_cg') && (
+                  <th className="min-w-[125px] px-3 py-3">Texted CG</th>
+                )}
+                {selectedSpreadsheetColumns.includes('text_acg') && (
+                  <th className="min-w-[125px] px-3 py-3">Texted ACG</th>
+                )}
+                {selectedSpreadsheetColumns.includes('text_appointment') && (
+                  <th className="min-w-[145px] px-3 py-3">Texted appointment</th>
+                )}
+                {selectedSpreadsheetColumns.includes('text_event') && (
+                  <th className="min-w-[165px] px-3 py-3">Texted another event</th>
+                )}
+                {selectedSpreadsheetColumns.includes('text_follow_up') && (
+                  <th className="min-w-[155px] px-3 py-3">Texted follow-up</th>
+                )}
+                {selectedSpreadsheetColumns.includes('invited_cg') && (
+                  <th className="min-w-[125px] px-3 py-3">Invited to CG</th>
+                )}
+                {selectedSpreadsheetColumns.includes('latest_text') && (
+                  <th className="min-w-[180px] px-3 py-3">Latest text</th>
+                )}
                 <th className="min-w-[95px] px-3 py-3 text-center">Interactions</th>
                 <th className="min-w-[125px] px-3 py-3">Last interaction</th>
                 <th className="min-w-[125px] px-3 py-3">Status</th>
@@ -1671,7 +1777,7 @@ export async function ContactResultsPage({
               {totalVisibleContacts === 0 ? (
                 <tr>
                   <td
-                    colSpan={17}
+                    colSpan={17 + selectedSpreadsheetColumns.length}
                     className="px-4 py-8 text-center text-sm text-[#667085]"
                   >
                     No contacts match this opportunity and your current filters.
@@ -1679,7 +1785,12 @@ export async function ContactResultsPage({
                 </tr>
               ) : (
                 paginatedContacts.map(
-                  (contact) => (
+                  (contact) => {
+                    const email = contact.umich_email ||
+                      (contact.uniqname ? `${contact.uniqname}@umich.edu` : null)
+                    const textHistory = spreadsheetTextHistory.get(contact.id) ?? {}
+
+                    return (
                     <tr
                       key={contact.id}
                       className="border-b border-[#eef0f3] last:border-b-0 hover:bg-[#f8fbff]"
@@ -1721,6 +1832,20 @@ export async function ContactResultsPage({
                           '—'
                         )}
                       </td>
+                      {selectedSpreadsheetColumns.includes('email') && (
+                        <td className="px-3 py-2.5 text-[#475467]">
+                          {email ? (
+                            <a
+                              href={`mailto:${email}`}
+                              className="text-[#175cd3] hover:underline"
+                            >
+                              {email}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      )}
                       <td className="px-3 py-2.5">
                         {formatSurveyAnswer(contact.jesus_interest)}
                       </td>
@@ -1745,6 +1870,58 @@ export async function ContactResultsPage({
                           done={Boolean(contact.received_christ_at)}
                         />
                       </td>
+                      {selectedSpreadsheetColumns.includes('text_cg') && (
+                        <td className="px-3 py-2.5">
+                          <SpreadsheetTextActivityCell activity={textHistory.invite_cg} />
+                        </td>
+                      )}
+                      {selectedSpreadsheetColumns.includes('text_acg') && (
+                        <td className="px-3 py-2.5">
+                          <SpreadsheetTextActivityCell activity={textHistory.invite_acg} />
+                        </td>
+                      )}
+                      {selectedSpreadsheetColumns.includes('text_appointment') && (
+                        <td className="px-3 py-2.5">
+                          <SpreadsheetTextActivityCell activity={textHistory.appointment} />
+                        </td>
+                      )}
+                      {selectedSpreadsheetColumns.includes('text_event') && (
+                        <td className="px-3 py-2.5">
+                          <SpreadsheetTextActivityCell
+                            activity={textHistory.invite_event}
+                            eventName
+                          />
+                        </td>
+                      )}
+                      {selectedSpreadsheetColumns.includes('text_follow_up') && (
+                        <td className="px-3 py-2.5">
+                          <SpreadsheetTextActivityCell activity={textHistory.follow_up} />
+                        </td>
+                      )}
+                      {selectedSpreadsheetColumns.includes('invited_cg') && (
+                        <td className="px-3 py-2.5">
+                          <SpreadsheetDateCheck
+                            done={contact.invited_to_community_group}
+                            date={spreadsheetInvitedHistory.get(contact.id) ?? null}
+                          />
+                        </td>
+                      )}
+                      {selectedSpreadsheetColumns.includes('latest_text') && (
+                        <td className="px-3 py-2.5 text-[#475467]">
+                          {contact.latest_text_attempt ? (
+                            <>
+                              {textPurposeSummary(
+                                contact.latest_text_attempt.text_purposes,
+                                contact.latest_text_attempt.text_event_name,
+                              )}
+                              {' • '}
+                              {shortDate(contact.latest_text_attempt.occurred_at)}
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      )}
                       <td className="px-3 py-2.5 text-center font-extrabold text-[#15223a]">
                         {contact.interaction_count ?? 0}
                       </td>
@@ -1778,7 +1955,8 @@ export async function ContactResultsPage({
                         )}
                       </td>
                     </tr>
-                  )
+                    )
+                  }
                 )
               )}
             </tbody>
@@ -2094,6 +2272,46 @@ function SpreadsheetCheck({
       ].join(' ')}
     >
       {done ? '✓ Yes' : '—'}
+    </span>
+  )
+}
+
+function SpreadsheetTextActivityCell({
+  activity,
+  eventName = false,
+}: {
+  activity: SpreadsheetTextActivity | undefined
+  eventName?: boolean
+}) {
+  if (!activity) {
+    return <SpreadsheetCheck done={false} />
+  }
+
+  const label = eventName && activity.text_event_name?.trim()
+    ? activity.text_event_name.trim()
+    : 'Yes'
+
+  return (
+    <span className="inline-flex min-w-[80px] items-center justify-center rounded-full bg-[#ecfdf3] px-2 py-1 font-extrabold text-[#027a48]">
+      ✓ {label} · {shortDate(activity.occurred_at)}
+    </span>
+  )
+}
+
+function SpreadsheetDateCheck({
+  done,
+  date,
+}: {
+  done: boolean
+  date: string | null
+}) {
+  if (!done) {
+    return <SpreadsheetCheck done={false} />
+  }
+
+  return (
+    <span className="inline-flex min-w-[80px] items-center justify-center rounded-full bg-[#ecfdf3] px-2 py-1 font-extrabold text-[#027a48]">
+      ✓ Yes{date ? ` · ${shortDate(date)}` : ''}
     </span>
   )
 }

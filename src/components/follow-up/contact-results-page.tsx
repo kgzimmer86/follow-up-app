@@ -1067,6 +1067,14 @@ export async function ContactResultsPage({
                 </span>
               )}
             </div>
+            {activeAdditionalFilters.length > 0 && (
+              <div className={`mt-2 text-xs font-bold text-[#475467] ${displayMode === 'sheet' ? 'md:hidden' : ''}`}>
+                {activeAdditionalFilters.map((option) => {
+                  const answer = spreadsheetFilterOptions[option.kind].find((answer) => answer.value === filters[option.param])
+                  return `${option.label}: ${answer?.label ?? filters[option.param]}`
+                }).join(' · ')}
+              </div>
+            )}
           </div>
 
           <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#3538cd]">
@@ -1083,6 +1091,22 @@ export async function ContactResultsPage({
           filterStateKey={filterStateKey}
           showAssignedArea={view !== 'noaddress'}
         >
+          {activeAdditionalFilters.length > 0 && (
+            <div className={displayMode === 'sheet' ? 'mb-4 md:hidden' : 'mb-4'}>
+              <div className="mb-1 text-xs font-extrabold text-[#15223a]">Additional active filters</div>
+              <p className="mb-2 text-xs leading-5 text-[#667085]">These also apply to the cards below. Choose Any to remove a filter.</p>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {activeAdditionalFilters.map((option) => (
+                  <FilterSelect key={option.param} label={option.label} name={option.param} value={filters[option.param]}>
+                    <option value="">Any</option>
+                    {spreadsheetFilterOptions[option.kind].map((answer) => (
+                      <option key={answer.value} value={answer.value}>{answer.label}</option>
+                    ))}
+                  </FilterSelect>
+                ))}
+              </div>
+            </div>
+          )}
           {cardCriteria.length > 0 && (
             <div className="mb-4 rounded-[11px] border border-[#d8dee8] bg-[#f9fafb] p-3">
               <div className="text-xs font-extrabold text-[#15223a]">{viewInfo.title} criteria · Fixed</div>
@@ -1434,22 +1458,6 @@ export async function ContactResultsPage({
               )}
             </FilterSelect>
           </div>
-
-          {activeAdditionalFilters.length > 0 && (
-            <div className={displayMode === 'sheet' ? 'mt-3 md:hidden' : 'mt-3'}>
-              <div className="mb-2 text-xs font-extrabold text-[#15223a]">Other active filters</div>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                {activeAdditionalFilters.map((option) => (
-                  <FilterSelect key={option.param} label={option.label} name={option.param} value={filters[option.param]}>
-                    <option value="">Any</option>
-                    {spreadsheetFilterOptions[option.kind].map((answer) => (
-                      <option key={answer.value} value={answer.value}>{answer.label}</option>
-                    ))}
-                  </FilterSelect>
-                ))}
-              </div>
-            </div>
-          )}
 
           <label className={`mt-3 flex items-center gap-2 text-xs font-bold text-[#475467] ${displayMode === 'sheet' ? 'md:hidden' : ''}`}>
             <input type="checkbox" name="roomOnly" value="1" defaultChecked={roomOnlyActive} className="h-4 w-4 rounded border-[#d0d5dd]" />

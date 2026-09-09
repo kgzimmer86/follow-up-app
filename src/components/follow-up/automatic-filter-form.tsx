@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { personalFilterKeys } from '@/lib/contact-filters'
+
+const surveyFields = new Set(['jesus', 'community', 'interview'])
 
 export function AutomaticFilterForm({
   applyFilters,
@@ -20,6 +22,8 @@ export function AutomaticFilterForm({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inFlight = useRef(false)
   const mounted = useRef(true)
+  const pendingRef = useRef(false)
+  const surveyDraft = useRef<Map<string, string[]> | null>(null)
   const [scheduled, setScheduled] = useState(false)
   const [error, setError] = useState(false)
   const [revision, setRevision] = useState(0)
@@ -33,12 +37,45 @@ export function AutomaticFilterForm({
     }
   }, [])
 
+  useLayoutEffect(() => {
+    const lockedControls = new Set<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>()
+    pendingRef.current = pending
+    const form = formRef.current
+    if (!form) return
+    // Server results remount the uncontrolled fields. Restore newer survey
+    // choices until their queued update has also finished.
+    if (surveyDraft.current) {
+      for (const element of Array.from(form.elements)) {
+        if (element instanceof HTMLInputElement && surveyFields.has(element.name)) {
+          element.checked = surveyDraft.current.get(element.name)?.includes(element.value) ?? false
+        }
+      }
+    }
+    if (!pending && !inFlight.current && !timer.current && !error) surveyDraft.current = null
+    for (const element of Array.from(form.elements)) {
+      if ((element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLButtonElement)
+        && !(element instanceof HTMLInputElement && surveyFields.has(element.name))) {
+        if (pending && !element.disabled) {
+          element.disabled = true
+          lockedControls.add(element)
+        }
+      }
+    }
+    return () => {
+      for (const element of lockedControls) element.disabled = false
+    }
+  })
+
   function scheduleUpdate(delay = 250, action?: 'assigned' | 'clear') {
-    if (inFlight.current || pending) return
     if (timer.current) clearTimeout(timer.current)
     setError(false)
     setScheduled(true)
-    timer.current = setTimeout(() => {
+    const run = () => {
+      // Serialize saves and navigation; later clicks remain in the form draft.
+      if (inFlight.current || pendingRef.current) {
+        timer.current = setTimeout(run, 50)
+        return
+      }
       timer.current = null
       const form = formRef.current
       if (!form) return
@@ -66,7 +103,8 @@ export function AutomaticFilterForm({
           inFlight.current = false
         }
       })
-    }, delay)
+    }
+    timer.current = setTimeout(run, delay)
   }
 
   function clearFilters() {
@@ -84,6 +122,7 @@ export function AutomaticFilterForm({
         }
       }
     }
+    surveyDraft.current = null
     scheduleUpdate(0, 'clear')
   }
 
@@ -123,7 +162,17 @@ export function AutomaticFilterForm({
             }
           }
         }
-        scheduleUpdate()
+        const isSurvey = changed instanceof HTMLInputElement && surveyFields.has(changed.name)
+        if (isSurvey) {
+          const draft = new Map<string, string[]>()
+          for (const name of surveyFields) {
+            draft.set(name, Array.from(event.currentTarget.querySelectorAll<HTMLInputElement>(`input[name="${name}"]:checked`)).map((input) => input.value))
+          }
+          surveyDraft.current = draft
+        } else {
+          surveyDraft.current = null
+        }
+        scheduleUpdate(isSurvey ? 750 : 250)
       }}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -131,7 +180,7 @@ export function AutomaticFilterForm({
           <button
             type="button"
             disabled={pending}
-            onClick={() => scheduleUpdate(0, 'assigned')}
+            onClick={() => { surveyDraft.current = null; scheduleUpdate(0, 'assigned') }}
             className="rounded-[11px] border border-[#e4e7ec] bg-white px-4 py-2.5 text-sm font-extrabold text-[#15223a] disabled:opacity-60"
           >
             Use my assigned area
@@ -143,7 +192,7 @@ export function AutomaticFilterForm({
       </div>
       {/* Keep the surrounding details open, but refresh uncontrolled values when
           new server results arrive (including back/forward navigation). */}
-      <fieldset key={`${filterStateKey}-${revision}`} disabled={pending} className="min-w-0">
+      <fieldset key={`${filterStateKey}-${revision}`} className="min-w-0">
         {children}
         <div className="mt-4 flex flex-wrap gap-2 border-t border-[#eef0f3] pt-4">
           <button
@@ -156,7 +205,7 @@ export function AutomaticFilterForm({
           {showAssignedArea && (
             <button
               type="button"
-              onClick={() => scheduleUpdate(0, 'assigned')}
+              onClick={() => { surveyDraft.current = null; scheduleUpdate(0, 'assigned') }}
               className="rounded-[11px] border border-[#e4e7ec] bg-white px-4 py-2.5 text-sm font-extrabold text-[#15223a] disabled:opacity-60"
             >
               Use my assigned area

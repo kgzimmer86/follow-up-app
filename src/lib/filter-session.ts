@@ -8,6 +8,11 @@ const resettableFilterKeys = [
   'campus', 'location', 'gender', 'status', 'jesus', 'community',
   'interview', 'kgp', 'interviewDone', 'affinity', 'floor', 'wing',
   'roomOnly', 'invitedCg',
+  'sheetEmail', 'sheetTextCg', 'sheetTextAcg', 'sheetTextAppointment',
+  'sheetTextEvent', 'sheetTextFollowUp', 'sheetLatestText', 'sheetNewBeliever',
+  // Also clear aliases in older saved spreadsheet URLs.
+  'sheetJesus', 'sheetCommunity', 'sheetInterview', 'sheetStatus',
+  'sheetKgpShared', 'sheetInterviewComplete', 'sheetInvitedCg',
 ]
 
 export function filterSessionUrl(href: string, defaults: Record<string, string>) {

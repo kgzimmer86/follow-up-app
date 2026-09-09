@@ -2,6 +2,8 @@ export const personalFilterKeys = [
   'campus', 'location', 'gender', 'status', 'jesus', 'community',
   'interview', 'kgp', 'interviewDone', 'affinity', 'floor', 'wing', 'roomOnly',
   'invitedCg',
+  'sheetEmail', 'sheetTextCg', 'sheetTextAcg', 'sheetTextAppointment',
+  'sheetTextEvent', 'sheetTextFollowUp', 'sheetLatestText', 'sheetNewBeliever',
 ] as const
 
 const contactFilterViews = ['mine', 'goback', 'gospel', 'new', 'cg', 'noaddress', 'area'] as const

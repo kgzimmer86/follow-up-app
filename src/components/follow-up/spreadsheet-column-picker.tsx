@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { clearSpreadsheetColumnFilter } from '@/lib/spreadsheet-filter-options'
+import { useSpreadsheetFilters } from '@/components/follow-up/spreadsheet-column-filter'
 import {
   parseSpreadsheetColumns,
   spreadsheetColumnOptions,
@@ -22,11 +23,12 @@ export function SpreadsheetColumnPicker({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [open, setOpen] = useState(false)
+  const { pending, updateFilters } = useSpreadsheetFilters()
   const hasColumnsParam = searchParams.has('columns')
   const columns = selectedColumns
 
   useEffect(() => {
-    if (hasColumnsParam) return
+    if (hasColumnsParam || pending) return
 
     try {
       const saved = parseSpreadsheetColumns(
@@ -40,9 +42,10 @@ export function SpreadsheetColumnPicker({
     } catch {
       // The spreadsheet still works when browser storage is unavailable.
     }
-  }, [hasColumnsParam, pathname, router, searchParams, userId])
+  }, [hasColumnsParam, pathname, router, searchParams, userId, pending])
 
   function updateColumns(nextColumns: SpreadsheetColumnKey[]) {
+    if (pending) return
     const ordered = spreadsheetColumnOptions
       .map((option) => option.value)
       .filter((key) => nextColumns.includes(key))
@@ -54,13 +57,16 @@ export function SpreadsheetColumnPicker({
     }
 
     const params = new URLSearchParams(searchParams.toString())
+    const previousFilters = params.toString()
     for (const option of spreadsheetColumnOptions) {
       if (!ordered.includes(option.value)) clearSpreadsheetColumnFilter(params, option.filterParam)
     }
+    const filtersChanged = params.toString() !== previousFilters
     if (ordered.length > 0) params.set('columns', ordered.join(','))
     else params.delete('columns')
     params.delete('page')
-    router.replace(`${pathname}?${params.toString()}#results`, { scroll: false })
+    if (filtersChanged) updateFilters(params)
+    else router.replace(`${pathname}?${params.toString()}#results`, { scroll: false })
   }
 
   return (
@@ -88,6 +94,7 @@ export function SpreadsheetColumnPicker({
               >
                 <input
                   type="checkbox"
+                  disabled={pending}
                   checked={columns.includes(option.value)}
                   onChange={(event) => {
                     const next = event.target.checked

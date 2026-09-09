@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   personalFilterCookie,
+  personalFilterKeys,
   readPersonalFilters,
   readPersonalFilterView,
   filtersForContactView,
@@ -15,6 +16,13 @@ import {
   resetChangedCampusFilters,
   withoutGeographicFilters,
 } from './contact-filters.ts'
+import {
+  additionalContactFilters,
+  clearSpreadsheetColumnFilter,
+  contactFiltersForDisplay,
+  normalizeSharedContactFilters,
+  updateSpreadsheetColumnFilter,
+} from './spreadsheet-filter-options.ts'
 
 test('changing or removing a dorm clears its floor and wing without dropping other choices', () => {
   for (const location of ['bursley', '', 'no_address', 'needs_area_assignment']) {
@@ -56,7 +64,11 @@ test('personal values remain separate from card identity and navigation state', 
 })
 
 const travelling = { campus: 'north', location: 'bursley', floor: '3', wing: '2', gender: 'male', affinity: 'greek' }
-const cardOnly = { status: 'go_back', jesus: 'yes,maybe', community: 'no', interview: 'yes', kgp: 'not_shared', interviewDone: 'not_completed', invitedCg: 'invited', roomOnly: '1' }
+const cardOnly = {
+  status: 'go_back', jesus: 'yes,maybe', community: 'no', interview: 'yes',
+  kgp: 'not_shared', interviewDone: 'not_completed', invitedCg: 'invited', roomOnly: '1',
+  ...Object.fromEntries(additionalContactFilters.map(({ param, kind }) => [param, kind === 'email' || kind === 'text' ? 'has' : 'yes'])),
+}
 
 test('switching smart cards carries only location, gender, and affinity choices', () => {
   const saved = { ...travelling, ...cardOnly }
@@ -159,7 +171,55 @@ test('Clear Filters restores only the assigned campus and location and clears ot
   assert.deepEqual(clearedPersonalFilters(affinity), {
     campus: '', location: '', floor: '', wing: '', gender: '', status: '', jesus: '',
     community: '', interview: '', kgp: '', interviewDone: '', invitedCg: '', affinity: affinity.id, roomOnly: '',
+    ...Object.fromEntries(additionalContactFilters.map(({ param }) => [param, ''])),
   })
+})
+
+test('all spreadsheet choices survive saving, card display changes, and reopening the same smart card', () => {
+  const params = new URLSearchParams({ ...travelling, display: 'sheet', columns: 'email,text_cg', page: '4' })
+  for (const [column, value] of [
+    ['sheetJesus', 'yes,maybe,already_have_one'], ['sheetCommunity', 'maybe,unanswered'],
+    ['sheetInterview', 'yes,no'], ['sheetStatus', 'attempted_contact'],
+    ['sheetKgpShared', 'no'], ['sheetInterviewComplete', 'yes'], ['sheetInvitedCg', 'no'],
+    ...additionalContactFilters.map(({ param, kind }) => [param, kind === 'email' || kind === 'text' ? 'missing' : 'no']),
+  ]) updateSpreadsheetColumnFilter(params, column, value)
+
+  const selected = normalizeSharedContactFilters(Object.fromEntries(params))
+  const personal = readPersonalFilters(JSON.stringify(selected))
+  assert.deepEqual(personal, {
+    ...travelling, jesus: 'yes,maybe,already_have_one', community: 'maybe,unanswered', interview: 'yes,no',
+    status: 'attempted_contact', kgp: 'not_shared', interviewDone: 'completed', invitedCg: 'not_invited',
+    ...Object.fromEntries(additionalContactFilters.map(({ param, kind }) => [param, kind === 'email' || kind === 'text' ? 'missing' : 'no'])),
+  })
+  for (const display of ['cards', 'sheet']) {
+    assert.deepEqual(readPersonalFilters(JSON.stringify(contactFiltersForDisplay(selected, display))), personal)
+  }
+  const cookie = JSON.stringify({ ...personal, view: 'gospel' })
+  const reopened = filtersForContactView(readPersonalFilters(cookie), readPersonalFilterView(cookie), 'gospel')
+  assert.deepEqual(reopened, personal)
+  assert.deepEqual(filtersForContactView(reopened, 'gospel', 'cg'), travelling)
+})
+
+test('choosing Any or hiding a filtered column removes its saved choice without reviving older filters', () => {
+  for (const clear of [
+    (params, column) => updateSpreadsheetColumnFilter(params, column, ''),
+    clearSpreadsheetColumnFilter,
+  ]) {
+    const params = new URLSearchParams({ ...travelling, jesus: 'yes,maybe', sheetTextCg: 'yes', invitedCg: 'invited' })
+    for (const column of ['sheetTextCg', 'sheetInvitedCg']) clear(params, column)
+    const personal = readPersonalFilters(JSON.stringify(normalizeSharedContactFilters(Object.fromEntries(params))))
+    const returned = rememberContactFilterView(JSON.stringify({ ...personal, view: 'mine' }), 'mine')
+    assert.deepEqual(readPersonalFilters(returned), { ...travelling, jesus: 'yes,maybe' })
+  }
+})
+
+test('additional spreadsheet restrictions count as explicit filters and are cleared with other personal choices', () => {
+  for (const { param } of additionalContactFilters) {
+    assert.ok(personalFilterKeys.includes(param))
+    assert.equal(shouldRestorePersonalFilters('cg', { [param]: 'no' }), false)
+    assert.equal(shouldRestorePersonalFilters('cg', { [param]: '' }), false)
+    assert.equal(clearedPersonalFilters(bursley)[param], '')
+  }
 })
 
 test('clearing in No Address saves the default area for other cards while keeping its own results campus-wide', () => {

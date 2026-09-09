@@ -25,7 +25,7 @@ import { ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, textPurposes, type TextAttemptDetails, type TextPurpose } from '@/lib/text-attempts'
 import { SpreadsheetColumnPicker } from '@/components/follow-up/spreadsheet-column-picker'
 import { parseSpreadsheetColumns, spreadsheetColumnOptions } from '@/lib/spreadsheet-columns'
-import { SpreadsheetColumnFilter } from '@/components/follow-up/spreadsheet-column-filter'
+import { SpreadsheetColumnFilter, SpreadsheetFilterProvider } from '@/components/follow-up/spreadsheet-column-filter'
 import { additionalContactFilters, contactFiltersForDisplay, normalizeSharedContactFilters, readSpreadsheetChoice, spreadsheetFilterOptions } from '@/lib/spreadsheet-filter-options'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
@@ -905,6 +905,22 @@ export async function ContactResultsPage({
     return resultsHref({ basePath, sort: sortBy, dir: sortDir, filters: nextFilters })
   }
 
+  async function saveSpreadsheetFilters(query: string) {
+    'use server'
+
+    const params = new URLSearchParams(query)
+    const normalized = normalizeSharedContactFilters(Object.fromEntries(params))
+    const personal = readPersonalFilters(JSON.stringify(normalized))
+    // Replace the complete personal selection so choosing Any also removes
+    // the saved value. Display choices never become personal restrictions.
+    return saveFilters({
+      ...displayOnlyFilters,
+      ...clearedPersonalFilters(null),
+      ...personal,
+      columns: parseSpreadsheetColumns(params.get('columns') ?? '').join(','),
+    })
+  }
+
   async function applyFilters(formData: FormData) {
     'use server'
 
@@ -995,6 +1011,7 @@ export async function ContactResultsPage({
           : 'max-w-[1000px]',
       ].join(' ')}
     >
+      <SpreadsheetFilterProvider saveFiltersAction={saveSpreadsheetFilters}>
       <FilterViewSession
         userId={userId}
         view={view}
@@ -2229,6 +2246,7 @@ export async function ContactResultsPage({
           </div>
         </nav>
       )}
+      </SpreadsheetFilterProvider>
     </main>
   )
 }

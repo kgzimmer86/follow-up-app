@@ -3,6 +3,18 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export const interactionPhotoBucket = 'follow-up-interaction-photos'
 export const maxInteractionPhotoBytes = 8 * 1024 * 1024
 
+export async function createInteractionPhotoLink(client: SupabaseClient, contactId: string, eventId: string) {
+  const { data: event, error: eventError } = await client.from('follow_up_events')
+    .select('attachment_path').eq('id', eventId).eq('contact_id', contactId).maybeSingle()
+  if (eventError) throw eventError
+  if (!event?.attachment_path) return null
+
+  const { data, error } = await client.storage.from(interactionPhotoBucket)
+    .createSignedUrl(event.attachment_path, 60 * 60)
+  if (error || !data?.signedUrl) throw new Error('The photo link could not be created.')
+  return data.signedUrl
+}
+
 const supportedInteractionPhotoTypes = new Set([
   'image/jpeg',
   'image/png',

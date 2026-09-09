@@ -1,10 +1,67 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createPhotoCleanupQueue, interactionPhotoBucket, removeUnusedInteractionPhoto } from './interaction-photo.ts'
+import { createInteractionPhotoLink, createPhotoCleanupQueue, interactionPhotoBucket, removeUnusedInteractionPhoto } from './interaction-photo.ts'
 
 const contact = '11111111-1111-4111-8111-111111111111'
 const path = `interaction-attachments/${contact}/22222222-2222-4222-8222-222222222222.jpg`
 const secondPath = `interaction-attachments/${contact}/33333333-3333-4333-8333-333333333333.png`
+
+function linkFixture({ attachment = path, eventError = null, signError = null, missingUrl = false } = {}) {
+  let signed = 0
+  const filters = {}
+  const client = {
+    from(table) {
+      assert.equal(table, 'follow_up_events')
+      const query = {
+        select(columns) { assert.equal(columns, 'attachment_path'); return query },
+        eq(key, value) { filters[key] = value; return query },
+        async maybeSingle() {
+          return { data: filters.id === 'event-id' && filters.contact_id === contact ? { attachment_path: attachment } : null, error: eventError }
+        },
+      }
+      return query
+    },
+    storage: { from(bucket) {
+      assert.equal(bucket, interactionPhotoBucket)
+      return { async createSignedUrl(file, lifetime) {
+        assert.equal(file, path)
+        assert.equal(lifetime, 3600)
+        signed++
+        return { data: missingUrl ? null : { signedUrl: `https://example.com/private-photo?token=${signed}` }, error: signError }
+      } }
+    } },
+  }
+  return { client, signed: () => signed }
+}
+
+test('opening a photo creates a fresh private link each time', async () => {
+  const { client, signed } = linkFixture()
+  assert.equal(signed(), 0)
+  assert.equal(await createInteractionPhotoLink(client, contact, 'event-id'), 'https://example.com/private-photo?token=1')
+  assert.equal(await createInteractionPhotoLink(client, contact, 'event-id'), 'https://example.com/private-photo?token=2')
+  assert.equal(signed(), 2)
+})
+
+test('missing photos, missing events and mismatched contacts never create a link', async () => {
+  for (const [requestedContact, event, attachment] of [[contact, 'event-id', null], [contact, 'missing-event', path], ['another-contact', 'event-id', path]]) {
+    const { client, signed } = linkFixture({ attachment })
+    assert.equal(await createInteractionPhotoLink(client, requestedContact, event), null)
+    assert.equal(signed(), 0)
+  }
+})
+
+test('failed event reads stop before contacting photo storage', async () => {
+  const { client, signed } = linkFixture({ eventError: new Error('offline') })
+  await assert.rejects(createInteractionPhotoLink(client, contact, 'event-id'), /offline/)
+  assert.equal(signed(), 0)
+})
+
+test('failed or empty signed-link responses surface an error for the retry page', async () => {
+  for (const options of [{ signError: new Error('denied') }, { missingUrl: true }]) {
+    const { client } = linkFixture(options)
+    await assert.rejects(createInteractionPhotoLink(client, contact, 'event-id'), /photo link could not be created/)
+  }
+})
 
 function fixture({ references = [], referenceError = null, removed = [{ name: path }], removeError = null, remaining = [], listError = null, throwsAt } = {}) {
   const calls = []

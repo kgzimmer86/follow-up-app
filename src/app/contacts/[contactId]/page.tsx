@@ -11,7 +11,6 @@ import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
 import { AddTextAttemptButton, ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, type TextAttemptDetails } from '@/lib/text-attempts'
-import { interactionPhotoBucket } from '@/lib/interaction-photo'
 import { contactDisplayName } from '@/lib/contact-name'
 import { EditableContactInfo } from '@/components/follow-up/editable-contact-info'
 import { EditableContactLocation } from '@/components/follow-up/editable-contact-location'
@@ -105,7 +104,6 @@ type EventRow = TextAttemptDetails & {
   attachment_name: string | null
   attachment_mime_type: string | null
   attachment_size_bytes: number | null
-  attachment_url?: string | null
 }
 
 type ProfileRow = {
@@ -354,34 +352,14 @@ export default async function ContactDetailPage({
   const events =
     (eventsData ?? []) as EventRow[]
 
-  const eventsWithAttachments = await Promise.all(
-    events.map(async (event) => {
-      if (!event.attachment_path) {
-        return {
-          ...event,
-          attachment_url: null,
-        }
-      }
-
-      const { data } = await supabase.storage
-        .from(interactionPhotoBucket)
-        .createSignedUrl(event.attachment_path, 60 * 60)
-
-      return {
-        ...event,
-        attachment_url: data?.signedUrl ?? null,
-      }
-    })
-  )
-
-  const invitedToCommunityGroup = eventsWithAttachments.some(
+  const invitedToCommunityGroup = events.some(
     (event) =>
       event.event_type === 'interaction' &&
       event.invited_to_community_group
   )
 
   const profileIds = unique([
-    ...eventsWithAttachments
+    ...events
       .map(
         (event) =>
           event.performed_by
@@ -431,7 +409,7 @@ export default async function ContactDetailPage({
 
   const displayEvents:
     DisplayEvent[] =
-    eventsWithAttachments.map((event) => ({
+    events.map((event) => ({
       ...event,
 
       performerName:
@@ -1194,9 +1172,9 @@ function OverviewTab({
                 'Interaction recorded.'}
             </p>
 
-            {latestInteraction.attachment_url && (
+            {latestInteraction.attachment_path && (
               <a
-                href={latestInteraction.attachment_url}
+                href={`/contacts/${contact.id}/photos/${latestInteraction.id}`}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-3 inline-flex text-xs font-extrabold text-[#175cd3] hover:underline"
@@ -1442,9 +1420,9 @@ function HistoryTab({
                       </p>
                     )}
 
-                    {event.attachment_url && (
+                    {event.attachment_path && (
                       <a
-                        href={event.attachment_url}
+                        href={`/contacts/${event.contact_id}/photos/${event.id}`}
                         target="_blank"
                         rel="noreferrer"
                         className="mt-3 inline-flex text-xs font-extrabold text-[#175cd3] hover:underline"

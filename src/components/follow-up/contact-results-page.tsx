@@ -346,25 +346,9 @@ export async function ContactResultsPage({
     ...(filters.invitedCg ? ['invited_cg'] : []),
   ].join(','))
 
-  const activeSpreadsheetFilterCount = [
-    filters.sheetEmail,
-    filters.sheetTextCg,
-    filters.sheetTextAcg,
-    filters.sheetTextAppointment,
-    filters.sheetTextEvent,
-    filters.sheetTextFollowUp,
-    filters.sheetInvitedCg || filters.invitedCg,
-    filters.sheetLatestText,
-    filters.sheetKgpShared || filters.kgp,
-    filters.sheetInterviewComplete || filters.interviewDone,
-    filters.sheetNewBeliever,
-    filters.sheetJesus || filters.jesus,
-    filters.sheetCommunity || filters.community,
-    filters.sheetInterview || filters.interview,
-    filters.sheetStatus || filters.status,
-  ].filter(Boolean).length
-
   const activeAdditionalFilters = additionalContactFilters.filter((option) => filters[option.param])
+  // Only choices unavailable in the card-view menu need the spreadsheet warning.
+  const activeSpreadsheetFilterCount = activeAdditionalFilters.length
 
   const activeFilterCount = activeAdditionalFilters.length +
     Object.entries(filters).filter(

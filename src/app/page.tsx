@@ -15,6 +15,7 @@ import {
   personalFilterCookie,
   readPersonalFilters,
 } from '@/lib/contact-filters'
+import { contactDisplayName } from '@/lib/contact-name'
 
 type PageProps = {
   searchParams: Promise<{
@@ -161,6 +162,7 @@ export default async function HomePage({
 
   const recentContacts = (dashboard.recent_contacts ?? []).map((contact) => ({
     ...contact,
+    display_name: contactDisplayName(contact.display_name),
     invited_to_community_group: contact.invited_to_community_group ?? false,
   }))
 

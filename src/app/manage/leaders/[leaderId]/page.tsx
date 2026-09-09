@@ -7,6 +7,7 @@ import {
 
 import { createClient } from '@/lib/supabase/server'
 import { ManageTabs } from '@/components/follow-up/manage-tabs'
+import { contactDisplayName } from '@/lib/contact-name'
 
 type PageProps = {
   params: Promise<{
@@ -375,9 +376,7 @@ export default async function ManageLeaderDetailPage({
                         <div className="text-sm font-extrabold text-[#15223a]">
                           {followUpActivityLabel(activity.event_type)}{' '}
                           with{' '}
-                          {
-                            activity.contact_name
-                          }
+                          {contactDisplayName(activity.contact_name)}
                         </div>
 
                         <div className="text-[11px] font-bold text-[#98a2b3]">
@@ -498,7 +497,7 @@ function ContactCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-extrabold text-[#15223a]">
-            {contact.display_name}
+            {contactDisplayName(contact.display_name)}
           </h3>
 
           <p className="mt-1 text-xs text-[#667085]">

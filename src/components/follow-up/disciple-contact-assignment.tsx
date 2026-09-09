@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { contactDisplayName } from '@/lib/contact-name'
 
 type EligibleContact = {
   id: string
@@ -73,7 +74,7 @@ export function DiscipleContactAssignment({
 
     return availableContacts.filter((contact) =>
       [
-        contact.display_name,
+        contactDisplayName(contact.display_name),
         contact.location_name,
         contact.house_name,
         contact.room_or_address,
@@ -235,7 +236,7 @@ export function DiscipleContactAssignment({
                         <span className="flex flex-wrap items-start justify-between gap-2">
                           <span className="min-w-0">
                             <span className="block truncate text-xs font-extrabold text-[#15223a]">
-                              {contact.display_name}
+                              {contactDisplayName(contact.display_name)}
                             </span>
                             <span className="mt-0.5 block text-[10px] leading-4 text-[#667085]">
                               {locationLabel(contact)}

@@ -11,6 +11,7 @@ import {
 } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/client'
+import { contactDisplayName } from '@/lib/contact-name'
 
 type Assignee = {
   id: string
@@ -141,7 +142,7 @@ export function ContactAssignmentWorkspace({
       }
 
       const searchable = [
-        contact.display_name,
+        contactDisplayName(contact.display_name),
         contact.primary_owner_name,
         contact.location_name,
         contact.house_name,
@@ -664,7 +665,7 @@ function ContactAssignmentRow({
               event.target.checked
             )
           }
-          aria-label={`Select ${contact.display_name}`}
+          aria-label={`Select ${contactDisplayName(contact.display_name)}`}
           className="mt-1 h-4 w-4 shrink-0 rounded border-[#98a2b3]"
         />
 
@@ -680,7 +681,7 @@ function ContactAssignmentRow({
                 }}
                 className="truncate text-base font-extrabold text-[#15223a] hover:text-[#175cd3]"
               >
-                {contact.display_name}
+                {contactDisplayName(contact.display_name)}
               </Link>
 
               <div className="mt-1 text-xs leading-5 text-[#667085]">

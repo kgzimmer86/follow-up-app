@@ -19,6 +19,7 @@ import type { ReactNode } from 'react'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { contactDisplayName } from '@/lib/contact-name'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, type TextAttemptDetails } from '@/lib/text-attempts'
@@ -605,7 +606,10 @@ export async function ContactResultsPage({
     RESULTS_PAGE_SIZE
 
   const paginatedContacts =
-    (results.rows ?? []) as ContactResultRow[]
+    (results.rows ?? []).map((contact) => ({
+      ...contact,
+      display_name: contactDisplayName(contact.display_name),
+    })) as ContactResultRow[]
 
   const returnToResults =
     resultsHref({

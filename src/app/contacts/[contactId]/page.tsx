@@ -12,6 +12,7 @@ import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
 import { AddTextAttemptButton, ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, type TextAttemptDetails } from '@/lib/text-attempts'
 import { interactionPhotoBucket } from '@/lib/interaction-photo'
+import { contactDisplayName } from '@/lib/contact-name'
 import { EditableContactInfo } from '@/components/follow-up/editable-contact-info'
 import { EditableContactLocation } from '@/components/follow-up/editable-contact-location'
 import { HistoryEventActions } from '@/components/follow-up/history-event-actions'
@@ -237,7 +238,10 @@ export default async function ContactDetailPage({
   }
 
   const student =
-    studentData as StudentRow
+    {
+      ...(studentData as StudentRow),
+      display_name: contactDisplayName(studentData.display_name),
+    }
 
   const {
     data: areasData,

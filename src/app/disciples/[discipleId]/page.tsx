@@ -9,6 +9,7 @@ import { DiscipleBackButton } from '@/components/follow-up/disciple-back-button'
 import { DiscipleContactAssignment } from '@/components/follow-up/disciple-contact-assignment'
 import { AssignedContactUnassignButton } from '@/components/follow-up/assigned-contact-unassign-button'
 import { createClient } from '@/lib/supabase/server'
+import { contactDisplayName } from '@/lib/contact-name'
 
 type PageProps = {
   params: Promise<{
@@ -459,9 +460,7 @@ export default async function DiscipleDetailPage({
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-extrabold text-[#15223a]">
-                            {
-                              contact.display_name
-                            }
+                            {contactDisplayName(contact.display_name)}
                           </div>
 
                           <div className="mt-0.5 text-[11px] text-[#667085]">
@@ -491,7 +490,7 @@ export default async function DiscipleDetailPage({
                       {canAssignToPerson && (
                         <AssignedContactUnassignButton
                           contactId={contact.id}
-                          contactName={contact.display_name}
+                          contactName={contactDisplayName(contact.display_name)}
                         />
                       )}
                     </div>
@@ -539,9 +538,7 @@ export default async function DiscipleDetailPage({
                                   href={`/contacts/${activity.contact_id}`}
                                   className="text-[#175cd3] hover:underline"
                                 >
-                                  {
-                                    activity.contact_name
-                                  }
+                                  {contactDisplayName(activity.contact_name)}
                                 </Link>
                               </div>
 
@@ -682,9 +679,7 @@ function AttentionQueue({
                 className="block py-2.5 first:pt-0 last:pb-0"
               >
                 <div className="text-xs font-extrabold text-[#15223a]">
-                  {
-                    contact.display_name
-                  }
+                  {contactDisplayName(contact.display_name)}
                 </div>
 
                 <div className="mt-0.5 text-[10px] leading-4 text-[#667085]">

@@ -25,6 +25,7 @@ import { ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, textPurposes, type TextAttemptDetails, type TextPurpose } from '@/lib/text-attempts'
 import { SpreadsheetColumnPicker } from '@/components/follow-up/spreadsheet-column-picker'
 import { parseSpreadsheetColumns } from '@/lib/spreadsheet-columns'
+import { SpreadsheetFilterPicker } from '@/components/follow-up/spreadsheet-filter-picker'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
 import {
@@ -62,6 +63,14 @@ export type ContactResultsSearchParams = {
   roomOnly?: string
   display?: string
   columns?: string
+  sheetEmail?: string
+  sheetTextCg?: string
+  sheetTextAcg?: string
+  sheetTextAppointment?: string
+  sheetTextEvent?: string
+  sheetTextFollowUp?: string
+  sheetInvitedCg?: string
+  sheetLatestText?: string
   page?: string
 }
 
@@ -91,6 +100,14 @@ type FilterValues = {
   roomOnly: string
   display: string
   columns: string
+  sheetEmail: string
+  sheetTextCg: string
+  sheetTextAcg: string
+  sheetTextAppointment: string
+  sheetTextEvent: string
+  sheetTextFollowUp: string
+  sheetInvitedCg: string
+  sheetLatestText: string
 }
 
 type AreaRow = {
@@ -280,6 +297,14 @@ export async function ContactResultsPage({
         ? 'sheet'
         : '',
     columns: searchParams.columns ?? '',
+    sheetEmail: searchParams.sheetEmail ?? '',
+    sheetTextCg: searchParams.sheetTextCg ?? '',
+    sheetTextAcg: searchParams.sheetTextAcg ?? '',
+    sheetTextAppointment: searchParams.sheetTextAppointment ?? '',
+    sheetTextEvent: searchParams.sheetTextEvent ?? '',
+    sheetTextFollowUp: searchParams.sheetTextFollowUp ?? '',
+    sheetInvitedCg: searchParams.sheetInvitedCg ?? '',
+    sheetLatestText: searchParams.sheetLatestText ?? '',
   }
 
   const displayMode =
@@ -289,11 +314,23 @@ export async function ContactResultsPage({
 
   const selectedSpreadsheetColumns = parseSpreadsheetColumns(filters.columns)
 
+  const activeSpreadsheetFilterCount = [
+    filters.sheetEmail,
+    filters.sheetTextCg,
+    filters.sheetTextAcg,
+    filters.sheetTextAppointment,
+    filters.sheetTextEvent,
+    filters.sheetTextFollowUp,
+    filters.sheetInvitedCg,
+    filters.sheetLatestText,
+  ].filter(Boolean).length
+
   const activeFilterCount =
     Object.entries(filters).filter(
       ([key, value]) =>
         key !== 'display' &&
         key !== 'columns' &&
+        !key.startsWith('sheet') &&
         Boolean(value)
     ).length
 
@@ -449,6 +486,16 @@ export async function ContactResultsPage({
         filters.wing || null,
       p_room_only:
         filters.roomOnly === '1',
+      ...(activeSpreadsheetFilterCount > 0 ? {
+        p_spreadsheet_email: filters.sheetEmail || null,
+        p_spreadsheet_text_cg: filters.sheetTextCg || null,
+        p_spreadsheet_text_acg: filters.sheetTextAcg || null,
+        p_spreadsheet_text_appointment: filters.sheetTextAppointment || null,
+        p_spreadsheet_text_event: filters.sheetTextEvent || null,
+        p_spreadsheet_text_follow_up: filters.sheetTextFollowUp || null,
+        p_spreadsheet_invited_cg: filters.sheetInvitedCg || null,
+        p_spreadsheet_latest_text: filters.sheetLatestText || null,
+      } : {}),
     }
   )
 
@@ -755,6 +802,14 @@ export async function ContactResultsPage({
         ? 'sheet'
         : '',
     columns: filters.columns,
+    sheetEmail: filters.sheetEmail,
+    sheetTextCg: filters.sheetTextCg,
+    sheetTextAcg: filters.sheetTextAcg,
+    sheetTextAppointment: filters.sheetTextAppointment,
+    sheetTextEvent: filters.sheetTextEvent,
+    sheetTextFollowUp: filters.sheetTextFollowUp,
+    sheetInvitedCg: filters.sheetInvitedCg,
+    sheetLatestText: filters.sheetLatestText,
   }
 
   async function saveFilters(nextFilters: FilterValues, preserveGeography = true) {
@@ -797,7 +852,18 @@ export async function ContactResultsPage({
         : (values[0] ?? '').slice(0, 200)
     }
     if (formData.get('clearPersonalFilters') === '1') {
-      const cleared = { ...displayOnlyFilters, ...clearedPersonalFilters(defaultArea) }
+      const cleared = {
+        ...displayOnlyFilters,
+        ...clearedPersonalFilters(defaultArea),
+        sheetEmail: '',
+        sheetTextCg: '',
+        sheetTextAcg: '',
+        sheetTextAppointment: '',
+        sheetTextEvent: '',
+        sheetTextFollowUp: '',
+        sheetInvitedCg: '',
+        sheetLatestText: '',
+      }
       const href = await saveFilters(cleared, false)
       // Save the assigned geography for other cards without excluding the
       // contacts whose location is unknown on the No Address card.
@@ -826,6 +892,14 @@ export async function ContactResultsPage({
   const cardsFilters: FilterValues = {
     ...filters,
     display: '',
+    sheetEmail: '',
+    sheetTextCg: '',
+    sheetTextAcg: '',
+    sheetTextAppointment: '',
+    sheetTextEvent: '',
+    sheetTextFollowUp: '',
+    sheetInvitedCg: '',
+    sheetLatestText: '',
   }
 
   const sheetFilters: FilterValues = {
@@ -1293,6 +1367,9 @@ export async function ContactResultsPage({
             {activeFilterCount > 0
               ? ` • ${activeFilterCount} ${view === 'area' ? 'filters' : 'personal filters'} active`
               : ''}
+            {displayMode === 'sheet' && activeSpreadsheetFilterCount > 0
+              ? ` • ${activeSpreadsheetFilterCount} spreadsheet ${activeSpreadsheetFilterCount === 1 ? 'filter' : 'filters'} active`
+              : ''}
           </div>
 
           <div className="flex flex-wrap gap-1.5">
@@ -1323,10 +1400,25 @@ export async function ContactResultsPage({
             </div>
 
             {displayMode === 'sheet' && (
-              <SpreadsheetColumnPicker
-                userId={userId}
-                selectedColumns={selectedSpreadsheetColumns}
-              />
+              <>
+                <SpreadsheetColumnPicker
+                  userId={userId}
+                  selectedColumns={selectedSpreadsheetColumns}
+                />
+                <SpreadsheetFilterPicker
+                  filters={{
+                    email: filters.sheetEmail,
+                    textCg: filters.sheetTextCg,
+                    textAcg: filters.sheetTextAcg,
+                    textAppointment: filters.sheetTextAppointment,
+                    textEvent: filters.sheetTextEvent,
+                    textFollowUp: filters.sheetTextFollowUp,
+                    invitedCg: filters.sheetInvitedCg,
+                    latestText: filters.sheetLatestText,
+                  }}
+                  activeCount={activeSpreadsheetFilterCount}
+                />
+              </>
             )}
 
             {isDormContactContext && (

@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAppAccess } from '@/lib/supabase/access'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
+import { PrimaryAssignment } from '@/components/follow-up/primary-assignment'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
 import { AddTextAttemptButton, ContactTextLink } from '@/components/follow-up/text-attempt-session'
@@ -876,6 +877,8 @@ export default async function ContactDetailPage({
             contact={contact}
             ownerName={ownerName}
             isPrimary={isPrimary}
+            assignmentUserId={userId}
+            canAssign={['discipler', 'staff', 'admin'].includes(profile.role)}
             affinityNames={
               affinityNames
             }
@@ -935,6 +938,8 @@ export default async function ContactDetailPage({
 }
 
 function OverviewTab({
+  assignmentUserId,
+  canAssign,
   contact,
   ownerName,
   isPrimary,
@@ -945,6 +950,8 @@ function OverviewTab({
   updateStatus,
   claimContact,
 }: {
+  assignmentUserId: string
+  canAssign: boolean
   contact: ContactRow
   ownerName: string | null
   isPrimary: boolean
@@ -1024,7 +1031,9 @@ function OverviewTab({
               Primary
             </FieldLabel>
 
-            {isPrimary ? (
+            {canAssign ? (
+              <PrimaryAssignment key={contact.primary_owner_id ?? "unassigned"} contactId={contact.id} userId={assignmentUserId} ownerId={contact.primary_owner_id} ownerName={ownerName} />
+            ) : isPrimary ? (
               <div className="mt-1.5 flex items-center gap-2">
                 <span className="grid h-7 w-7 place-items-center rounded-full bg-[#ecfdf3] text-sm font-black text-[#027a48]">
                   ✓

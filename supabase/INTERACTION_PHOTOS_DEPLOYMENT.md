@@ -28,3 +28,31 @@ Photos uploaded normally through Follow Up have Supabase's automatic uploader ow
 Validation uses an isolated PostgreSQL database with invented records and actual row-level permissions. It covers ownership, staff/admin access, inactive accounts, hidden/shared references, other buckets, upload/view permissions, and removal after an interaction is deleted. It does not use live student records or delete real Storage objects.
 
 To check the deployed workflow, use a disposable interaction and non-sensitive photo: a student leader should be able to delete their own entry and its photo; staff should be able to delete another user's entry and its photo. Verify the photo is removed from the private bucket as well as from the history. Direct attempts to remove another leader's photo are covered by the automated permission tests.
+
+## Current app behavior and maintenance
+
+The deployment instructions above describe the original database setup and its permission correction. Do not rerun them merely for a documentation update or a photo-link UI change. Committing these SQL files does not execute them in Supabase.
+
+- Contact pages read attachment metadata but do not request signed links for every photo during loading.
+- **View interview notes photo** opens a separate tab through `src/app/contacts/[contactId]/photos/[eventId]/route.ts`. The route verifies account access, checks the event belongs to the requested contact, and creates a fresh one-hour private link using the signed-in user's permissions.
+- This is a route handler, not a rendered app page: it bypasses the app layout and startup logo. Its redirect and error responses are private and not cached. Preserve this distinction when editing it.
+- Failed opening offers a standalone retry; a missing attachment reports that it is no longer available. Never use a service-role key or make the bucket public to simplify viewing.
+- Photo-removal failures are retained in a per-user local retry queue. **Retry photo removal** retries cleanup only, not interaction creation/deletion. **Later** hides the notice for that runtime without discarding queued paths.
+- Cleanup checks for remaining interaction references before removing a file. An uncertain save must not race a potential successful save by deleting its photo. Use the Storage API, not direct deletion from `storage.objects`.
+
+After deleting a disposable photo interaction, this read-only aggregate can check for stored files without a matching interaction:
+
+```sql
+select count(*) as photos_without_an_interaction
+from storage.objects photo
+where photo.bucket_id = 'follow-up-interaction-photos'
+  and not exists (
+    select 1
+    from public.follow_up_events interaction
+    where interaction.attachment_path = photo.name
+  );
+```
+
+Zero means no unmatched stored files at the time of the query. A nonzero result needs investigation; it is not authorization to delete every unmatched file, because an upload/save may still be in progress.
+
+For photo-link changes, test opening from both Overview and History. For cleanup changes, test a disposable upload/deletion and the retry path. Helper tests are in `src/lib/interaction-photo.test.mjs`; database permission tests are in `supabase/tests/interaction-photo-permissions.test.mjs`.

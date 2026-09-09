@@ -1,36 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Follow Up | Michigan Cru
 
-## Getting Started
+Production, mobile-first ministry follow-up app built with Next.js App Router, TypeScript, Supabase, and Vercel. Work from the existing app; preserve product terminology, permissions, visual style, and field workflows unless a change is explicitly requested.
 
-First, run the development server:
+## Maintenance references
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- [Contact filters and verification](supabase/CONTACT_FILTER_DEPLOYMENT.md)
+- [Interaction photos and permissions](supabase/INTERACTION_PHOTOS_DEPLOYMENT.md)
+- [Text attempts and validation](supabase/TEXT_ATTEMPTS_DEPLOYMENT.md)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+SQL files in `supabase/migrations` record database changes. The product owner runs complete SQL manually in Supabase SQL Editor when required. A GitHub push does not apply SQL. Do not rerun historical migrations simply because they appear in these notes.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Development and validation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Use `npm run dev` for local development. Read `AGENTS.md` and the relevant installed guides in `node_modules/next/dist/docs/` before changing Next.js behavior.
 
-## Learn More
+For code changes, run `npm run build`, appropriate focused tests, and lint. In the current local Codex environment, Turbopack has encountered an OS restriction while processing CSS (process creation/port binding). `npm run build -- --webpack` provides an alternative production build check; report the standard-build failure separately rather than treating it as a pass.
 
-To learn more about Next.js, take a look at the following resources:
+- Lint: `npm run lint` (the existing startup-image `<img>` warning is known).
+- Shared helper tests: `node --test src/lib/*.test.mjs`.
+- Database test setup is documented in the feature notes. Use isolated invented data, not live student records.
+- Documentation-only changes do not require an app build or a Supabase update.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Loading and connection recovery
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The root layout retains the logo/loading bar for app startup. Authenticated page content has its own Suspense boundary inside the app shell, using the existing blue navigation indicator while content loads. Keep header/navigation outside that page boundary. This does not eliminate network latency or prevent a real document reload from showing startup UI.
 
-## Deploy on Vercel
+Home, Contact Details, Disciples, and the root layout use the shared account-access check. It retries temporary account/profile read failures once, then offers recovery. Confirmed signed-out, missing-profile, inactive, and disallowed-role results retain their existing restrictions. Do not treat an unsuccessful network request as proof that someone signed out, or grant access from a stale role. Other routes have not all been converted to this shared check.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+After changes here, check fresh launch, navigation between pages/contact tabs, retry after a temporary failure, and the relevant role restrictions. Do not add Home smart-card count queries: those counts were removed.

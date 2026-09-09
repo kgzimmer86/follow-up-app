@@ -1,21 +1,48 @@
-# Contact filter area update
+# Contact filters: maintenance and verification
 
-1. In Supabase, open SQL Editor and create a new query.
-2. Copy the entire contents of `migrations/20260907_contact_filter_area_context.sql` into it and click Run. Expect “Success. No rows returned.”
-3. Commit and push the app changes, then wait for Vercel to finish deploying.
-4. Refresh the app and test the filters described below.
+These notes describe current behavior, including the September 2026 filter updates. Updating this document does not require SQL or an app change.
 
-The SQL creates `get_follow_up_contact_results_v2`. It leaves the original function intact, so the existing deployed app continues working before the new deployment. Authentication, active-user checks, campaign selection, smart-card criteria, room rules, sorting and pagination remain the same. The new function removes the implicit default-area restriction from gospel, new, community-group and area lists. The app supplies the visible area selections instead. There are no table, data or permission-role changes; the new function is executable by authenticated users and keeps the existing active-user checks.
+## Current behavior
 
-## Test
+- Smart-card criteria belong to their card. They appear as fixed criteria and are not saved as personal selections. Preserve the card's actual logic, including OR conditions between survey questions; do not turn those conditions into separate AND restrictions.
+- Within the same smart list, all personal filters survive switching between Cards and Spreadsheet, opening a contact and returning, sorting, and pagination.
+- Between different smart cards, only campus/ministry area, dorm/location, floor, wing/house, gender, and affinity travel. Other personal choices reset; the new card's fixed criteria apply.
+- The assigned ministry area is a starting filter, not an access restriction. Users can select other areas. A dorm assignment selects its campus and dorm; a campus-region assignment selects that region; an affinity assignment restores that affinity. All Campus has no geographic restriction.
+- Campus selection limits the dorm/location choices. Changing to an incompatible campus or dorm clears dependent floor and wing selections.
+- **Use my assigned area** restores the assigned-area context while preserving other personal filters.
+- **Clear Filters** clears personal choices and restores only the default ministry assignment, including a default affinity when applicable. Gender, floor/wing, survey, progress, and spreadsheet-only restrictions clear. The smart card's fixed rules remain.
+- A fresh app launch resets personal filters like Clear Filters. Refreshes, screen locks, and switching to another app should not reset them. The implementation distinguishes a fresh document from a reload; browser/PWA session restoration can vary, so verify full close/reopen on the installed phone app.
+- **Reach Out to No Address** uses no geographic restriction for its results. It retains the other lists' geographic context separately; switching smart cards still follows the limited carry-over rules above.
+- Home's area wording reflects the filtered area. When it differs from the default, the return-to-default control uses the app's attention color. Home smart cards do not display counts; do not reintroduce queries used only for those removed counts.
 
-- Use “Use my assigned area”: a campus-region assignment selects that region; a dorm assignment selects its parent region and dorm; an affinity assignment selects its affinity. Other personal filters stay selected.
-- Select another campus: only its dorms/locations appear, an incompatible dorm/floor/wing clears, and matching results can come from the newly selected campus.
-- Change between smart cards: personal choices remain and card-specific criteria change.
-- Clear Filters: all personal restrictions disappear, including geography, and stay cleared across cards and refreshes.
-- Reach Out to No Address starts without geographic filters when entered from Home. Returning to another card preserves that card family's geographic context. Other personal filters still travel.
-- Open a contact, return, change sort, and use pagination: the current filter snapshot remains intact.
+## Automatic updates and spreadsheet warnings
 
-Personal choices remain in place while the app session stays open. A new browser/app session restores the assigned area while preserving non-area filters. Refreshes, screen locks and app switching do not intentionally start a new session. Browser session restoration may preserve the old session; verify full close/reopen on the actual installed PWA. “Use my assigned area” remains available for a manual reset.
+Survey checkboxes in the expandable menu wait for a 750 ms pause before saving. They remain usable during an update; newer selections are queued and restored when earlier results arrive. Other menu changes retain the 250 ms delay, and Clear Filters/assigned-area actions start immediately. Campus/dorm changes still update dependent choices.
 
-If the app deployment must be rolled back, roll back Vercel to the previous deployment. The original function remains available; the unused v2 function can remain in place.
+Shared survey, status, KGP, interview-completion, and Invited to CG filters are regular personal filters, even when selected from spreadsheet column menus. Survey answers support multiple selections. Switching views must not discard them.
+
+Only these spreadsheet-only choices contribute to the red warning:
+
+- Email availability
+- Texted CG, ACG, appointment, another event, or follow-up
+- Latest text availability
+- New believer
+
+In Cards, the red labels and red spreadsheet-filter count identify those restrictions. **Clear these** clears only the listed spreadsheet-only restrictions. It does not clear regular personal filters or reset the ministry area. The card menu keeps these extra choices as hidden inputs so changing another filter preserves them.
+
+Desktop Spreadsheet uses column menus for shared survey/progress/status choices; the expandable menu focuses on geography, gender, and affinity. The warning classification is based on availability in the Cards menu, not where a choice was made.
+
+## Deployment history
+
+The original area migration is [`20260907_contact_filter_area_context.sql`](./migrations/20260907_contact_filter_area_context.sql). Later spreadsheet migrations extend/replace the results function; the survey/status version is [`20260909_spreadsheet_survey_status_filters.sql`](./migrations/20260909_spreadsheet_survey_status_filters.sql). These files are deployment history, not instructions to rerun older definitions on the current production database.
+
+For a future database change, inspect the current function and its dependencies, provide a complete plain SQL file, and run it manually in Supabase SQL Editor as directed for that change. Committing a SQL file to GitHub does not execute it in Supabase. An app rollback may require a matching database compatibility review; retaining an older function alone does not guarantee compatibility with every app version.
+
+## Focused field checks after filter changes
+
+1. Select Male and a dorm in one smart card, plus a survey answer. Switch cards: geography/gender persist, the survey choice resets, and fixed criteria change.
+2. Select multiple survey answers, switch Cards ↔ Spreadsheet, and confirm selections and results agree without a spreadsheet warning for those shared choices.
+3. Add Texted ACG in Spreadsheet and return to Cards. Confirm the red label/count; use Clear these and confirm other filters remain.
+4. Change campus and dorm; confirm floor/wing options and cleared incompatible choices.
+5. Use Clear Filters, then separately test a full close/reopen. Both restore only the default assignment. A refresh should preserve the current choices.
+6. Check a default affinity and All Campus as well as a dorm/region assignment. Check No Address separately.

@@ -150,7 +150,14 @@ async function AppRuntime({ children }: { children: ReactNode }) {
           role={profile.role}
           areaLabel={areaLabel}
         >
-          {children}
+          <Suspense fallback={
+            <div role="status" aria-label="Loading page" className="min-h-[60vh]">
+              <div aria-hidden="true" className="app-navigation-indicator app-navigation-indicator-visible" />
+              <span className="sr-only">Loading page…</span>
+            </div>
+          }>
+            {children}
+          </Suspense>
         </AppShell>
         </PhotoCleanupProvider>
       </TextAttemptSession>

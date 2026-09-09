@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAppAccess } from '@/lib/supabase/access'
+import { LoadRecovery } from '@/components/follow-up/load-recovery'
 
 type DiscipleDashboardRow = {
   disciple_id: string
@@ -22,38 +24,14 @@ type DiscipleDashboardRow = {
 }
 
 export default async function DisciplesPage() {
+  const access = await getAppAccess()
+  if (access.status === 'unavailable') return <LoadRecovery />
+  const { user, profile } = access
+  if (!user || !profile || !profile.is_active || !['discipler', 'staff', 'admin'].includes(profile.role)) {
+    redirect('/')
+  }
+
   const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/')
-  }
-
-  const {
-    data: profile,
-    error: profileError,
-  } = await supabase
-    .from('profiles')
-    .select('role, is_active')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (profileError) {
-    throw new Error(profileError.message)
-  }
-
-  if (
-    !profile ||
-    !profile.is_active ||
-    !['discipler', 'staff', 'admin'].includes(
-      profile.role
-    )
-  ) {
-    redirect('/')
-  }
 
   const {
     data: dashboardData,

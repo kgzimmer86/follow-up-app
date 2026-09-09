@@ -7,6 +7,8 @@ import {
 import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAppAccess } from '@/lib/supabase/access'
+import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
 import { AddTextAttemptButton, ContactTextLink } from '@/components/follow-up/text-attempt-session'
@@ -133,43 +135,15 @@ export default async function ContactDetailPage({
   const autoOpenInteraction =
     query.interaction === '1'
 
-  const supabase =
-    await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  const access = await getAppAccess()
+  if (access.status === 'unavailable') return <LoadRecovery />
+  const { user, profile } = access
+  if (!user || !profile || !profile.is_active || profile.role === 'pending') {
     redirect('/')
   }
 
+  const supabase = await createClient()
   const userId = user.id
-
-  const {
-    data: profile,
-    error: profileError,
-  } = await supabase
-    .from('profiles')
-    .select(
-      'role, is_active, display_name'
-    )
-    .eq('id', userId)
-    .maybeSingle()
-
-  if (profileError) {
-    throw new Error(
-      profileError.message
-    )
-  }
-
-  if (
-    !profile ||
-    profile.role === 'pending' ||
-    !profile.is_active
-  ) {
-    redirect('/')
-  }
 
   const {
     data: contactData,

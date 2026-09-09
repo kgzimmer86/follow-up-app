@@ -343,6 +343,7 @@ export async function ContactResultsPage({
   const selectedSpreadsheetColumns = parseSpreadsheetColumns([
     filters.columns,
     ...spreadsheetColumnOptions.filter((option) => filters[option.filterParam]).map((option) => option.value),
+    ...(filters.invitedCg ? ['invited_cg'] : []),
   ].join(','))
 
   const activeSpreadsheetFilterCount = [
@@ -352,15 +353,15 @@ export async function ContactResultsPage({
     filters.sheetTextAppointment,
     filters.sheetTextEvent,
     filters.sheetTextFollowUp,
-    filters.sheetInvitedCg,
+    filters.sheetInvitedCg || filters.invitedCg,
     filters.sheetLatestText,
-    filters.sheetKgpShared,
-    filters.sheetInterviewComplete,
+    filters.sheetKgpShared || filters.kgp,
+    filters.sheetInterviewComplete || filters.interviewDone,
     filters.sheetNewBeliever,
-    filters.sheetJesus,
-    filters.sheetCommunity,
-    filters.sheetInterview,
-    filters.sheetStatus,
+    filters.sheetJesus || filters.jesus,
+    filters.sheetCommunity || filters.community,
+    filters.sheetInterview || filters.interview,
+    filters.sheetStatus || filters.status,
   ].filter(Boolean).length
 
   const activeFilterCount =
@@ -371,6 +372,14 @@ export async function ContactResultsPage({
         !key.startsWith('sheet') &&
         Boolean(value)
     ).length
+
+  const expandableFilterCount = displayMode === 'sheet'
+    ? [filters.campus, filters.location, filters.floor, filters.wing, filters.gender, filters.affinity].filter(Boolean).length
+    : activeFilterCount
+
+  const activePersonalFilterCount = displayMode === 'sheet'
+    ? expandableFilterCount + Number(Boolean(filters.roomOnly))
+    : activeFilterCount
 
   const filterStateKey = [
     filters.campus,
@@ -1046,17 +1055,22 @@ export async function ContactResultsPage({
             </div>
 
             <div className="mt-0.5 text-xs text-[#667085]">
-              Narrow this list by location,
-              floor or wing, survey answers,
-              progress, status or affinity.
+              <span className={displayMode === 'sheet' ? 'md:hidden' : ''}>
+                Narrow this list by location, floor or wing, survey answers, progress, status or affinity.
+              </span>
+              {displayMode === 'sheet' && (
+                <span className="hidden md:inline">
+                  Narrow this list by area, dorm, floor, wing, gender or affinity. Use the column arrows for other filters.
+                </span>
+              )}
             </div>
           </div>
 
           <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#3538cd]">
-            {activeFilterCount > 0
+            {expandableFilterCount > 0
               ? cardCriteria.length
-                ? `${activeFilterCount} personal · ${cardCriteria.length} fixed`
-                : `${activeFilterCount} active`
+                ? `${expandableFilterCount} personal · ${cardCriteria.length} fixed`
+                : `${expandableFilterCount} active`
               : cardCriteria.length ? `${cardCriteria.length} fixed` : 'Open'}
           </span>
         </summary>
@@ -1273,6 +1287,9 @@ export async function ContactResultsPage({
               </option>
             </FilterSelect>
 
+            {/* Keep card controls on phones, where this page shows cards even
+                for a spreadsheet URL. Their values still submit with the form. */}
+            <div className={displayMode === 'sheet' ? 'contents md:hidden' : 'contents'}>
             <FilterSelect
               label="Status"
               name="status"
@@ -1387,6 +1404,7 @@ export async function ContactResultsPage({
               </option>
             </FilterSelect>
 
+            </div>
             <FilterSelect
               label="Affinity"
               name="affinity"
@@ -1411,7 +1429,7 @@ export async function ContactResultsPage({
             </FilterSelect>
           </div>
 
-          <label className="mt-3 flex items-center gap-2 text-xs font-bold text-[#475467]">
+          <label className={`mt-3 flex items-center gap-2 text-xs font-bold text-[#475467] ${displayMode === 'sheet' ? 'md:hidden' : ''}`}>
             <input type="checkbox" name="roomOnly" value="1" defaultChecked={roomOnlyActive} className="h-4 w-4 rounded border-[#d0d5dd]" />
             Hide missing rooms (room or address contains a number)
           </label>
@@ -1430,8 +1448,8 @@ export async function ContactResultsPage({
             RESULTS_PAGE_SIZE
               ? ` • page ${currentPage} of ${totalPages}`
               : ''}
-            {activeFilterCount > 0
-              ? ` • ${activeFilterCount} ${view === 'area' ? 'filters' : 'personal filters'} active`
+            {activePersonalFilterCount > 0
+              ? ` • ${activePersonalFilterCount} ${view === 'area' ? 'filters' : 'personal filters'} active`
               : ''}
             {displayMode === 'sheet' && activeSpreadsheetFilterCount > 0
               ? ` • ${activeSpreadsheetFilterCount} spreadsheet ${activeSpreadsheetFilterCount === 1 ? 'filter' : 'filters'} active`
@@ -1885,19 +1903,19 @@ export async function ContactResultsPage({
                   </th>
                 )}
                 <th className="min-w-[95px] px-3 py-3">
-                  <SpreadsheetColumnFilter label="Jesus" param="sheetJesus" value={filters.sheetJesus} kind="jesus" />
+                  <SpreadsheetColumnFilter label="Jesus" param="sheetJesus" value={filters.sheetJesus} personalValue={filters.jesus} kind="jesus" />
                 </th>
                 <th className="min-w-[105px] px-3 py-3">
-                  <SpreadsheetColumnFilter label="Community" param="sheetCommunity" value={filters.sheetCommunity} kind="survey" />
+                  <SpreadsheetColumnFilter label="Community" param="sheetCommunity" value={filters.sheetCommunity} personalValue={filters.community} kind="survey" />
                 </th>
                 <th className="min-w-[100px] px-3 py-3">
-                  <SpreadsheetColumnFilter label="Interview" param="sheetInterview" value={filters.sheetInterview} kind="survey" />
+                  <SpreadsheetColumnFilter label="Interview" param="sheetInterview" value={filters.sheetInterview} personalValue={filters.interview} kind="survey" />
                 </th>
                 <th className="min-w-[145px] px-3 py-3">
-                  <SpreadsheetColumnFilter label="Interview complete" param="sheetInterviewComplete" value={filters.sheetInterviewComplete} />
+                  <SpreadsheetColumnFilter label="Interview complete" param="sheetInterviewComplete" value={filters.sheetInterviewComplete} personalValue={filters.interviewDone} />
                 </th>
                 <th className="min-w-[125px] px-3 py-3">
-                  <SpreadsheetColumnFilter label="KGP shared" param="sheetKgpShared" value={filters.sheetKgpShared} />
+                  <SpreadsheetColumnFilter label="KGP shared" param="sheetKgpShared" value={filters.sheetKgpShared} personalValue={filters.kgp} />
                 </th>
                 <th className="min-w-[135px] px-3 py-3">
                   <SpreadsheetColumnFilter label="New believer" param="sheetNewBeliever" value={filters.sheetNewBeliever} />
@@ -1929,7 +1947,7 @@ export async function ContactResultsPage({
                 )}
                 {selectedSpreadsheetColumns.includes('invited_cg') && (
                   <th className="min-w-[125px] px-3 py-3">
-                    <SpreadsheetColumnFilter label="Invited to CG" param="sheetInvitedCg" value={filters.sheetInvitedCg} />
+                    <SpreadsheetColumnFilter label="Invited to CG" param="sheetInvitedCg" value={filters.sheetInvitedCg} personalValue={filters.invitedCg} />
                   </th>
                 )}
                 {selectedSpreadsheetColumns.includes('latest_text') && (
@@ -1940,7 +1958,7 @@ export async function ContactResultsPage({
                 <th className="min-w-[95px] px-3 py-3 text-center">Interactions</th>
                 <th className="min-w-[125px] px-3 py-3">Last interaction</th>
                 <th className="min-w-[125px] px-3 py-3">
-                  <SpreadsheetColumnFilter label="Status" param="sheetStatus" value={filters.sheetStatus} kind="status" />
+                  <SpreadsheetColumnFilter label="Status" param="sheetStatus" value={filters.sheetStatus} personalValue={filters.status} kind="status" />
                 </th>
                 <th className="min-w-[150px] px-3 py-3">Assigned to</th>
               </tr>

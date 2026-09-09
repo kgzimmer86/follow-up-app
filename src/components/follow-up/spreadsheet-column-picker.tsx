@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { clearSpreadsheetColumnFilter } from '@/lib/spreadsheet-filter-options'
 import {
   parseSpreadsheetColumns,
   spreadsheetColumnOptions,
@@ -54,7 +55,7 @@ export function SpreadsheetColumnPicker({
 
     const params = new URLSearchParams(searchParams.toString())
     for (const option of spreadsheetColumnOptions) {
-      if (!ordered.includes(option.value)) params.delete(option.filterParam)
+      if (!ordered.includes(option.value)) clearSpreadsheetColumnFilter(params, option.filterParam)
     }
     if (ordered.length > 0) params.set('columns', ordered.join(','))
     else params.delete('columns')

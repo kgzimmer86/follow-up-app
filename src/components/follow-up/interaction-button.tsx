@@ -8,6 +8,7 @@ import {
   useSearchParams,
 } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { usePhotoCleanup } from './photo-cleanup-provider'
 import {
   interactionPhotoBucket,
   prepareInteractionPhoto,
@@ -30,6 +31,7 @@ export function InteractionButton({
   autoOpen = false,
 }: InteractionButtonProps) {
   const router = useRouter()
+  const cleanupPhoto = usePhotoCleanup()
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -165,21 +167,23 @@ export function InteractionButton({
       }
     }
 
-    const { error } = await supabase.rpc(
-      rpcName,
-      rpcArgs
-    )
+    let error: { message: string; code?: string } | null
+    try {
+      const response = await supabase.rpc(rpcName, rpcArgs)
+      error = response.error
+    } catch {
+      error = { message: 'Could not confirm whether the interaction saved. Check the contact history before trying again.' }
+    }
 
     if (error) {
-      if (uploadedPath) {
-        await supabase.storage
-          .from(interactionPhotoBucket)
-          .remove([uploadedPath])
+      const cleanup = uploadedPath ? await cleanupPhoto(uploadedPath, !error.code) : null
+      // A lost response may still have saved this unique attachment. Treat a
+      // confirmed reference as success, rather than inviting a duplicate save.
+      if (cleanup !== 'in_use') {
+        setErrorMessage(error.code ? error.message : 'Could not confirm whether the interaction saved. Check the contact history before trying again.')
+        setSaving(false)
+        return
       }
-
-      setErrorMessage(error.message)
-      setSaving(false)
-      return
     }
 
     form.reset()

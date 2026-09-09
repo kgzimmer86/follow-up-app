@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/client'
 import { textPurposeSummary, validateTextAttempt, type TextAttemptDetails } from '@/lib/text-attempts'
-import { interactionPhotoBucket } from '@/lib/interaction-photo'
+import { usePhotoCleanup } from './photo-cleanup-provider'
 import { TextPurposeFields } from './text-purpose-fields'
 
 type HistoryEvent = TextAttemptDetails & {
@@ -53,6 +53,7 @@ function HistoryEventActions({
   primaryOwnerName: string | null
 }) {
   const router = useRouter()
+  const cleanupPhoto = usePhotoCleanup()
   const isKnock = event.event_type === 'knock'
   const isText = event.event_type === 'text_attempt'
   const eventLabel = isKnock ? 'knock' : isText ? 'text attempt' : 'interaction'
@@ -192,34 +193,33 @@ function HistoryEventActions({
     setSaving(true)
     setError(null)
 
-    const supabase = createClient()
+    try {
+      const supabase = createClient()
+      const { error: deleteError } = await supabase.rpc(
+        'delete_follow_up_event',
+        {
+          p_event_id: event.id,
+          p_unassign_primary:
+            deletingPrimaryInteraction &&
+            assignmentChoice === 'unassign',
+        }
+      )
 
-    const { error: deleteError } = await supabase.rpc(
-      'delete_follow_up_event',
-      {
-        p_event_id: event.id,
-        p_unassign_primary:
-          deletingPrimaryInteraction &&
-          assignmentChoice === 'unassign',
+      if (deleteError) {
+        setError(deleteError.message)
+        return
       }
-    )
 
-    if (deleteError) {
-      setError(deleteError.message)
+      if (event.attachment_path) await cleanupPhoto(event.attachment_path)
+
+      setAssignmentChoice(null)
+      setStage('idle')
+      router.refresh()
+    } catch {
+      setError('Could not confirm the deletion. Refresh to check the history before trying again.')
+    } finally {
       setSaving(false)
-      return
     }
-
-    if (event.attachment_path) {
-      await supabase.storage
-        .from(interactionPhotoBucket)
-        .remove([event.attachment_path])
-    }
-
-    setSaving(false)
-    setAssignmentChoice(null)
-    setStage('idle')
-    router.refresh()
   }
 
   return (

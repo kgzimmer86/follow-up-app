@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAppAccess } from '@/lib/supabase/access'
 import { FilterSession } from '@/components/follow-up/filter-session'
 import { TextAttemptSession } from '@/components/follow-up/text-attempt-session'
+import { PhotoCleanupProvider } from '@/components/follow-up/photo-cleanup-provider'
 import { AppShell } from '@/components/follow-up/app-shell'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { AppLoading } from '@/components/follow-up/app-loading'
@@ -143,6 +144,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
   return (
     <FilterSession key={user.id} userId={user.id}>
       <TextAttemptSession userId={user.id}>
+        <PhotoCleanupProvider userId={user.id}>
         <AppShell
           displayName={displayName}
           role={profile.role}
@@ -150,6 +152,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
         >
           {children}
         </AppShell>
+        </PhotoCleanupProvider>
       </TextAttemptSession>
     </FilterSession>
   )

@@ -8,6 +8,7 @@ import test from 'node:test'
 const { PGlite } = await import(process.env.FOLLOW_UP_PGLITE_MODULE || '@electric-sql/pglite')
 const previousSql = await readFile(new URL('../migrations/20260909_spreadsheet_column_filters.sql', import.meta.url), 'utf8')
 const sql = await readFile(new URL('../migrations/20260909_spreadsheet_progress_filters.sql', import.meta.url), 'utf8')
+const surveyStatusSql = await readFile(new URL('../migrations/20260909_spreadsheet_survey_status_filters.sql', import.meta.url), 'utf8')
 
 test('spreadsheet progress filters preserve existing results and filter before pagination', async (t) => {
   const db = new PGlite()
@@ -84,6 +85,14 @@ test('spreadsheet progress filters preserve existing results and filter before p
     assert.deepEqual(signatures.rows, [{ pronargs: 30 }])
   })
 
+  await t.test('survey/status migration preserves old calls and can be reapplied', async () => {
+    await db.exec(surveyStatusSql)
+    await db.exec(surveyStatusSql)
+    assert.deepEqual(await Promise.all(oldQueries.map(results)), baseline)
+    const signatures = await db.query("select pronargs from pg_proc where proname='get_follow_up_contact_results_v2'")
+    assert.deepEqual(signatures.rows, [{ pronargs: 34 }])
+  })
+
   for (const [param, flag] of [
     ['p_spreadsheet_kgp_shared', 'kgp'],
     ['p_spreadsheet_interview_complete', 'interview'],
@@ -122,12 +131,70 @@ test('spreadsheet progress filters preserve existing results and filter before p
   await t.test('returning a completion date to null moves the contact from Yes to No', async () => {
     const item = contacts[7]
     await db.query('update follow_up_contacts set kgp_shared_at=null, interview_completed_at=null, received_christ_at=null where id=$1', [item.id])
+    Object.assign(item, { kgp: false, interview: false, believer: false })
     for (const param of ['p_spreadsheet_kgp_shared', 'p_spreadsheet_interview_complete', 'p_spreadsheet_new_believer']) {
       const yes = await results({ [param]: 'yes', p_page_size: 100 })
       const no = await results({ [param]: 'no', p_page_size: 100 })
       assert.ok(!yes.rows.some((row) => row.id === item.id))
       assert.ok(no.rows.some((row) => row.id === item.id))
     }
+  })
+
+  await t.test('all survey answers and statuses filter the full list, including blank responses', async () => {
+    const jesusAnswers = ['yes', 'maybe', 'no', 'already_have_one', null, '']
+    const surveyAnswers = ['yes', 'maybe', 'no', null, '']
+    const statuses = ['uncontacted', 'attempted_contact', 'go_back', 'involved', 'not_interested']
+    for (const [i, item] of contacts.entries()) {
+      Object.assign(item, {
+        jesus: jesusAnswers[Math.floor(i / 2) % jesusAnswers.length],
+        community: surveyAnswers[Math.floor(i / 3) % surveyAnswers.length],
+        surveyInterview: surveyAnswers[Math.floor(i / 5) % surveyAnswers.length],
+        status: statuses[Math.floor(i / 7) % statuses.length],
+      })
+      await db.query('update follow_up_contacts set jesus_interest=$2, community_interest=$3, interview_interest=$4, status=$5 where id=$1',
+        [item.id, item.jesus, item.community, item.surveyInterview, item.status])
+    }
+    for (const [param, key, choices] of [
+      ['p_spreadsheet_jesus', 'jesus', ['yes', 'maybe', 'no', 'already_have_one', 'unanswered']],
+      ['p_spreadsheet_community', 'community', ['yes', 'maybe', 'no', 'unanswered']],
+      ['p_spreadsheet_interview', 'surveyInterview', ['yes', 'maybe', 'no', 'unanswered']],
+      ['p_spreadsheet_status', 'status', statuses],
+    ]) {
+      for (const choice of [null, '', ...choices]) {
+        const expected = contacts.filter((item) => !choice || (choice === 'unanswered' ? !item[key] : item[key] === choice))
+        const found = []
+        // A smaller page exercises the same pagination code with every answer.
+        for (let page = 1; page <= Math.ceil(expected.length / 7); page++) {
+          const result = await results({ [param]: choice, p_page: page, p_page_size: 7 })
+          assert.equal(result.total_count, expected.length, `${param}: ${choice}`)
+          found.push(...result.rows.map((item) => item.id))
+        }
+        assert.deepEqual(found, expected.map((item) => item.id), `${param}: ${choice}`)
+      }
+    }
+  })
+
+  await t.test('survey and status columns intersect personal selections and fixed smart rules', async () => {
+    const narrowed = await results({ p_jesus: 'yes,maybe', p_spreadsheet_jesus: 'maybe', p_spreadsheet_status: 'involved' })
+    assert.deepEqual(narrowed.rows.map((item) => item.id), contacts.filter((item) => item.jesus === 'maybe' && item.status === 'involved').map((item) => item.id))
+    const together = await results({ p_spreadsheet_jesus: 'already_have_one', p_spreadsheet_community: 'no', p_spreadsheet_interview: 'maybe' })
+    assert.deepEqual(together.rows.map((item) => item.id), contacts.filter((item) => item.jesus === 'already_have_one' && item.community === 'no' && item.surveyInterview === 'maybe').map((item) => item.id))
+    for (const params of [
+      { p_jesus: 'yes,maybe', p_spreadsheet_jesus: 'already_have_one' },
+      { p_community: 'yes', p_spreadsheet_community: 'no' },
+      { p_interview: 'yes', p_spreadsheet_interview: 'unanswered' },
+      { p_status: 'uncontacted', p_spreadsheet_status: 'involved' },
+      { p_view: 'cg', p_spreadsheet_community: 'no' },
+      { p_view: 'gospel', p_spreadsheet_status: 'not_interested' },
+    ]) {
+      const result = await results(params)
+      assert.equal(result.total_count, 0)
+      assert.deepEqual(result.rows, [])
+    }
+    const gospel = await results({ p_view: 'gospel', p_spreadsheet_jesus: 'already_have_one' })
+    const expected = contacts.filter((item) => item.jesus === 'already_have_one' && !item.kgp && item.status !== 'not_interested' && ['yes', 'maybe'].includes(item.surveyInterview))
+    assert.ok(expected.length > 0)
+    assert.deepEqual(gospel.rows.map((item) => item.id), expected.map((item) => item.id))
   })
 
   await t.test('execution privileges and access checks remain enforced', async () => {

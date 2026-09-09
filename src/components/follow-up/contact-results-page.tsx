@@ -26,6 +26,7 @@ import { textPurposeSummary, textPurposes, type TextAttemptDetails, type TextPur
 import { SpreadsheetColumnPicker } from '@/components/follow-up/spreadsheet-column-picker'
 import { parseSpreadsheetColumns, spreadsheetColumnOptions } from '@/lib/spreadsheet-columns'
 import { SpreadsheetColumnFilter } from '@/components/follow-up/spreadsheet-column-filter'
+import { readSpreadsheetChoice } from '@/lib/spreadsheet-filter-options'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
 import {
@@ -74,6 +75,10 @@ export type ContactResultsSearchParams = {
   sheetKgpShared?: string
   sheetInterviewComplete?: string
   sheetNewBeliever?: string
+  sheetJesus?: string
+  sheetCommunity?: string
+  sheetInterview?: string
+  sheetStatus?: string
   page?: string
 }
 
@@ -114,6 +119,10 @@ type FilterValues = {
   sheetKgpShared: string
   sheetInterviewComplete: string
   sheetNewBeliever: string
+  sheetJesus: string
+  sheetCommunity: string
+  sheetInterview: string
+  sheetStatus: string
 }
 
 type AreaRow = {
@@ -318,6 +327,10 @@ export async function ContactResultsPage({
     sheetKgpShared: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetKgpShared) : '',
     sheetInterviewComplete: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetInterviewComplete) : '',
     sheetNewBeliever: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetNewBeliever) : '',
+    sheetJesus: searchParams.display === 'sheet' ? readSpreadsheetChoice('jesus', searchParams.sheetJesus) : '',
+    sheetCommunity: searchParams.display === 'sheet' ? readSpreadsheetChoice('survey', searchParams.sheetCommunity) : '',
+    sheetInterview: searchParams.display === 'sheet' ? readSpreadsheetChoice('survey', searchParams.sheetInterview) : '',
+    sheetStatus: searchParams.display === 'sheet' ? readSpreadsheetChoice('status', searchParams.sheetStatus) : '',
   }
 
   const displayMode =
@@ -344,6 +357,10 @@ export async function ContactResultsPage({
     filters.sheetKgpShared,
     filters.sheetInterviewComplete,
     filters.sheetNewBeliever,
+    filters.sheetJesus,
+    filters.sheetCommunity,
+    filters.sheetInterview,
+    filters.sheetStatus,
   ].filter(Boolean).length
 
   const activeFilterCount =
@@ -520,6 +537,10 @@ export async function ContactResultsPage({
       ...(filters.sheetKgpShared ? { p_spreadsheet_kgp_shared: filters.sheetKgpShared } : {}),
       ...(filters.sheetInterviewComplete ? { p_spreadsheet_interview_complete: filters.sheetInterviewComplete } : {}),
       ...(filters.sheetNewBeliever ? { p_spreadsheet_new_believer: filters.sheetNewBeliever } : {}),
+      ...(filters.sheetJesus ? { p_spreadsheet_jesus: filters.sheetJesus } : {}),
+      ...(filters.sheetCommunity ? { p_spreadsheet_community: filters.sheetCommunity } : {}),
+      ...(filters.sheetInterview ? { p_spreadsheet_interview: filters.sheetInterview } : {}),
+      ...(filters.sheetStatus ? { p_spreadsheet_status: filters.sheetStatus } : {}),
     }
   )
 
@@ -837,6 +858,10 @@ export async function ContactResultsPage({
     sheetKgpShared: filters.sheetKgpShared,
     sheetInterviewComplete: filters.sheetInterviewComplete,
     sheetNewBeliever: filters.sheetNewBeliever,
+    sheetJesus: filters.sheetJesus,
+    sheetCommunity: filters.sheetCommunity,
+    sheetInterview: filters.sheetInterview,
+    sheetStatus: filters.sheetStatus,
   }
 
   async function saveFilters(nextFilters: FilterValues, preserveGeography = true) {
@@ -893,6 +918,10 @@ export async function ContactResultsPage({
         sheetKgpShared: '',
         sheetInterviewComplete: '',
         sheetNewBeliever: '',
+        sheetJesus: '',
+        sheetCommunity: '',
+        sheetInterview: '',
+        sheetStatus: '',
       }
       const href = await saveFilters(cleared, false)
       // Save the assigned geography for other cards without excluding the
@@ -933,6 +962,10 @@ export async function ContactResultsPage({
     sheetKgpShared: '',
     sheetInterviewComplete: '',
     sheetNewBeliever: '',
+    sheetJesus: '',
+    sheetCommunity: '',
+    sheetInterview: '',
+    sheetStatus: '',
   }
 
   const sheetFilters: FilterValues = {
@@ -1851,9 +1884,15 @@ export async function ContactResultsPage({
                     <SpreadsheetColumnFilter label="Email" param="sheetEmail" value={filters.sheetEmail} kind="email" />
                   </th>
                 )}
-                <th className="min-w-[95px] px-3 py-3">Jesus</th>
-                <th className="min-w-[105px] px-3 py-3">Community</th>
-                <th className="min-w-[100px] px-3 py-3">Interview</th>
+                <th className="min-w-[95px] px-3 py-3">
+                  <SpreadsheetColumnFilter label="Jesus" param="sheetJesus" value={filters.sheetJesus} kind="jesus" />
+                </th>
+                <th className="min-w-[105px] px-3 py-3">
+                  <SpreadsheetColumnFilter label="Community" param="sheetCommunity" value={filters.sheetCommunity} kind="survey" />
+                </th>
+                <th className="min-w-[100px] px-3 py-3">
+                  <SpreadsheetColumnFilter label="Interview" param="sheetInterview" value={filters.sheetInterview} kind="survey" />
+                </th>
                 <th className="min-w-[145px] px-3 py-3">
                   <SpreadsheetColumnFilter label="Interview complete" param="sheetInterviewComplete" value={filters.sheetInterviewComplete} />
                 </th>
@@ -1900,7 +1939,9 @@ export async function ContactResultsPage({
                 )}
                 <th className="min-w-[95px] px-3 py-3 text-center">Interactions</th>
                 <th className="min-w-[125px] px-3 py-3">Last interaction</th>
-                <th className="min-w-[125px] px-3 py-3">Status</th>
+                <th className="min-w-[125px] px-3 py-3">
+                  <SpreadsheetColumnFilter label="Status" param="sheetStatus" value={filters.sheetStatus} kind="status" />
+                </th>
                 <th className="min-w-[150px] px-3 py-3">Assigned to</th>
               </tr>
             </thead>

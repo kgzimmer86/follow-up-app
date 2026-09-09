@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { spreadsheetFilterOptions, type SpreadsheetFilterKind } from '@/lib/spreadsheet-filter-options'
 
 export function SpreadsheetColumnFilter({
   label,
@@ -12,17 +13,13 @@ export function SpreadsheetColumnFilter({
   label: string
   param: string
   value: string
-  kind?: 'yesNo' | 'email' | 'text'
+  kind?: SpreadsheetFilterKind
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
-  const options = kind === 'yesNo'
-    ? [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]
-    : kind === 'email'
-      ? [{ value: 'has', label: 'Has email' }, { value: 'missing', label: 'No email' }]
-      : [{ value: 'has', label: 'Has text' }, { value: 'missing', label: 'No text' }]
+  const options = spreadsheetFilterOptions[kind]
   const selection = options.find((option) => option.value === value)?.label ?? 'Any'
 
   return (

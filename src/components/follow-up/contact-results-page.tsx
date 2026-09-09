@@ -25,7 +25,7 @@ import { ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, textPurposes, type TextAttemptDetails, type TextPurpose } from '@/lib/text-attempts'
 import { SpreadsheetColumnPicker } from '@/components/follow-up/spreadsheet-column-picker'
 import { parseSpreadsheetColumns, spreadsheetColumnOptions } from '@/lib/spreadsheet-columns'
-import { SpreadsheetColumnFilter, SpreadsheetFilterProvider } from '@/components/follow-up/spreadsheet-column-filter'
+import { ClearSpreadsheetFilters, SpreadsheetColumnFilter, SpreadsheetFilterProvider } from '@/components/follow-up/spreadsheet-column-filter'
 import { additionalContactFilters, contactFiltersForDisplay, normalizeSharedContactFilters, readSpreadsheetChoice, spreadsheetFilterOptions } from '@/lib/spreadsheet-filter-options'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
@@ -379,9 +379,8 @@ export async function ContactResultsPage({
     ? [filters.campus, filters.location, filters.floor, filters.wing, filters.gender, filters.affinity].filter(Boolean).length
     : activeFilterCount
 
-  const activePersonalFilterCount = displayMode === 'sheet'
-    ? expandableFilterCount + Number(Boolean(filters.roomOnly))
-    : activeFilterCount
+  const activePersonalFilterCount = activeFilterCount - activeSpreadsheetFilterCount
+  const spreadsheetFilterBadgeClassName = 'inline-flex rounded-full border border-[#fecdca] bg-[#fef3f2] px-2.5 py-1 text-[11px] font-extrabold text-[#b42318]'
 
   const filterStateKey = [
     filters.campus,
@@ -1068,11 +1067,16 @@ export async function ContactResultsPage({
               )}
             </div>
             {activeAdditionalFilters.length > 0 && (
-              <div className={`mt-2 text-xs font-bold text-[#475467] ${displayMode === 'sheet' ? 'md:hidden' : ''}`}>
+              <div className={`mt-2 flex flex-wrap gap-1.5 ${displayMode === 'sheet' ? 'md:hidden' : ''}`}>
                 {activeAdditionalFilters.map((option) => {
                   const answer = spreadsheetFilterOptions[option.kind].find((answer) => answer.value === filters[option.param])
-                  return `${option.label}: ${answer?.label ?? filters[option.param]}`
-                }).join(' · ')}
+                  return (
+                    <span key={option.param} className={spreadsheetFilterBadgeClassName}>
+                      {option.label}: {answer?.label ?? filters[option.param]}
+                    </span>
+                  )
+                })}
+                <ClearSpreadsheetFilters filterParams={activeAdditionalFilters.map((option) => option.param)} />
               </div>
             )}
           </div>
@@ -1091,22 +1095,10 @@ export async function ContactResultsPage({
           filterStateKey={filterStateKey}
           showAssignedArea={view !== 'noaddress'}
         >
-          {activeAdditionalFilters.length > 0 && (
-            <div className={displayMode === 'sheet' ? 'mb-4 md:hidden' : 'mb-4'}>
-              <div className="mb-1 text-xs font-extrabold text-[#15223a]">Additional active filters</div>
-              <p className="mb-2 text-xs leading-5 text-[#667085]">These also apply to the cards below. Choose Any to remove a filter.</p>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                {activeAdditionalFilters.map((option) => (
-                  <FilterSelect key={option.param} label={option.label} name={option.param} value={filters[option.param]}>
-                    <option value="">Any</option>
-                    {spreadsheetFilterOptions[option.kind].map((answer) => (
-                      <option key={answer.value} value={answer.value}>{answer.label}</option>
-                    ))}
-                  </FilterSelect>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Preserve spreadsheet-only choices when another form filter changes. */}
+          {activeAdditionalFilters.map((option) => (
+            <input key={option.param} type="hidden" name={option.param} value={filters[option.param]} />
+          ))}
           {cardCriteria.length > 0 && (
             <div className="mb-4 rounded-[11px] border border-[#d8dee8] bg-[#f9fafb] p-3">
               <div className="text-xs font-extrabold text-[#15223a]">{viewInfo.title} criteria · Fixed</div>
@@ -1469,7 +1461,8 @@ export async function ContactResultsPage({
 
       <section className="mt-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="text-xs font-bold text-[#98a2b3]">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs font-bold text-[#98a2b3]">
+            <span>
             {totalVisibleContacts}{' '}
             {totalVisibleContacts === 1
               ? 'contact'
@@ -1481,9 +1474,12 @@ export async function ContactResultsPage({
             {activePersonalFilterCount > 0
               ? ` • ${activePersonalFilterCount} ${view === 'area' ? 'filters' : 'personal filters'} active`
               : ''}
-            {displayMode === 'sheet' && activeSpreadsheetFilterCount > 0
-              ? ` • ${activeSpreadsheetFilterCount} spreadsheet ${activeSpreadsheetFilterCount === 1 ? 'filter' : 'filters'} active`
-              : ''}
+            </span>
+            {activeSpreadsheetFilterCount > 0 && (
+              <span className={spreadsheetFilterBadgeClassName}>
+                {activeSpreadsheetFilterCount} spreadsheet {activeSpreadsheetFilterCount === 1 ? 'filter' : 'filters'} active
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-1.5">

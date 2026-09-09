@@ -51,6 +51,33 @@ export function useSpreadsheetFilters() {
   return context
 }
 
+export function ClearSpreadsheetFilters({ filterParams }: { filterParams: string[] }) {
+  const searchParams = useSearchParams()
+  const { pending, updateFilters } = useSpreadsheetFilters()
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      title="Clear only the filters listed in these red badges"
+      aria-label="Clear only the spreadsheet filters listed above"
+      className="whitespace-nowrap text-[11px] font-bold text-[#b42318] underline underline-offset-2 hover:text-[#912018] disabled:opacity-50"
+      onClick={(event) => {
+        // This control sits inside the summary; clearing must not toggle it.
+        event.preventDefault()
+        event.stopPropagation()
+        const params = new URLSearchParams(searchParams.toString())
+        for (const param of filterParams) params.delete(param)
+        params.delete('page')
+        params.set('context', '1')
+        updateFilters(params)
+      }}
+    >
+      {pending ? 'Clearing…' : 'Clear these'}
+    </button>
+  )
+}
+
 export function SpreadsheetColumnFilter({
   label,
   param,

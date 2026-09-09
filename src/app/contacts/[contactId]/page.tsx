@@ -1167,14 +1167,14 @@ function OverviewTab({
         )}
 
         {latestText && (
-          <div className="mt-4 rounded-[14px] border border-[#fedf89] bg-[#fff8eb] p-3.5">
-            <div className="text-xs font-extrabold text-[#9a4b00]">
+          <div className="mt-4 rounded-[14px] bg-[#f9fafb] p-3.5">
+            <div className="text-xs font-extrabold text-[#15223a]">
               Latest text attempt • {fullDate(latestText.occurred_at)}
             </div>
-            <div className="mt-1 text-sm font-bold text-[#15223a]">
+            <div className="mt-1 text-sm leading-6 text-[#475467]">
               {textPurposeSummary(latestText.text_purposes, latestText.text_event_name)}
             </div>
-            <div className="mt-1 text-[11px] font-semibold text-[#667085]">{latestText.performerName}</div>
+            <div className="mt-1 text-[11px] font-semibold text-[#98a2b3]">{latestText.performerName}</div>
             {latestText.notes && <p className="mt-2 text-sm leading-6 text-[#475467]">{latestText.notes}</p>}
           </div>
         )}
@@ -1347,7 +1347,7 @@ function HistoryTab({
                       'absolute left-[3px] top-1.5 h-4 w-4 rounded-full border-[3px] border-white shadow-[0_0_0_1px_rgba(0,0,0,.06)]',
                       isKnock
                         ? 'bg-[#ffcb05]'
-                        : isText ? 'bg-[#f79009]' : 'bg-[#13795b]',
+                        : isText ? 'bg-[#98a2b3]' : 'bg-[#13795b]',
                     ].join(' ')}
                   />
 
@@ -1356,7 +1356,7 @@ function HistoryTab({
                       'rounded-[14px] border p-3.5',
                       isKnock
                         ? 'border-[#f4e8a6] bg-[#fffdf1]'
-                        : isText ? 'border-[#fedf89] bg-[#fff8eb]' : 'border-[#e4e7ec] bg-[#f9fafb]',
+                        : 'border-[#e4e7ec] bg-[#f9fafb]',
                     ].join(' ')}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1380,7 +1380,7 @@ function HistoryTab({
                     </div>
 
                     {isText && (
-                      <div className="mt-2 text-xs font-bold text-[#9a4b00]">
+                      <div className="mt-2 text-sm leading-6 text-[#475467]">
                         {textPurposeSummary(event.text_purposes, event.text_event_name)}
                       </div>
                     )}

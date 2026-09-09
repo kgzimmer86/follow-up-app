@@ -525,7 +525,7 @@ export default async function DiscipleDetailPage({
                             activity.event_type ===
                             'knock'
                               ? 'bg-[#b42318]'
-                              : activity.event_type === 'text_attempt' ? 'bg-[#f79009]' : 'bg-[#13795b]',
+                              : activity.event_type === 'text_attempt' ? 'bg-[#98a2b3]' : 'bg-[#13795b]',
                           ].join(' ')}
                         />
 

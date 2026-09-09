@@ -1531,8 +1531,8 @@ export async function ContactResultsPage({
                   </div>
 
                   {contact.latest_text_attempt && (
-                    <div className="mt-2 text-[11px] leading-5 text-[#9a4b00]">
-                      <strong>Latest text:</strong>{' '}
+                    <div className="mt-2 text-[11px] text-[#667085]">
+                      Latest text:{' '}
                       {textPurposeSummary(contact.latest_text_attempt.text_purposes, contact.latest_text_attempt.text_event_name)}
                       {' • '}{shortDate(contact.latest_text_attempt.occurred_at)}
                     </div>

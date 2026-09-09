@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { createTextAttemptSession } from '@/lib/text-attempts'
+import { createTextAttemptSession, textGreetingHref } from '@/lib/text-attempts'
 
 const TextAttemptDialog = dynamic(() => import('./text-attempt-dialog'))
 
@@ -49,12 +49,15 @@ export function TextAttemptSession({ userId, children }: { userId: string; child
   )
 }
 
-export function ContactTextLink({ contactId, contactName, href, className, children }: {
-  contactId: string; contactName: string; href: string; className: string; children: ReactNode
+export function ContactTextLink({ contactId, contactName, href, className, children, promptToLog = true }: {
+  contactId: string; contactName: string; href: string; className: string; children: ReactNode; promptToLog?: boolean
 }) {
   const session = useContext(TextSessionContext)
-  return <a href={href} className={className} onClick={(event) => {
-    if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+  return <a href={textGreetingHref(href, contactName)} className={className} onClick={(event) => {
+    // Set the device-specific URL synchronously, keeping the native app handoff
+    // directly on the user's tap without a fetch, timer, or extra navigation.
+    event.currentTarget.href = textGreetingHref(href, contactName, navigator.userAgent)
+    if (promptToLog && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
       session?.begin({ id: contactId, name: contactName }, 'waiting')
     }
   }}>{children}</a>

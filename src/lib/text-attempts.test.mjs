@@ -1,8 +1,35 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createTextAttemptSession, readPendingTextAttempt, textPurposeSummary, validateTextAttempt, followUpActivityLabel } from './text-attempts.ts'
+import { createTextAttemptSession, readPendingTextAttempt, textPurposeSummary, validateTextAttempt, followUpActivityLabel, textGreetingHref } from './text-attempts.ts'
 
 const contact = { id: '00000000-0000-4000-8000-000000000001', name: 'Example Student' }
+
+test('text greetings use the first name, tolerate missing names, and encode message characters', () => {
+  const href = 'sms:+15555550123'
+  for (const [name, greeting] of [
+    ['Example Student', 'hi Example, '],
+    ['  Anne-Marie   Smith ', 'hi Anne-Marie, '],
+    ['José', 'hi José, '],
+    ['A&B Student', 'hi A&B, '],
+    ['?', 'hi, '],
+    ['   ', 'hi, '],
+  ]) {
+    const url = new URL(textGreetingHref(href, name))
+    assert.equal(url.protocol, 'sms:')
+    assert.equal(url.pathname, '+15555550123')
+    assert.equal(url.searchParams.get('body'), greeting)
+    assert.equal([...url.searchParams].length, 1)
+  }
+})
+
+test('text greeting links support Apple and standard SMS body separators without changing the recipient', () => {
+  const href = 'sms:+15555550123'
+  for (const agent of ['iPhone', 'iPad', 'iPod', 'Macintosh']) {
+    assert.equal(textGreetingHref(href, 'Example Student', agent), `${href}&body=hi%20Example%2C%20`)
+  }
+  assert.equal(textGreetingHref(href, 'Example Student', 'Android'), `${href}?body=hi%20Example%2C%20`)
+})
+
 function storage() {
   const values = new Map()
   return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) }

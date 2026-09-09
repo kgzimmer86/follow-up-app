@@ -2018,12 +2018,15 @@ export async function ContactResultsPage({
                       </td>
                       <td className="px-3 py-2.5 text-[#475467]">
                         {contact.phone ? (
-                          <a
+                          <ContactTextLink
+                            contactId={contact.id}
+                            contactName={contact.display_name}
                             href={`sms:${phoneHref(contact.phone)}`}
+                            promptToLog={false}
                             className="text-[#175cd3] hover:underline"
                           >
                             {contact.phone}
-                          </a>
+                          </ContactTextLink>
                         ) : (
                           '—'
                         )}

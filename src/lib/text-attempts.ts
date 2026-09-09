@@ -37,6 +37,15 @@ export function followUpActivityLabel(eventType: string) {
   return 'Interaction'
 }
 
+export function textGreetingHref(href: string, contactName: string, userAgent = '') {
+  const firstName = contactName.trim().split(/\s+/, 1)[0]
+  const greeting = firstName && firstName !== '?' ? `hi ${firstName}, ` : 'hi, '
+  // Apple Messages uses &body; other SMS handlers use the standard ?body.
+  // Macintosh also covers iPads requesting desktop websites.
+  const separator = /iPhone|iPad|iPod|Macintosh/i.test(userAgent) ? '&' : '?'
+  return `${href}${separator}body=${encodeURIComponent(greeting)}`
+}
+
 export type TextContact = { id: string; name: string }
 export type PendingTextAttempt = {
   eventId: string

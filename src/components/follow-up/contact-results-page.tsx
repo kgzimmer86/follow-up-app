@@ -2816,6 +2816,7 @@ function shortDate(
     {
       month: 'short',
       day: 'numeric',
+      timeZone: 'America/Detroit',
     }
   ).format(new Date(value))
 }

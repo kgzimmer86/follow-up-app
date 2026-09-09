@@ -11,6 +11,7 @@ import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
 import { AddTextAttemptButton, ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, type TextAttemptDetails } from '@/lib/text-attempts'
+import { interactionPhotoBucket } from '@/lib/interaction-photo'
 import { EditableContactInfo } from '@/components/follow-up/editable-contact-info'
 import { EditableContactLocation } from '@/components/follow-up/editable-contact-location'
 import { HistoryEventActions } from '@/components/follow-up/history-event-actions'
@@ -99,6 +100,11 @@ type EventRow = TextAttemptDetails & {
   kgp_shared: boolean
   received_christ: boolean
   invited_to_community_group: boolean
+  attachment_path: string | null
+  attachment_name: string | null
+  attachment_mime_type: string | null
+  attachment_size_bytes: number | null
+  attachment_url?: string | null
 }
 
 type ProfileRow = {
@@ -323,6 +329,10 @@ export default async function ContactDetailPage({
       kgp_shared,
       received_christ,
       invited_to_community_group,
+      attachment_path,
+      attachment_name,
+      attachment_mime_type,
+      attachment_size_bytes,
       text_purposes,
       text_event_name
     `)
@@ -340,14 +350,34 @@ export default async function ContactDetailPage({
   const events =
     (eventsData ?? []) as EventRow[]
 
-  const invitedToCommunityGroup = events.some(
+  const eventsWithAttachments = await Promise.all(
+    events.map(async (event) => {
+      if (!event.attachment_path) {
+        return {
+          ...event,
+          attachment_url: null,
+        }
+      }
+
+      const { data } = await supabase.storage
+        .from(interactionPhotoBucket)
+        .createSignedUrl(event.attachment_path, 60 * 60)
+
+      return {
+        ...event,
+        attachment_url: data?.signedUrl ?? null,
+      }
+    })
+  )
+
+  const invitedToCommunityGroup = eventsWithAttachments.some(
     (event) =>
       event.event_type === 'interaction' &&
       event.invited_to_community_group
   )
 
   const profileIds = unique([
-    ...events
+    ...eventsWithAttachments
       .map(
         (event) =>
           event.performed_by
@@ -397,7 +427,7 @@ export default async function ContactDetailPage({
 
   const displayEvents:
     DisplayEvent[] =
-    events.map((event) => ({
+    eventsWithAttachments.map((event) => ({
       ...event,
 
       performerName:
@@ -1159,6 +1189,17 @@ function OverviewTab({
               {latestInteraction.notes ||
                 'Interaction recorded.'}
             </p>
+
+            {latestInteraction.attachment_url && (
+              <a
+                href={latestInteraction.attachment_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex text-xs font-extrabold text-[#175cd3] hover:underline"
+              >
+                View interview notes photo
+              </a>
+            )}
           </div>
         ) : (
           <EmptyState>
@@ -1395,6 +1436,17 @@ function HistoryTab({
                       <p className="mt-2 text-sm leading-6 text-[#475467]">
                         {event.notes}
                       </p>
+                    )}
+
+                    {event.attachment_url && (
+                      <a
+                        href={event.attachment_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex text-xs font-extrabold text-[#175cd3] hover:underline"
+                      >
+                        View interview notes photo
+                      </a>
                     )}
 
                     <HistoryEventActions

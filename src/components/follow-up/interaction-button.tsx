@@ -1,12 +1,18 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import Image from 'next/image'
 import {
   usePathname,
   useRouter,
   useSearchParams,
 } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import {
+  interactionPhotoBucket,
+  prepareInteractionPhoto,
+  validateInteractionPhoto,
+} from '@/lib/interaction-photo'
 
 type InteractionButtonProps = {
   contactId: string
@@ -33,8 +39,41 @@ export function InteractionButton({
     null
   )
   const [statusError, setStatusError] = useState(false)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (photoPreviewUrl) {
+        URL.revokeObjectURL(photoPreviewUrl)
+      }
+    }
+  }, [photoPreviewUrl])
 
   const needsStatusChange = currentStatus === 'uncontacted'
+
+  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    const validationError = validateInteractionPhoto(file)
+
+    if (validationError) {
+      setPhotoFile(null)
+      setPhotoPreviewUrl(null)
+      setPhotoError(validationError)
+      return
+    }
+
+    setPhotoError(null)
+    setPhotoFile(file)
+    setPhotoPreviewUrl(URL.createObjectURL(file))
+  }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -56,6 +95,11 @@ export function InteractionButton({
       return
     }
 
+    if (photoError) {
+      setErrorMessage(photoError)
+      return
+    }
+
     setSaving(true)
     setStatusError(false)
     setErrorMessage(null)
@@ -64,36 +108,84 @@ export function InteractionButton({
 
     const supabase = createClient()
 
-    const { error } = await supabase.rpc(
-      'log_interaction',
-      {
-        p_contact_id: contactId,
-        p_notes: notes || null,
-        p_had_spiritual_conversation:
-          formData.get('hadSpiritual') === 'on',
-        p_interview_completed:
-          formData.get('interviewCompleted') === 'on',
-        p_kgp_shared:
-          formData.get('kgpShared') === 'on',
-        p_received_christ:
-          formData.get('receivedChrist') === 'on',
-        p_invited_to_community_group:
-          formData.get('invitedToCg') === 'on',
-        p_status_after: statusAfter || null,
-        p_make_primary:
-          formData.get('makePrimary') === 'on',
-        p_found_home:
-          formData.get('foundHome') === 'on',
+    let uploadedPath: string | null = null
+    let rpcName = 'log_interaction'
+    const rpcArgs: Record<string, unknown> = {
+      p_contact_id: contactId,
+      p_notes: notes || null,
+      p_had_spiritual_conversation:
+        formData.get('hadSpiritual') === 'on',
+      p_interview_completed:
+        formData.get('interviewCompleted') === 'on',
+      p_kgp_shared:
+        formData.get('kgpShared') === 'on',
+      p_received_christ:
+        formData.get('receivedChrist') === 'on',
+      p_invited_to_community_group:
+        formData.get('invitedToCg') === 'on',
+      p_status_after: statusAfter || null,
+      p_make_primary:
+        formData.get('makePrimary') === 'on',
+      p_found_home:
+        formData.get('foundHome') === 'on',
+    }
+
+    if (photoFile) {
+      try {
+        const preparedPhoto = await prepareInteractionPhoto(photoFile)
+        uploadedPath = `interaction-attachments/${contactId}/${crypto.randomUUID()}.${preparedPhoto.extension}`
+
+        const { error: uploadError } = await supabase.storage
+          .from(interactionPhotoBucket)
+          .upload(uploadedPath, preparedPhoto.blob, {
+            contentType: preparedPhoto.contentType,
+            cacheControl: '3600',
+            upsert: false,
+          })
+
+        if (uploadError) {
+          setErrorMessage(`The photo could not be uploaded: ${uploadError.message}`)
+          setSaving(false)
+          return
+        }
+
+        rpcName = 'log_interaction_with_attachment'
+        rpcArgs.p_attachment_path = uploadedPath
+        rpcArgs.p_attachment_name = photoFile.name.slice(0, 255)
+        rpcArgs.p_attachment_mime_type = preparedPhoto.contentType
+        rpcArgs.p_attachment_size_bytes = preparedPhoto.blob.size
+      } catch (photoUploadError) {
+        setErrorMessage(
+          photoUploadError instanceof Error
+            ? photoUploadError.message
+            : 'The photo could not be prepared for upload.'
+        )
+        setSaving(false)
+        return
       }
+    }
+
+    const { error } = await supabase.rpc(
+      rpcName,
+      rpcArgs
     )
 
     if (error) {
+      if (uploadedPath) {
+        await supabase.storage
+          .from(interactionPhotoBucket)
+          .remove([uploadedPath])
+      }
+
       setErrorMessage(error.message)
       setSaving(false)
       return
     }
 
     form.reset()
+    setPhotoFile(null)
+    setPhotoPreviewUrl(null)
+    setPhotoError(null)
     setSaving(false)
     setStatusError(false)
     setOpen(false)
@@ -125,6 +217,9 @@ export function InteractionButton({
   function closeForm() {
     setErrorMessage(null)
     setStatusError(false)
+    setPhotoFile(null)
+    setPhotoPreviewUrl(null)
+    setPhotoError(null)
     setOpen(false)
 
     if (searchParams.has('interaction')) {
@@ -215,6 +310,68 @@ export function InteractionButton({
                     placeholder="Add helpful notes for future follow up..."
                     className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-600"
                   />
+
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-extrabold text-slate-800">
+                          Interview notes photo
+                        </div>
+                        <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                          Add one photo of the notes from this interaction.
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 gap-2">
+                        <PhotoInputButton
+                          label="Take photo"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handlePhotoChange}
+                        />
+                        <PhotoInputButton
+                          label="Choose photo"
+                          accept="image/*"
+                          onChange={handlePhotoChange}
+                        />
+                      </div>
+                    </div>
+
+                    {photoPreviewUrl && (
+                      <div className="mt-3 flex items-start gap-3 rounded-lg bg-white p-2 ring-1 ring-slate-200">
+                        <Image
+                          src={photoPreviewUrl}
+                          alt="Selected interview notes"
+                          width={80}
+                          height={80}
+                          unoptimized
+                          className="h-20 w-20 rounded-md object-cover"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-slate-700">
+                            {photoFile?.name}
+                          </p>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => {
+                              setPhotoFile(null)
+                              setPhotoPreviewUrl(null)
+                            }}
+                            className="mt-2 text-xs font-extrabold text-slate-600 underline"
+                          >
+                            Remove photo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {photoError && (
+                      <p className="mt-2 text-xs font-semibold text-red-700">
+                        {photoError}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -426,6 +583,31 @@ function CheckOption({
       >
         {label}
       </span>
+    </label>
+  )
+}
+
+function PhotoInputButton({
+  label,
+  accept,
+  capture,
+  onChange,
+}: {
+  label: string
+  accept: string
+  capture?: 'environment'
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void
+}) {
+  return (
+    <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-[11px] font-extrabold text-slate-700 hover:bg-slate-100">
+      {label}
+      <input
+        type="file"
+        accept={accept}
+        capture={capture}
+        onChange={onChange}
+        className="sr-only"
+      />
     </label>
   )
 }

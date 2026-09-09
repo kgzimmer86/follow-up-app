@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/client'
 import { textPurposeSummary, validateTextAttempt, type TextAttemptDetails } from '@/lib/text-attempts'
+import { interactionPhotoBucket } from '@/lib/interaction-photo'
 import { TextPurposeFields } from './text-purpose-fields'
 
 type HistoryEvent = TextAttemptDetails & {
@@ -20,6 +21,7 @@ type HistoryEvent = TextAttemptDetails & {
   kgp_shared: boolean
   received_christ: boolean
   invited_to_community_group: boolean
+  attachment_path?: string | null
 }
 
 type Stage = 'idle' | 'edit' | 'review' | 'delete'
@@ -206,6 +208,12 @@ function HistoryEventActions({
       setError(deleteError.message)
       setSaving(false)
       return
+    }
+
+    if (event.attachment_path) {
+      await supabase.storage
+        .from(interactionPhotoBucket)
+        .remove([event.attachment_path])
     }
 
     setSaving(false)

@@ -24,8 +24,8 @@ import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, textPurposes, type TextAttemptDetails, type TextPurpose } from '@/lib/text-attempts'
 import { SpreadsheetColumnPicker } from '@/components/follow-up/spreadsheet-column-picker'
-import { parseSpreadsheetColumns } from '@/lib/spreadsheet-columns'
-import { SpreadsheetFilterPicker } from '@/components/follow-up/spreadsheet-filter-picker'
+import { parseSpreadsheetColumns, spreadsheetColumnOptions } from '@/lib/spreadsheet-columns'
+import { SpreadsheetColumnFilter } from '@/components/follow-up/spreadsheet-column-filter'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
 import {
@@ -71,6 +71,9 @@ export type ContactResultsSearchParams = {
   sheetTextFollowUp?: string
   sheetInvitedCg?: string
   sheetLatestText?: string
+  sheetKgpShared?: string
+  sheetInterviewComplete?: string
+  sheetNewBeliever?: string
   page?: string
 }
 
@@ -108,6 +111,9 @@ type FilterValues = {
   sheetTextFollowUp: string
   sheetInvitedCg: string
   sheetLatestText: string
+  sheetKgpShared: string
+  sheetInterviewComplete: string
+  sheetNewBeliever: string
 }
 
 type AreaRow = {
@@ -243,6 +249,10 @@ function parsePage(
   return parsed
 }
 
+function spreadsheetYesNo(value: string | undefined) {
+  return value === 'yes' || value === 'no' ? value : ''
+}
+
 export async function ContactResultsPage({
   view,
   basePath,
@@ -305,6 +315,9 @@ export async function ContactResultsPage({
     sheetTextFollowUp: searchParams.sheetTextFollowUp ?? '',
     sheetInvitedCg: searchParams.sheetInvitedCg ?? '',
     sheetLatestText: searchParams.sheetLatestText ?? '',
+    sheetKgpShared: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetKgpShared) : '',
+    sheetInterviewComplete: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetInterviewComplete) : '',
+    sheetNewBeliever: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetNewBeliever) : '',
   }
 
   const displayMode =
@@ -312,7 +325,12 @@ export async function ContactResultsPage({
       ? 'sheet'
       : 'cards'
 
-  const selectedSpreadsheetColumns = parseSpreadsheetColumns(filters.columns)
+  // Older links can have a filter for a hidden column. Show its header control
+  // so the user can see and change every restriction on the spreadsheet.
+  const selectedSpreadsheetColumns = parseSpreadsheetColumns([
+    filters.columns,
+    ...spreadsheetColumnOptions.filter((option) => filters[option.filterParam]).map((option) => option.value),
+  ].join(','))
 
   const activeSpreadsheetFilterCount = [
     filters.sheetEmail,
@@ -323,6 +341,9 @@ export async function ContactResultsPage({
     filters.sheetTextFollowUp,
     filters.sheetInvitedCg,
     filters.sheetLatestText,
+    filters.sheetKgpShared,
+    filters.sheetInterviewComplete,
+    filters.sheetNewBeliever,
   ].filter(Boolean).length
 
   const activeFilterCount =
@@ -496,6 +517,9 @@ export async function ContactResultsPage({
         p_spreadsheet_invited_cg: filters.sheetInvitedCg || null,
         p_spreadsheet_latest_text: filters.sheetLatestText || null,
       } : {}),
+      ...(filters.sheetKgpShared ? { p_spreadsheet_kgp_shared: filters.sheetKgpShared } : {}),
+      ...(filters.sheetInterviewComplete ? { p_spreadsheet_interview_complete: filters.sheetInterviewComplete } : {}),
+      ...(filters.sheetNewBeliever ? { p_spreadsheet_new_believer: filters.sheetNewBeliever } : {}),
     }
   )
 
@@ -810,6 +834,9 @@ export async function ContactResultsPage({
     sheetTextFollowUp: filters.sheetTextFollowUp,
     sheetInvitedCg: filters.sheetInvitedCg,
     sheetLatestText: filters.sheetLatestText,
+    sheetKgpShared: filters.sheetKgpShared,
+    sheetInterviewComplete: filters.sheetInterviewComplete,
+    sheetNewBeliever: filters.sheetNewBeliever,
   }
 
   async function saveFilters(nextFilters: FilterValues, preserveGeography = true) {
@@ -863,6 +890,9 @@ export async function ContactResultsPage({
         sheetTextFollowUp: '',
         sheetInvitedCg: '',
         sheetLatestText: '',
+        sheetKgpShared: '',
+        sheetInterviewComplete: '',
+        sheetNewBeliever: '',
       }
       const href = await saveFilters(cleared, false)
       // Save the assigned geography for other cards without excluding the
@@ -900,6 +930,9 @@ export async function ContactResultsPage({
     sheetTextFollowUp: '',
     sheetInvitedCg: '',
     sheetLatestText: '',
+    sheetKgpShared: '',
+    sheetInterviewComplete: '',
+    sheetNewBeliever: '',
   }
 
   const sheetFilters: FilterValues = {
@@ -1400,25 +1433,10 @@ export async function ContactResultsPage({
             </div>
 
             {displayMode === 'sheet' && (
-              <>
-                <SpreadsheetColumnPicker
-                  userId={userId}
-                  selectedColumns={selectedSpreadsheetColumns}
-                />
-                <SpreadsheetFilterPicker
-                  filters={{
-                    email: filters.sheetEmail,
-                    textCg: filters.sheetTextCg,
-                    textAcg: filters.sheetTextAcg,
-                    textAppointment: filters.sheetTextAppointment,
-                    textEvent: filters.sheetTextEvent,
-                    textFollowUp: filters.sheetTextFollowUp,
-                    invitedCg: filters.sheetInvitedCg,
-                    latestText: filters.sheetLatestText,
-                  }}
-                  activeCount={activeSpreadsheetFilterCount}
-                />
-              </>
+              <SpreadsheetColumnPicker
+                userId={userId}
+                selectedColumns={selectedSpreadsheetColumns}
+              />
             )}
 
             {isDormContactContext && (
@@ -1829,34 +1847,56 @@ export async function ContactResultsPage({
                 <th className="min-w-[90px] px-3 py-3">Gender</th>
                 <th className="min-w-[125px] px-3 py-3">Phone</th>
                 {selectedSpreadsheetColumns.includes('email') && (
-                  <th className="min-w-[220px] px-3 py-3">Email</th>
+                  <th className="min-w-[220px] px-3 py-3">
+                    <SpreadsheetColumnFilter label="Email" param="sheetEmail" value={filters.sheetEmail} kind="email" />
+                  </th>
                 )}
                 <th className="min-w-[95px] px-3 py-3">Jesus</th>
                 <th className="min-w-[105px] px-3 py-3">Community</th>
                 <th className="min-w-[100px] px-3 py-3">Interview</th>
-                <th className="min-w-[105px] px-3 py-3">Survey done</th>
-                <th className="min-w-[95px] px-3 py-3">KGP shared</th>
-                <th className="min-w-[105px] px-3 py-3">New believer</th>
+                <th className="min-w-[145px] px-3 py-3">
+                  <SpreadsheetColumnFilter label="Interview complete" param="sheetInterviewComplete" value={filters.sheetInterviewComplete} />
+                </th>
+                <th className="min-w-[125px] px-3 py-3">
+                  <SpreadsheetColumnFilter label="KGP shared" param="sheetKgpShared" value={filters.sheetKgpShared} />
+                </th>
+                <th className="min-w-[135px] px-3 py-3">
+                  <SpreadsheetColumnFilter label="New believer" param="sheetNewBeliever" value={filters.sheetNewBeliever} />
+                </th>
                 {selectedSpreadsheetColumns.includes('text_cg') && (
-                  <th className="min-w-[125px] px-3 py-3">Texted CG</th>
+                  <th className="min-w-[125px] px-3 py-3">
+                    <SpreadsheetColumnFilter label="Texted CG" param="sheetTextCg" value={filters.sheetTextCg} />
+                  </th>
                 )}
                 {selectedSpreadsheetColumns.includes('text_acg') && (
-                  <th className="min-w-[125px] px-3 py-3">Texted ACG</th>
+                  <th className="min-w-[125px] px-3 py-3">
+                    <SpreadsheetColumnFilter label="Texted ACG" param="sheetTextAcg" value={filters.sheetTextAcg} />
+                  </th>
                 )}
                 {selectedSpreadsheetColumns.includes('text_appointment') && (
-                  <th className="min-w-[145px] px-3 py-3">Texted appointment</th>
+                  <th className="min-w-[145px] px-3 py-3">
+                    <SpreadsheetColumnFilter label="Texted appointment" param="sheetTextAppointment" value={filters.sheetTextAppointment} />
+                  </th>
                 )}
                 {selectedSpreadsheetColumns.includes('text_event') && (
-                  <th className="min-w-[165px] px-3 py-3">Texted another event</th>
+                  <th className="min-w-[165px] px-3 py-3">
+                    <SpreadsheetColumnFilter label="Texted another event" param="sheetTextEvent" value={filters.sheetTextEvent} />
+                  </th>
                 )}
                 {selectedSpreadsheetColumns.includes('text_follow_up') && (
-                  <th className="min-w-[155px] px-3 py-3">Texted follow-up</th>
+                  <th className="min-w-[155px] px-3 py-3">
+                    <SpreadsheetColumnFilter label="Texted follow-up" param="sheetTextFollowUp" value={filters.sheetTextFollowUp} />
+                  </th>
                 )}
                 {selectedSpreadsheetColumns.includes('invited_cg') && (
-                  <th className="min-w-[125px] px-3 py-3">Invited to CG</th>
+                  <th className="min-w-[125px] px-3 py-3">
+                    <SpreadsheetColumnFilter label="Invited to CG" param="sheetInvitedCg" value={filters.sheetInvitedCg} />
+                  </th>
                 )}
                 {selectedSpreadsheetColumns.includes('latest_text') && (
-                  <th className="min-w-[180px] px-3 py-3">Latest text</th>
+                  <th className="min-w-[180px] px-3 py-3">
+                    <SpreadsheetColumnFilter label="Latest text" param="sheetLatestText" value={filters.sheetLatestText} kind="text" />
+                  </th>
                 )}
                 <th className="min-w-[95px] px-3 py-3 text-center">Interactions</th>
                 <th className="min-w-[125px] px-3 py-3">Last interaction</th>

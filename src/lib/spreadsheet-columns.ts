@@ -1,12 +1,12 @@
 export const spreadsheetColumnOptions = [
-  { value: 'email', label: 'Email' },
-  { value: 'text_cg', label: 'Texted CG' },
-  { value: 'text_acg', label: 'Texted ACG' },
-  { value: 'text_appointment', label: 'Texted appointment' },
-  { value: 'text_event', label: 'Texted another event' },
-  { value: 'text_follow_up', label: 'Texted general follow-up' },
-  { value: 'invited_cg', label: 'Invited to CG' },
-  { value: 'latest_text', label: 'Latest text' },
+  { value: 'email', label: 'Email', filterParam: 'sheetEmail' },
+  { value: 'text_cg', label: 'Texted CG', filterParam: 'sheetTextCg' },
+  { value: 'text_acg', label: 'Texted ACG', filterParam: 'sheetTextAcg' },
+  { value: 'text_appointment', label: 'Texted appointment', filterParam: 'sheetTextAppointment' },
+  { value: 'text_event', label: 'Texted another event', filterParam: 'sheetTextEvent' },
+  { value: 'text_follow_up', label: 'Texted general follow-up', filterParam: 'sheetTextFollowUp' },
+  { value: 'invited_cg', label: 'Invited to CG', filterParam: 'sheetInvitedCg' },
+  { value: 'latest_text', label: 'Latest text', filterParam: 'sheetLatestText' },
 ] as const
 
 export type SpreadsheetColumnKey = typeof spreadsheetColumnOptions[number]['value']

@@ -22,9 +22,7 @@ export function SpreadsheetColumnPicker({
   const searchParams = useSearchParams()
   const [open, setOpen] = useState(false)
   const hasColumnsParam = searchParams.has('columns')
-  const columns = searchParams.has('columns')
-    ? parseSpreadsheetColumns(searchParams.get('columns') ?? undefined)
-    : selectedColumns
+  const columns = selectedColumns
 
   useEffect(() => {
     if (hasColumnsParam) return
@@ -55,6 +53,9 @@ export function SpreadsheetColumnPicker({
     }
 
     const params = new URLSearchParams(searchParams.toString())
+    for (const option of spreadsheetColumnOptions) {
+      if (!ordered.includes(option.value)) params.delete(option.filterParam)
+    }
     if (ordered.length > 0) params.set('columns', ordered.join(','))
     else params.delete('columns')
     params.delete('page')

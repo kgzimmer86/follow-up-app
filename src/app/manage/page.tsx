@@ -335,7 +335,7 @@ function AreaCard({
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-2">
+      <div className="mt-4 zoom-metrics grid grid-cols-4 gap-2">
         <SmallMetric
           value={contacts}
           label="Contacts"

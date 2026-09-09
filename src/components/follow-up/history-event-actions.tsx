@@ -379,7 +379,7 @@ function HistoryEventActions({
 
           {error && <ErrorBox message={error} />}
 
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="mt-4 zoom-stack grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={cancel}
@@ -428,7 +428,7 @@ function HistoryEventActions({
 
           {error && <ErrorBox message={error} />}
 
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="mt-4 zoom-stack grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={saving}
@@ -527,7 +527,7 @@ function HistoryEventActions({
 
           {error && <ErrorBox message={error} />}
 
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="mt-4 zoom-stack grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={saving}

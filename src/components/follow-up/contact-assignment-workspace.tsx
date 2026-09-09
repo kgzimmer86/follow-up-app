@@ -679,7 +679,7 @@ function ContactAssignmentRow({
                     from: returnTo,
                   },
                 }}
-                className="truncate text-base font-extrabold text-[#15223a] hover:text-[#175cd3]"
+                className="zoom-wrap truncate text-base font-extrabold text-[#15223a] hover:text-[#175cd3]"
               >
                 {contactDisplayName(contact.display_name)}
               </Link>

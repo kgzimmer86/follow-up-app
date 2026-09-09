@@ -752,7 +752,7 @@ export default async function ContactDetailPage({
             </div>
           )}
 
-          <div className="mt-5 grid grid-cols-3 gap-2 border-t border-black/[0.05] pt-4">
+          <div className="contact-card-actions mt-5 grid grid-cols-3 gap-2 border-t border-black/[0.05] pt-4">
             {contact.phone ? (
               <ContactTextLink
                 contactId={contact.id}
@@ -1062,7 +1062,7 @@ function OverviewTab({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 border-t border-[#eef0f3] pt-4">
+          <div className="zoom-stack grid grid-cols-2 gap-3 border-t border-[#eef0f3] pt-4">
             <ProgressBox
               label="KGP"
               value={

@@ -68,7 +68,7 @@ export default function TextAttemptDialog({ pending, onConfirm, onClose }: {
           className="rounded-full px-3 py-1 text-2xl text-[#98a2b3] hover:bg-[#f9fafb] disabled:opacity-50">×</button>
       </div>
       {pending.stage === 'confirm' ? (
-        <div className="grid grid-cols-2 gap-3 p-5">
+        <div className="zoom-stack grid grid-cols-2 gap-3 p-5">
           <button type="button" onClick={onClose} className="rounded-xl border border-[#d0d5dd] px-3 py-3 text-sm font-extrabold">No</button>
           <button type="button" onClick={onConfirm} className="rounded-xl bg-[#00274c] px-3 py-3 text-sm font-extrabold text-white">Yes, log text</button>
         </div>

@@ -227,7 +227,7 @@ export default async function ManageAreaPage({
               title={`What God has done in ${workspace.area.name}`}
             />
 
-            <div className="mt-4 grid grid-cols-3 gap-2.5">
+            <div className="zoom-stack mt-4 grid grid-cols-3 gap-2.5">
               <ActivityMetric
                 value={toNumber(
                   metrics.interviews
@@ -344,7 +344,7 @@ function LocationCard({
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-2">
+      <div className="mt-4 zoom-metrics grid grid-cols-4 gap-2">
         <SmallMetric
           value={contacts}
           label="Contacts"

@@ -2764,7 +2764,7 @@ export function SurveyImportPreview({
         </div>
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="min-w-[260px] flex-1">
+          <label className="min-w-0 w-full sm:min-w-[260px] flex-1">
             <span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#667085]">
               Campaign
             </span>

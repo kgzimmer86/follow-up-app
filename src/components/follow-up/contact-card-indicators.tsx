@@ -13,8 +13,8 @@ export function SurveyInterestRow({
             surveyClass(value),
           ].join(' ')}
         >
-          <strong className="block truncate">{label}</strong>
-          <span className="mt-0.5 block truncate">{formatSurveyAnswer(value)}</span>
+          <strong className="block break-words">{label}</strong>
+          <span className="mt-0.5 block break-words">{formatSurveyAnswer(value)}</span>
         </span>
       ))}
     </div>

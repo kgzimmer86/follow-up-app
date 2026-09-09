@@ -496,7 +496,7 @@ function ContactCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-extrabold text-[#15223a]">
+          <h3 className="zoom-wrap truncate text-base font-extrabold text-[#15223a]">
             {contactDisplayName(contact.display_name)}
           </h3>
 
@@ -620,7 +620,7 @@ function DiscipleCard({
         />
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="zoom-stack mt-4 grid grid-cols-3 gap-2">
         <MetricCard
           value={assigned}
           label="Assigned"

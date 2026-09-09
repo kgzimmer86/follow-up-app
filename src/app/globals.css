@@ -182,3 +182,46 @@ article[id^="contact-"] {
     transform: translateX(0);
   }
 }
+
+/* Keep standard phone layouts unchanged; zoomed/narrow phone viewports
+   need more room for the Interaction label. */
+@media (max-width: 360px) {
+  .contact-card-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contact-card-actions > .interaction-launch {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Opt-in narrow layouts keep default-size phones and desktops unchanged. */
+@media (max-width: 360px) {
+  .zoom-stack {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zoom-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .zoom-wrap {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .follow-up-shell button,
+  .follow-up-shell a,
+  .follow-up-shell h1,
+  .follow-up-shell h2,
+  .follow-up-shell h3 {
+    overflow-wrap: anywhere;
+  }
+
+  .follow-up-shell select {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

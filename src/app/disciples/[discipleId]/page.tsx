@@ -248,7 +248,7 @@ export default async function DiscipleDetailPage({
                 Coaching
               </p>
 
-              <h1 className="mt-0.5 truncate text-[27px] font-extrabold tracking-[-0.035em] text-[#15223a] md:text-[32px]">
+              <h1 className="mt-0.5 zoom-wrap truncate text-[27px] font-extrabold tracking-[-0.035em] text-[#15223a] md:text-[32px]">
                 {person.display_name}
               </h1>
 
@@ -356,7 +356,7 @@ export default async function DiscipleDetailPage({
                           </div>
 
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-extrabold text-[#15223a]">
+                            <div className="zoom-wrap truncate text-sm font-extrabold text-[#15223a]">
                               {
                                 disciple.display_name
                               }
@@ -459,7 +459,7 @@ export default async function DiscipleDetailPage({
                         className="flex min-w-0 flex-1 items-center justify-between gap-3"
                       >
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-extrabold text-[#15223a]">
+                          <div className="zoom-wrap truncate text-sm font-extrabold text-[#15223a]">
                             {contactDisplayName(contact.display_name)}
                           </div>
 

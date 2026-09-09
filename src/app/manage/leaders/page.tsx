@@ -566,7 +566,7 @@ function LeaderCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-lg font-extrabold tracking-[-0.025em] text-[#15223a]">
+            <h3 className="zoom-wrap truncate text-lg font-extrabold tracking-[-0.025em] text-[#15223a]">
               {leaderName(leader)}
             </h3>
 
@@ -620,7 +620,7 @@ function LeaderCard({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-2">
+      <div className="mt-4 zoom-metrics grid grid-cols-4 gap-2">
         <SmallMetric
           value={assigned}
           label="Assigned"

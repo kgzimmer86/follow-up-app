@@ -127,7 +127,7 @@ export function AppShell({
   })
 
   return (
-    <div className="min-h-screen bg-[#f7f8fb] text-[#15223a]">
+    <div className="follow-up-shell min-h-screen bg-[#f7f8fb] text-[#15223a]">
       {/* DESKTOP SIDEBAR */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[230px] bg-[#00274c] px-[18px] py-7 text-white md:block">
         <Link
@@ -195,16 +195,16 @@ export function AppShell({
         <header className="sticky top-0 z-20 border-b border-[#e4e7ec]/80 bg-[#f7f8fb]/95 px-[18px] py-3 backdrop-blur-xl md:px-7 md:py-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="md:hidden">
+              <div className="shrink-0 md:hidden">
                 <BrandMark small />
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#175cd3] md:hidden">
                   Michigan Cru
                 </div>
 
-                <h1 className="truncate text-[21px] font-extrabold tracking-[-0.025em] text-[#15223a]">
+                <h1 className="zoom-wrap truncate text-[21px] font-extrabold tracking-[-0.025em] text-[#15223a]">
                   {pageTitle(pathname)}
                 </h1>
               </div>
@@ -235,7 +235,7 @@ export function AppShell({
                   className="absolute right-0 top-[46px] z-50 w-[230px] overflow-hidden rounded-[16px] border border-[#e4e7ec] bg-white shadow-[0_14px_40px_rgba(16,24,40,0.16)]"
                 >
                   <div className="border-b border-[#eef0f3] px-4 py-3.5">
-                    <div className="truncate text-sm font-extrabold text-[#15223a]">
+                    <div className="zoom-wrap truncate text-sm font-extrabold text-[#15223a]">
                       {displayName}
                     </div>
 

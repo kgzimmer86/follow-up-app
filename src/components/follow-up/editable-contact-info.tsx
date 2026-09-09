@@ -498,7 +498,7 @@ export function EditableContactInfo({
             <ErrorBox message={error} />
           )}
 
-          <div className="mt-5 grid grid-cols-2 gap-2">
+          <div className="mt-5 zoom-stack grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={cancelEdit}
@@ -576,7 +576,7 @@ export function EditableContactInfo({
             <ErrorBox message={error} />
           )}
 
-          <div className="mt-5 grid grid-cols-2 gap-2">
+          <div className="mt-5 zoom-stack grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={saving}

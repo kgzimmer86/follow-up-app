@@ -312,14 +312,14 @@ export default async function HomePage({
                           href={`/contacts/${contact.id}?from=${encodeURIComponent(
                             '/'
                           )}`}
-                          className="block truncate text-[19px] font-extrabold tracking-[-0.02em] text-[#15223a] hover:text-[#175cd3]"
+                          className="block zoom-wrap truncate text-[19px] font-extrabold tracking-[-0.02em] text-[#15223a] hover:text-[#175cd3]"
                         >
                           {
                             contact.display_name
                           }
                         </Link>
 
-                        <div className="mt-1 truncate text-[13px] text-[#667085]">
+                        <div className="mt-1 break-words text-[13px] text-[#667085]">
                           {formatLocation(
                             contact.area_name,
                             contact.house_name,

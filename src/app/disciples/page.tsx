@@ -231,7 +231,7 @@ function DiscipleCard({
             </div>
 
             <div className="min-w-0">
-              <h3 className="truncate text-base font-extrabold text-[#15223a]">
+              <h3 className="zoom-wrap truncate text-base font-extrabold text-[#15223a]">
                 {disciple.display_name}
               </h3>
 

@@ -235,7 +235,7 @@ export function DiscipleContactAssignment({
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-start justify-between gap-2">
                           <span className="min-w-0">
-                            <span className="block truncate text-xs font-extrabold text-[#15223a]">
+                            <span className="block zoom-wrap truncate text-xs font-extrabold text-[#15223a]">
                               {contactDisplayName(contact.display_name)}
                             </span>
                             <span className="mt-0.5 block text-[10px] leading-4 text-[#667085]">

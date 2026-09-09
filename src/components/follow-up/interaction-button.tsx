@@ -257,7 +257,7 @@ export function InteractionButton({
           setStatusError(false)
           setOpen(true)
         }}
-        className="w-full rounded-xl bg-blue-950 px-3 py-2.5 text-sm font-extrabold text-white hover:bg-blue-900"
+        className="interaction-launch w-full rounded-xl bg-blue-950 px-3 py-2.5 text-sm font-extrabold text-white hover:bg-blue-900"
       >
         + Interaction
       </button>

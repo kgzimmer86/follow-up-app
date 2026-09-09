@@ -2,7 +2,8 @@
 
 import { useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { clearSpreadsheetColumnFilter, spreadsheetFilterOptions, spreadsheetHeaderSelection, type SpreadsheetFilterKind } from '@/lib/spreadsheet-filter-options'
+import { updateSpreadsheetColumnFilter, spreadsheetFilterOptions, spreadsheetHeaderSelection, type SpreadsheetFilterKind } from '@/lib/spreadsheet-filter-options'
+import { SurveyColumnFilter } from '@/components/follow-up/survey-column-filter'
 
 export function SpreadsheetColumnFilter({
   label,
@@ -23,6 +24,18 @@ export function SpreadsheetColumnFilter({
   const [pending, startTransition] = useTransition()
   const options = spreadsheetFilterOptions[kind]
   const selection = spreadsheetHeaderSelection(kind, value, personalValue)
+
+  function updateFilter(nextValue: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    updateSpreadsheetColumnFilter(params, param, nextValue)
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}#results`, { scroll: false })
+    })
+  }
+
+  if (kind === 'jesus' || kind === 'survey') {
+    return <SurveyColumnFilter label={label} kind={kind} value={value} personalValue={personalValue} pending={pending} onChange={updateFilter} />
+  }
 
   return (
     <label className="inline-flex items-center gap-1.5">
@@ -47,15 +60,7 @@ export function SpreadsheetColumnFilter({
           value={selection.value}
           disabled={pending}
           className="absolute inset-0 h-full w-full cursor-pointer text-sm font-normal normal-case tracking-normal text-[#15223a] opacity-0 disabled:cursor-wait"
-          onChange={(event) => {
-            const params = new URLSearchParams(searchParams.toString())
-            clearSpreadsheetColumnFilter(params, param)
-            if (event.target.value) params.set(param, event.target.value)
-            params.delete('page')
-            startTransition(() => {
-              router.replace(`${pathname}?${params.toString()}#results`, { scroll: false })
-            })
-          }}
+          onChange={(event) => updateFilter(event.target.value)}
         >
           <option value="">Any</option>
           {selection.value === '__current' && (

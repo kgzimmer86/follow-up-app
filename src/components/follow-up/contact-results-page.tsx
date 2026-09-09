@@ -26,7 +26,7 @@ import { textPurposeSummary, textPurposes, type TextAttemptDetails, type TextPur
 import { SpreadsheetColumnPicker } from '@/components/follow-up/spreadsheet-column-picker'
 import { parseSpreadsheetColumns, spreadsheetColumnOptions } from '@/lib/spreadsheet-columns'
 import { SpreadsheetColumnFilter } from '@/components/follow-up/spreadsheet-column-filter'
-import { readSpreadsheetChoice } from '@/lib/spreadsheet-filter-options'
+import { additionalContactFilters, contactFiltersForDisplay, normalizeSharedContactFilters, readSpreadsheetChoice, spreadsheetFilterOptions } from '@/lib/spreadsheet-filter-options'
 import { AutomaticFilterForm } from '@/components/follow-up/automatic-filter-form'
 import { FilterViewSession } from '@/components/follow-up/filter-view-session'
 import {
@@ -282,7 +282,7 @@ export async function ContactResultsPage({
       searchParams.page
     )
 
-  const filters: FilterValues = {
+  const filters: FilterValues = normalizeSharedContactFilters({
     campus: searchParams.campus ?? '',
     location: searchParams.location ?? '',
     gender: searchParams.gender ?? '',
@@ -324,14 +324,14 @@ export async function ContactResultsPage({
     sheetTextFollowUp: searchParams.sheetTextFollowUp ?? '',
     sheetInvitedCg: searchParams.sheetInvitedCg ?? '',
     sheetLatestText: searchParams.sheetLatestText ?? '',
-    sheetKgpShared: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetKgpShared) : '',
-    sheetInterviewComplete: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetInterviewComplete) : '',
-    sheetNewBeliever: searchParams.display === 'sheet' ? spreadsheetYesNo(searchParams.sheetNewBeliever) : '',
-    sheetJesus: searchParams.display === 'sheet' ? readSpreadsheetChoice('jesus', searchParams.sheetJesus) : '',
-    sheetCommunity: searchParams.display === 'sheet' ? readSpreadsheetChoice('survey', searchParams.sheetCommunity) : '',
-    sheetInterview: searchParams.display === 'sheet' ? readSpreadsheetChoice('survey', searchParams.sheetInterview) : '',
-    sheetStatus: searchParams.display === 'sheet' ? readSpreadsheetChoice('status', searchParams.sheetStatus) : '',
-  }
+    sheetKgpShared: spreadsheetYesNo(searchParams.sheetKgpShared),
+    sheetInterviewComplete: spreadsheetYesNo(searchParams.sheetInterviewComplete),
+    sheetNewBeliever: spreadsheetYesNo(searchParams.sheetNewBeliever),
+    sheetJesus: readSpreadsheetChoice('jesus', searchParams.sheetJesus),
+    sheetCommunity: readSpreadsheetChoice('survey', searchParams.sheetCommunity),
+    sheetInterview: readSpreadsheetChoice('survey', searchParams.sheetInterview),
+    sheetStatus: readSpreadsheetChoice('status', searchParams.sheetStatus),
+  })
 
   const displayMode =
     filters.display === 'sheet'
@@ -364,7 +364,9 @@ export async function ContactResultsPage({
     filters.sheetStatus || filters.status,
   ].filter(Boolean).length
 
-  const activeFilterCount =
+  const activeAdditionalFilters = additionalContactFilters.filter((option) => filters[option.param])
+
+  const activeFilterCount = activeAdditionalFilters.length +
     Object.entries(filters).filter(
       ([key, value]) =>
         key !== 'display' &&
@@ -396,6 +398,7 @@ export async function ContactResultsPage({
     filters.floor,
     filters.wing,
     filters.roomOnly,
+    ...additionalContactFilters.map((option) => filters[option.param]),
   ].join('|')
 
   const supabase = await createClient()
@@ -912,6 +915,11 @@ export async function ContactResultsPage({
         ? normalizeMultiFilter(values)
         : (values[0] ?? '').slice(0, 200)
     }
+    for (const option of additionalContactFilters) {
+      if (formData.has(option.param)) {
+        nextFilters[option.param] = readSpreadsheetChoice(option.kind, String(formData.get(option.param) ?? ''))
+      }
+    }
     if (formData.get('clearPersonalFilters') === '1') {
       const cleared = {
         ...displayOnlyFilters,
@@ -957,30 +965,8 @@ export async function ContactResultsPage({
 
   const cardCriteria = smartCardCriteria(view)
 
-  const cardsFilters: FilterValues = {
-    ...filters,
-    display: '',
-    sheetEmail: '',
-    sheetTextCg: '',
-    sheetTextAcg: '',
-    sheetTextAppointment: '',
-    sheetTextEvent: '',
-    sheetTextFollowUp: '',
-    sheetInvitedCg: '',
-    sheetLatestText: '',
-    sheetKgpShared: '',
-    sheetInterviewComplete: '',
-    sheetNewBeliever: '',
-    sheetJesus: '',
-    sheetCommunity: '',
-    sheetInterview: '',
-    sheetStatus: '',
-  }
-
-  const sheetFilters: FilterValues = {
-    ...filters,
-    display: 'sheet',
-  }
+  const cardsFilters = contactFiltersForDisplay(filters, 'cards')
+  const sheetFilters = contactFiltersForDisplay(filters, 'sheet')
 
   const cardsHref =
     `${resultsHref({
@@ -1329,6 +1315,7 @@ export async function ContactResultsPage({
                   value: 'already_have_one',
                   label: 'Already have one',
                 },
+                { value: 'unanswered', label: 'No answer' },
               ]}
             />
 
@@ -1340,6 +1327,7 @@ export async function ContactResultsPage({
                 { value: 'yes', label: 'Yes' },
                 { value: 'maybe', label: 'Maybe' },
                 { value: 'no', label: 'No' },
+                { value: 'unanswered', label: 'No answer' },
               ]}
             />
 
@@ -1351,6 +1339,7 @@ export async function ContactResultsPage({
                 { value: 'yes', label: 'Yes' },
                 { value: 'maybe', label: 'Maybe' },
                 { value: 'no', label: 'No' },
+                { value: 'unanswered', label: 'No answer' },
               ]}
             />
 
@@ -1428,6 +1417,22 @@ export async function ContactResultsPage({
               )}
             </FilterSelect>
           </div>
+
+          {activeAdditionalFilters.length > 0 && (
+            <div className={displayMode === 'sheet' ? 'mt-3 md:hidden' : 'mt-3'}>
+              <div className="mb-2 text-xs font-extrabold text-[#15223a]">Other active filters</div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {activeAdditionalFilters.map((option) => (
+                  <FilterSelect key={option.param} label={option.label} name={option.param} value={filters[option.param]}>
+                    <option value="">Any</option>
+                    {spreadsheetFilterOptions[option.kind].map((answer) => (
+                      <option key={answer.value} value={answer.value}>{answer.label}</option>
+                    ))}
+                  </FilterSelect>
+                ))}
+              </div>
+            </div>
+          )}
 
           <label className={`mt-3 flex items-center gap-2 text-xs font-bold text-[#475467] ${displayMode === 'sheet' ? 'md:hidden' : ''}`}>
             <input type="checkbox" name="roomOnly" value="1" defaultChecked={roomOnlyActive} className="h-4 w-4 rounded border-[#d0d5dd]" />
@@ -2361,6 +2366,7 @@ function FilterSelect({
             : 'bg-white text-[#15223a]',
         ].join(' ')}
       >
+        {value === '__no_matches' && <option value="__no_matches">No matching answers</option>}
         {children}
       </select>
     </label>
@@ -2387,6 +2393,9 @@ function MultiFilterGroup({
       .map((item) => item.trim())
       .filter(Boolean)
   )
+  const visibleOptions = selected.has('__no_matches')
+    ? [{ value: '__no_matches', label: 'No matching answers' }, ...options]
+    : options
 
   return (
     <fieldset>
@@ -2400,7 +2409,7 @@ function MultiFilterGroup({
         </div>
 
         <div className="grid gap-1.5">
-          {options.map((option) => (
+          {visibleOptions.map((option) => (
             <label
               key={option.value}
               className="flex items-center gap-2 text-xs font-bold text-[#475467]"

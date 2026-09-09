@@ -1,8 +1,6 @@
--- Add spreadsheet header filters for Jesus, Community, Interview, and Status.
--- Jesus includes Already have one. No answer matches blank survey responses.
--- Run this entire file in Supabase SQL Editor before deploying the app update.
--- Existing personal filters, smart-card criteria, and access checks are preserved.
--- No tables or student records are changed.
+-- COMPLETE SQL: paste this whole file into a new, empty Supabase SQL Editor tab.
+-- Updates the contact results function for multiple survey answers in both views.
+-- Does not change student records or tables. Safe to run again.
 begin;
 
 DROP FUNCTION IF EXISTS public.get_follow_up_contact_results_v2(text, text, text, integer, integer, text, text, text, text, text, text, text, text, text, text, text, text, boolean, text, text, text, text, text, text, text, text, text, text, text, text);

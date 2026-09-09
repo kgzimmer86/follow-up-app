@@ -197,6 +197,29 @@ test('spreadsheet progress filters preserve existing results and filter before p
     assert.deepEqual(gospel.rows.map((item) => item.id), expected.map((item) => item.id))
   })
 
+  await t.test('spreadsheet survey filters accept multiple answers and blank responses together', async () => {
+    const choices = [
+      ['p_spreadsheet_jesus', 'jesus'],
+      ['p_spreadsheet_community', 'community'],
+      ['p_spreadsheet_interview', 'surveyInterview'],
+    ]
+    for (const [param, key] of choices) {
+      const expected = contacts.filter((item) => ['yes', 'maybe'].includes(item[key]) || !item[key])
+      const found = []
+      for (let page = 1; page <= Math.ceil(expected.length / 50); page++) {
+        const result = await results({ [param]: 'yes,maybe,unanswered', p_page: page, p_page_size: 50 })
+        assert.equal(result.total_count, expected.length, param)
+        found.push(...result.rows.map((item) => item.id))
+      }
+      assert.deepEqual(found, expected.map((item) => item.id), param)
+    }
+    for (const [param, key] of [['p_jesus', 'jesus'], ['p_community', 'community'], ['p_interview', 'surveyInterview']]) {
+      const expected = contacts.filter((item) => ['yes', 'maybe'].includes(item[key]) || !item[key])
+      const result = await results({ [param]: 'yes,maybe,unanswered', p_page_size: 100 })
+      assert.equal(result.total_count, expected.length, param)
+    }
+  })
+
   await t.test('execution privileges and access checks remain enforced', async () => {
     const definition = await db.query("select oid::regprocedure::text as signature from pg_proc where proname='get_follow_up_contact_results_v2'")
     const signature = definition.rows[0].signature

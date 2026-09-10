@@ -1,3 +1,5 @@
+import { loadRoommateSources } from '@/lib/roommate-provenance'
+import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import {
@@ -145,6 +147,7 @@ export default async function ContactDetailPage({
 
   const supabase = await createClient()
   const userId = user.id
+  const roommateSources = await loadRoommateSources(supabase, [contactId])
 
   const {
     data: contactData,
@@ -664,6 +667,7 @@ export default async function ContactDetailPage({
                 )}
               </div>
 
+              <RoommateLabel source={roommateSources.get(contact.id)} />
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#667085]">
                 <span>
                   {formatLocation(

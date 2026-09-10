@@ -1,3 +1,5 @@
+import { loadRoommateSources } from '@/lib/roommate-provenance'
+import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
 import { followUpActivityLabel } from '@/lib/text-attempts'
 import { cookies } from 'next/headers'
@@ -166,6 +168,8 @@ export default async function HomePage({
     invited_to_community_group: contact.invited_to_community_group ?? false,
   }))
 
+  const roommateSources = await loadRoommateSources(supabase, recentContacts.map((contact) => contact.id))
+
   const defaultAreaLabel =
     dashboard.default_area_name ||
     'All Campus'
@@ -319,6 +323,7 @@ export default async function HomePage({
                           }
                         </Link>
 
+                        <RoommateLabel source={roommateSources.get(contact.id)} />
                         <div className="mt-1 break-words text-[13px] text-[#667085]">
                           {formatLocation(
                             contact.area_name,

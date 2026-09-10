@@ -1,3 +1,5 @@
+import { loadRoommateSources } from '@/lib/roommate-provenance'
+import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import {
@@ -727,6 +729,8 @@ export async function ContactResultsPage({
       ...contact,
       display_name: contactDisplayName(contact.display_name),
     })) as ContactResultRow[]
+
+  const roommateSources = await loadRoommateSources(supabase, paginatedContacts.map((contact) => contact.id))
 
   const spreadsheetTextHistory: SpreadsheetTextHistory = new Map()
   const spreadsheetInvitedHistory: SpreadsheetInvitedHistory = new Map()
@@ -1659,6 +1663,7 @@ export async function ContactResultsPage({
                         )}
                       </div>
 
+                      <RoommateLabel source={roommateSources.get(contact.id)} />
                       <div className="mt-1 break-words text-[13px] text-[#667085]">
                         {formatLocation(
                           contact.area_name,

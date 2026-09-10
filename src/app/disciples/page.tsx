@@ -260,6 +260,10 @@ function DiscipleCard({
           </span>
         </div>
 
+        {['staff', 'admin'].includes(disciple.role) && (
+          <p className="mt-3 text-xs text-[#667085]">Personal activity only</p>
+        )}
+
         {directDisciples > 0 && (
           <div className="mt-4 rounded-[13px] border border-[#dbe8f8] bg-[#f5f9ff] px-3 py-2.5">
             <div className="text-xs font-extrabold text-[#175cd3]">

@@ -452,6 +452,12 @@ function pageTitle(pathname: string) {
   }
 
   if (
+    pathname === '/contacts/attention'
+  ) {
+    return 'My Contacts — Needs Attention'
+  }
+
+  if (
     pathname.startsWith('/contacts/')
   ) {
     return 'Contact'

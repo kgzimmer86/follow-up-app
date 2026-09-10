@@ -4,8 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-type Person = { id: string; display_name: string }
-type Workspace = { assignees: Person[]; contacts: { id: string }[] }
+type Person = { id: string; display_name: string; group: 'disciples' | 'staff' }
 
 export function PrimaryAssignment({ contactId, userId, ownerId, ownerName }: {
   contactId: string; userId: string; ownerId: string | null; ownerName: string | null
@@ -22,17 +21,11 @@ export function PrimaryAssignment({ contactId, userId, ownerId, ownerName }: {
     async function load() {
       try {
         const client = createClient()
-        const [disciples, assignments] = await Promise.all([
-          client.rpc('get_my_disciples_dashboard'),
-          client.rpc('get_contact_assignment_workspace'),
-        ])
-        if (disciples.error || assignments.error) throw new Error('Couldn’t load assignment choices.')
-        const workspace = assignments.data as Workspace
-        const direct = new Set((disciples.data as { disciple_id: string }[]).map((person) => person.disciple_id))
-        const eligible = workspace.contacts.some((contact) => contact.id === contactId)
-        if (!cancelled) setPeople(eligible ? workspace.assignees.filter((person) => person.id !== userId && direct.has(person.id)) : [])
+        const { data, error } = await client.rpc('get_contact_primary_choices', { p_contact_id: contactId })
+        if (error) throw error
+        if (!cancelled) setPeople((data ?? []) as Person[])
       } catch {
-        if (!cancelled) setError('Couldn’t load your disciples. Please retry.')
+        if (!cancelled) setError('Couldn’t load assignment choices. Please retry.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -67,9 +60,13 @@ export function PrimaryAssignment({ contactId, userId, ownerId, ownerName }: {
         {!ownerId && <option value="" disabled>Unassigned</option>}
         {ownerId && ownerId !== userId && !people.some((person) => person.id === ownerId) && <option value={ownerId} disabled>{ownerName || 'Current primary'}</option>}
         <option value={userId}>You</option>
-        {people.map((person) => <option key={person.id} value={person.id}>{person.display_name}</option>)}
+        {(['disciples', 'staff'] as const).map((group) => people.some((person) => person.group === group) && (
+          <optgroup key={group} label={group === 'staff' ? 'Staff / Admin' : 'Your disciples'}>
+            {people.filter((person) => person.group === group).map((person) => <option key={person.id} value={person.id}>{person.display_name}</option>)}
+          </optgroup>
+        ))}
       </select>
-      <p role="status" className="mt-1 text-xs text-[#667085]">{loading ? 'Loading your disciples…' : pending ? 'Saving…' : 'You and your eligible direct disciples.'}</p>
+      <p role="status" className="mt-1 text-xs text-[#667085]">{loading ? 'Loading assignment choices…' : pending ? 'Saving…' : people.some((person) => person.group === 'staff') ? 'You, your eligible direct disciples, and staff handoffs.' : 'You and your eligible direct disciples.'}</p>
       {error && <div role="alert" className="mt-1 text-xs text-red-700">{error} <button type="button" disabled={pending || loading} className="underline" onClick={() => { setLoading(true); setError(''); setAttempt((value) => value + 1) }}>Retry</button></div>}
     </div>
   )

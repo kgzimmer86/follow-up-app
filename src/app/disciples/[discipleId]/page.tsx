@@ -310,7 +310,7 @@ export default async function DiscipleDetailPage({
               {
                 metrics.week_interactions
               }{' '}
-              team{' '}
+              {['staff', 'admin'].includes(person.role) ? 'personal' : 'team'}{' '}
               {metrics.week_interactions === 1
                 ? 'interaction'
                 : 'interactions'}{' '}

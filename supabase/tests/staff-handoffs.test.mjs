@@ -6,6 +6,8 @@ import test from 'node:test'
 const { PGlite } = await import(process.env.FOLLOW_UP_PGLITE_MODULE || '@electric-sql/pglite')
 const sql = await readFile(new URL('../migrations/20260910_staff_handoffs_and_assignment_attention.sql', import.meta.url), 'utf8')
 
+const authorSql = await readFile(new URL('../migrations/20260910_assignment_author.sql', import.meta.url), 'utf8')
+
 test('staff handoffs, personal coaching, and owner-specific attention', async (t) => {
   const db = new PGlite()
   t.after(() => db.close())
@@ -55,6 +57,8 @@ test('staff handoffs, personal coaching, and owner-specific attention', async (t
   await event(legacySeen,recipient,'interaction','1 day')
   await db.exec(sql)
   await db.exec(sql) // Safe to rerun the exact complete migration.
+  await db.exec(authorSql)
+  await db.exec(authorSql)
   await asUser(staff)
   const handoff=await makeContact({owner:staff,area:central,status:'go_back'})
   await event(handoff,staff,'interaction','1 hour')
@@ -67,6 +71,7 @@ test('staff handoffs, personal coaching, and owner-specific attention', async (t
     assert(!choices.some(p=>[inactive,pending,student].includes(p.id))) // Outside actor's area: no ordinary disciples.
     await rpc('assign_contacts_to_follow_up_user',[[handoff],recipient])
     assert.equal((await row(handoff)).primary_owner_id,recipient)
+    assert.equal((await row(handoff)).primary_assigned_by,staff)
     assert.equal((await row(handoff)).status,'go_back')
     assert.equal((await db.query('select count(*)::int n from follow_up_events where contact_id=$1',[handoff])).rows[0].n,2)
     assert((await row(handoff)).primary_assigned_at)
@@ -104,7 +109,23 @@ test('staff handoffs, personal coaching, and owner-specific attention', async (t
     const ids=async()=>new Set((await list()).contacts.map(c=>c.id))
     assert((await ids()).has(handoff)); assert((await ids()).has(legacy)); assert(!(await ids()).has(legacySeen))
     assert.equal((await row(legacy)).primary_assigned_at,null)
+    assert.equal((await row(legacy)).primary_assigned_by,null)
+    assert.equal((await list()).contacts.find(c=>c.id===legacy).primary_assigned_by_name,null)
+    assert.equal((await list()).contacts.find(c=>c.id===handoff).primary_assigned_by_name,'North staff')
+    await db.query('update follow_up_contacts set primary_assigned_by=$1 where id=$2',[recipient,handoff])
+    assert.equal((await row(handoff)).primary_assigned_by,staff) // Unrelated edits cannot forge attribution.
+    await db.query("update profiles set display_name='North staff renamed' where id=$1",[staff])
+    assert.equal((await list()).contacts.find(c=>c.id===handoff).primary_assigned_by_name,'North staff renamed')
+    await db.query('update profiles set display_name=null where id=$1',[staff])
+    assert.equal((await list()).contacts.find(c=>c.id===handoff).primary_assigned_by_name,null)
+    await db.query("update profiles set display_name='North staff' where id=$1",[staff])
     assert.equal((await rpc('get_my_contact_attention')).unattempted,(await list()).total)
+    // A repeated assignment by someone else must not rewrite the original assigner.
+    await asUser(admin); await rpc('assign_contacts_to_follow_up_user',[[handoff],recipient])
+    assert.equal((await row(handoff)).primary_assigned_by,staff)
+    await asUser(recipient)
+    const selfAssigned=await makeContact({owner:recipient})
+    assert.equal((await row(selfAssigned)).primary_assigned_by,recipient)
     const stamp=(await row(handoff)).primary_assigned_at
     await db.query("update follow_up_contacts set house_name='Example house',primary_assigned_at=now()-interval '1 year' where id=$1",[handoff])
     assert.deepEqual((await row(handoff)).primary_assigned_at,stamp)
@@ -117,11 +138,13 @@ test('staff handoffs, personal coaching, and owner-specific attention', async (t
     await asUser(staff); await rpc('assign_contacts_to_follow_up_user',[[handoff],recipient]); // Same owner: no reset.
     assert.deepEqual((await row(handoff)).primary_assigned_at,stamp)
     await asUser(admin); await rpc('assign_contacts_to_follow_up_user',[[handoff],staff]);
+    assert.equal((await row(handoff)).primary_assigned_by,admin)
     await asUser(recipient); assert(!(await ids()).has(handoff))
     await asUser(staff); await rpc('assign_contacts_to_follow_up_user',[[handoff],recipient]);
     assert(new Date((await row(handoff)).primary_assigned_at)>new Date(stamp))
     await asUser(recipient); assert((await ids()).has(handoff))
     await db.query('update follow_up_contacts set primary_owner_id=null where id=$1',[handoff])
+    assert.equal((await row(handoff)).primary_assigned_by,null)
     assert.equal((await row(handoff)).primary_assigned_at,null); assert(!(await ids()).has(handoff))
     await assert.rejects(rpc('get_my_contact_attention_list',['bad category']),/Invalid attention/)
     for(const person of [inactive,pending,null]) {

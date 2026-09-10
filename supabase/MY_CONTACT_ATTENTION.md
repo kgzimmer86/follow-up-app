@@ -1,6 +1,6 @@
 # My Contacts attention and Staff handoffs
 
-Run the complete `migrations/20260910_staff_handoffs_and_assignment_attention.sql` in Supabase SQL Editor, then deploy the app changes. Committing SQL to GitHub does not execute it. This supersedes the original `20260909_my_contact_attention.sql`; do not rerun the older file afterward.
+Run the complete `migrations/20260910_staff_handoffs_and_assignment_attention.sql` in Supabase SQL Editor, then run `migrations/20260910_assignment_author.sql` and deploy the app changes. Committing SQL to GitHub does not execute it. This supersedes the original `20260909_my_contact_attention.sql`; do not rerun the older file afterward.
 
 The new migration adds nullable `primary_assigned_at` and a trigger that records future ownership changes (including self-claims and assignment at contact creation). Existing assignments stay NULL because their assignment dates are unknown. Changing unrelated contact fields or assigning the same owner again does not reset the timestamp. Unassigning clears it. Existing status/coaching-exemption triggers remain intact. No existing contact ownership, status, history, role, or discipleship relationship is rewritten.
 
@@ -14,6 +14,8 @@ Counts cover the signed-in user's primary contacts in active campaigns, independ
 The My Contacts section and desktop/mobile badges share one count response. Each attention box opens `/contacts/attention` with its matching contacts, 50 per page, ignoring saved filters without changing them. Contacts link to detail with a return destination pointing back to the same attention category/page. Both counts and lists use the same private SQL predicate; no RPC accepts someone else's user ID.
 
 Counts load independently of startup, refresh after route/server refresh, foregrounding, or every minute while visible. Failed reads show a retry and suppress the badge rather than report a false zero. There are no push notifications.
+
+Assignment attribution: `20260910_assignment_author.sql` adds nullable `primary_assigned_by`, recorded from `auth.uid()` whenever ownership changes or a contact is created with an owner. Reassigning the same owner or editing unrelated fields preserves both author and date; unassigning clears both. The attention list displays the assigning person's current display name alongside the date. Older assignments and assignments without a signed-in actor keep a date-only label. Missing/deleted profiles also fall back to the date. This adds one profile join to the existing list response, with no extra browser request or change to badge calculations. Run this follow-on SQL after the staff-handoff SQL; rerunning the earlier file alone would restore its older trigger/list definitions.
 
 ## Staff assignment and coaching boundaries
 

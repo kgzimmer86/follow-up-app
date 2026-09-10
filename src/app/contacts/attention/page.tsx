@@ -18,6 +18,7 @@ type Contact = {
   room_or_address: string | null
   status: string
   primary_assigned_at: string | null
+  primary_assigned_by_name: string | null
 }
 
 export default async function AttentionPage({ searchParams }: {
@@ -53,7 +54,7 @@ export default async function AttentionPage({ searchParams }: {
               <span className="rounded-full bg-[#f2f4f7] px-2.5 py-1 text-xs font-bold capitalize text-[#667085]">{contact.status.replaceAll('_', ' ')}</span>
             </div>
             <p className="mt-1 break-words text-sm text-[#667085]">{[contact.location_name, contact.house_name, contact.room_or_address].filter(Boolean).join(' • ') || 'Location unknown'}</p>
-            {contact.primary_assigned_at && <p className="mt-2 text-xs text-[#667085]">Assigned {new Date(contact.primary_assigned_at).toLocaleDateString('en-US', { timeZone: 'America/Detroit', month: 'short', day: 'numeric' })}</p>}
+            {contact.primary_assigned_at && <p className="mt-2 break-words text-xs text-[#667085]">Assigned {contact.primary_assigned_by_name ? `by ${contact.primary_assigned_by_name} · ` : ''}{new Date(contact.primary_assigned_at).toLocaleDateString('en-US', { timeZone: 'America/Detroit', month: 'short', day: 'numeric' })}</p>}
           </Link>
         ))}
         {!contacts.length && <p className="rounded-[18px] border border-[#e4e7ec] bg-white p-5 text-sm text-[#667085]">No contacts on this page.</p>}

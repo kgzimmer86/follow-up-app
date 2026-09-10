@@ -323,7 +323,7 @@ export default async function HomePage({
                           }
                         </Link>
 
-                        <RoommateLabel source={roommateSources.get(contact.id)} />
+                        <RoommateLabel source={roommateSources.get(contact.id)} returnTo="/" />
                         <div className="mt-1 break-words text-[13px] text-[#667085]">
                           {formatLocation(
                             contact.area_name,

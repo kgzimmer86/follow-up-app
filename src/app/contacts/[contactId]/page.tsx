@@ -667,7 +667,7 @@ export default async function ContactDetailPage({
                 )}
               </div>
 
-              <RoommateLabel source={roommateSources.get(contact.id)} />
+              <RoommateLabel source={roommateSources.get(contact.id)} returnTo={`/contacts/${contact.id}?${new URLSearchParams({ tab: activeTab, from: returnTo }).toString()}`} />
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[#667085]">
                 <span>
                   {formatLocation(

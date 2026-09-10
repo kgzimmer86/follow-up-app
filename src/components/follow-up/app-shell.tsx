@@ -234,7 +234,7 @@ export function AppShell({
               {profileMenuOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 top-[46px] z-50 w-[230px] overflow-hidden rounded-[16px] border border-[#e4e7ec] bg-white shadow-[0_14px_40px_rgba(16,24,40,0.16)]"
+                  className="absolute right-0 top-[46px] z-50 max-h-[calc(100dvh-150px)] w-[230px] overflow-y-auto rounded-[16px] border border-[#e4e7ec] bg-white shadow-[0_14px_40px_rgba(16,24,40,0.16)]"
                 >
                   <div className="border-b border-[#eef0f3] px-4 py-3.5">
                     <div className="zoom-wrap truncate text-sm font-extrabold text-[#15223a]">
@@ -270,6 +270,17 @@ export function AppShell({
                     <div className="px-3 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#98a2b3]">
                       Account
                     </div>
+
+                    {[
+                      { href: '/my-stats', label: 'My Stats' },
+                      { href: '/my-activity', label: 'My Activity' },
+                    ].map((item) => (
+                      <Link key={item.href} href={item.href} prefetch={false} role="menuitem"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="flex w-full items-center rounded-[10px] px-3 py-2.5 text-left text-sm font-extrabold text-[#15223a] transition hover:bg-[#f9fafb]">
+                        {item.label}
+                      </Link>
+                    ))}
 
                     <Link
                       href="/profile"
@@ -398,6 +409,9 @@ function formatRole(role: string) {
 }
 
 function pageTitle(pathname: string) {
+  if (pathname === '/my-stats') return 'My Stats'
+  if (pathname === '/my-activity') return 'My Activity'
+
   if (
     pathname === '/profile' ||
     pathname.startsWith('/profile/')

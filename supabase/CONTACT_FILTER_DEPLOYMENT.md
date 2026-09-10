@@ -46,3 +46,11 @@ For a future database change, inspect the current function and its dependencies,
 4. Change campus and dorm; confirm floor/wing options and cleared incompatible choices.
 5. Use Clear Filters, then separately test a full close/reopen. Both restore only the default assignment. A refresh should preserve the current choices.
 6. Check a default affinity and All Campus as well as a dorm/region assignment. Check No Address separately.
+
+## Three-digit dorm floors
+
+Run the complete [three-digit floor update](./migrations/20260909_three_digit_dorm_floors.sql) in Supabase SQL Editor to install this rule. It replaces the current results function without changing contact records or permissions.
+
+Any location typed as a dorm with an exactly three-digit numeric room uses the first digit for floor and derives no wing/house number. MoJo is removed from the four-digit list. Other existing four-digit dorm rules remain unchanged. Blank, nonnumeric, two-digit rooms and off-campus addresses do not gain derived floors through this rule. Floor choices reflect valid rooms present in the filtered results; a dorm with no qualifying rooms still has no floor options.
+
+Test MoJo room 312 as floor 3 with Wing / house # unavailable, another three-digit dorm, and West Quad room 4215 as floor 4/wing 2. When testing previously saved filters, clear any old wing choice first; saved restrictions remain visible until cleared.

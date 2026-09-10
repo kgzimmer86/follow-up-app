@@ -93,6 +93,31 @@ test('spreadsheet progress filters preserve existing results and filter before p
     assert.deepEqual(signatures.rows, [{ pronargs: 34 }])
   })
 
+  await t.test('three-digit floor migration preserves other filters and room rules', async () => {
+    const floorSql = await readFile(new URL('../migrations/20260909_three_digit_dorm_floors.sql', import.meta.url), 'utf8')
+    await db.exec(floorSql)
+    await db.exec(floorSql)
+    assert.deepEqual(await Promise.all(oldQueries.map(results)), baseline)
+    const expressions = floorSql.slice(floorSql.indexOf('      case\n'), floorSql.indexOf('      case\n        when lower'))
+    for (const [name, type, room, floor, wing] of [
+      ['Mosher Jordan (MoJo)', 'dorm', '312', '3', null],
+      ['Mosher Jordan (MoJo)', 'dorm', '3124', null, null],
+      ['Baits', 'dorm', '215', '2', null],
+      ['Fletcher', 'dorm', ' 104 ', '1', null],
+      ['Betsy Barbour', 'dorm', '305', '3', null],
+      ['West Quad', 'dorm', '4215', '4', '2'],
+      ['West Quad', 'dorm', '215', '2', null],
+      ['Building 1', 'dorm', '1234', '1', '2'],
+      ['Off Campus — Central', 'off_campus', '312', null, null],
+      ['Baits', 'dorm', '12', null, null],
+      ['Baits', 'dorm', '12A', null, null],
+      ['Baits', 'dorm', '', null, null],
+    ]) {
+      const query = `select ${expressions.trim().replace(/,$/, '')} from (select $1::text as name, $2::text as area_type) area cross join (select $3::text as room_or_address) c`
+      assert.deepEqual((await db.query(query, [name, type, room])).rows[0], { derived_floor: floor, derived_wing: wing }, `${name}: ${room}`)
+    }
+  })
+
   for (const [param, flag] of [
     ['p_spreadsheet_kgp_shared', 'kgp'],
     ['p_spreadsheet_interview_complete', 'interview'],

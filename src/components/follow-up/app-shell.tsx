@@ -180,8 +180,9 @@ export function AppShell({
                   : 'font-semibold text-white/80 hover:bg-white/[0.08] hover:text-white',
               ].join(' ')}
             >
-              <span className="w-5 text-center text-lg">
+              <span className="relative w-5 shrink-0 text-center text-lg">
                 {item.icon}
+                {item.href === '/contacts' && <MyContactAttentionBadge />}
               </span>
 
               <span>{item.label}</span>

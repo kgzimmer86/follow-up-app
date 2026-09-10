@@ -20,6 +20,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { contactDisplayName } from '@/lib/contact-name'
+import { MyContactAttentionSection } from '@/components/follow-up/my-contact-attention'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { ContactTextLink } from '@/components/follow-up/text-attempt-session'
 import { textPurposeSummary, textPurposes, type TextAttemptDetails, type TextPurpose } from '@/lib/text-attempts'
@@ -1029,6 +1030,8 @@ export async function ContactResultsPage({
           </Link>
         ) : null}
       </section>
+
+      {view === 'mine' && <MyContactAttentionSection />}
 
       <details
         key={`filters-${view}`}

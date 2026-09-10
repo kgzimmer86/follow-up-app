@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
+import { MyContactAttentionBadge } from '@/components/follow-up/my-contact-attention'
 import { AddPersonModal } from '@/components/follow-up/add-person-modal'
 
 type AppShellProps = {
@@ -312,7 +313,7 @@ export function AppShell({
             ].join(' ')}
           >
             <span className="mb-0.5 block text-xl leading-none">
-              {item.icon}
+              <span className="relative inline-block">{item.icon}{item.href === '/contacts' && <MyContactAttentionBadge />}</span>
             </span>
 
             {item.label}

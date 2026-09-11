@@ -11,6 +11,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAppAccess } from '@/lib/supabase/access'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
+import { CgTextInvitePreference } from '@/components/follow-up/cg-text-invite-preference'
 import { PrimaryAssignment } from '@/components/follow-up/primary-assignment'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
 import { AddRoommateButton } from '@/components/follow-up/add-roommate-button'
@@ -63,6 +64,7 @@ type ContactRow = {
   location_resolution: string | null
 
   status: string
+  cg_text_invite_only: boolean
 
   knock_count: number
   last_knock_at: string | null
@@ -170,6 +172,7 @@ export default async function ContactDetailPage({
       room_or_address,
       location_resolution,
       status,
+      cg_text_invite_only,
       knock_count,
       last_knock_at,
       interview_completed_at,
@@ -1029,6 +1032,8 @@ function OverviewTab({
               </button>
             </form>
           </div>
+
+          <CgTextInvitePreference key={contact.id} contactId={contact.id} enabled={contact.cg_text_invite_only} />
 
           <div className="border-t border-[#eef0f3] pt-4">
             <FieldLabel>

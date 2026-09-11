@@ -730,6 +730,18 @@ export async function ContactResultsPage({
       display_name: contactDisplayName(contact.display_name),
     })) as ContactResultRow[]
 
+  // Read only for this smart list; preferences never alter result eligibility or other views.
+  const cgTextOnlyIds = new Set<string>()
+  if (view === 'cg' && paginatedContacts.length) {
+    const { data: preferences, error: preferenceError } = await supabase
+      .from('follow_up_contacts').select('id, cg_text_invite_only')
+      .in('id', paginatedContacts.map((contact) => contact.id))
+    if (preferenceError || preferences?.length !== paginatedContacts.length) {
+      throw new Error('Couldn’t load Community Group invitation preferences. Please retry.')
+    }
+    for (const preference of preferences) if (preference.cg_text_invite_only) cgTextOnlyIds.add(preference.id)
+  }
+
   const roommateSources = await loadRoommateSources(supabase, paginatedContacts.map((contact) => contact.id))
 
   const spreadsheetTextHistory: SpreadsheetTextHistory = new Map()
@@ -807,7 +819,7 @@ export async function ContactResultsPage({
 
     const { error } =
       await supabase.rpc(
-        'log_knock',
+        view === 'cg' ? 'log_cg_invitation_knock' : 'log_knock',
         {
           p_contact_id: contactId,
         }
@@ -1604,6 +1616,7 @@ export async function ContactResultsPage({
 
         {paginatedContacts.map(
           (contact) => {
+            const cgTextOnly = view === 'cg' && cgTextOnlyIds.has(contact.id)
             const hasLocation =
               contact.location_resolution !==
                 'no_address' &&
@@ -1644,6 +1657,7 @@ export async function ContactResultsPage({
                 />
 
                 <div className="p-4">
+                  <div className="relative">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -1826,6 +1840,13 @@ export async function ContactResultsPage({
                     </span>
                   </div>
 
+                  {cgTextOnly && (
+                    <div className="pointer-events-none absolute -inset-x-4 -top-4 bottom-0 z-10 flex items-center justify-center bg-[#667085]/80">
+                      <span className="rounded-full border border-[#98a2b3] bg-white px-5 py-2.5 text-lg font-extrabold tracking-wide text-[#475467]">TEXT ONLY</span>
+                    </div>
+                  )}
+                  </div>
+
                   <div className="contact-card-actions mt-3 grid grid-cols-3 gap-2">
                     {contact.phone ? (
                       <ContactTextLink
@@ -1844,7 +1865,9 @@ export async function ContactResultsPage({
                       />
                     )}
 
-                    {hasLocation ? (
+                    {cgTextOnly && hasLocation ? (
+                      <DisabledButton label="Knocked" />
+                    ) : hasLocation ? (
                       <form
                         action={logKnock}
                       >

@@ -1,3 +1,4 @@
+import { EditableSurveyField, EditableSurveyAffinities } from '@/components/follow-up/editable-survey'
 import { loadRoommateSources } from '@/lib/roommate-provenance'
 import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
@@ -906,6 +907,9 @@ export default async function ContactDetailPage({
         {activeTab ===
           'survey' && (
           <SurveyTab
+            canEditAll={['staff', 'admin'].includes(profile.role)}
+            affinityChoices={areas.filter((area) => area.area_type === 'affinity')}
+            selectedAffinityIds={affinities.map((affinity) => affinity.ministry_area_id)}
             contact={contact}
             student={student}
             email={email}
@@ -1226,48 +1230,37 @@ function SurveyTab({
   email,
   affinityNames,
   ministryAreas,
+  canEditAll,
+  affinityChoices,
+  selectedAffinityIds,
 }: {
   contact: ContactRow
   student: StudentRow
   email: string | null
   affinityNames: string[]
   ministryAreas: AreaRow[]
+  canEditAll: boolean
+  affinityChoices: AreaRow[]
+  selectedAffinityIds: string[]
 }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Panel title="Initial spiritual interest survey">
         <DefinitionList>
-          <DefinitionRow
-            label="Relationship with Jesus"
-            value={formatSurveyAnswer(
-              contact.jesus_interest
-            )}
-          />
-
-          <DefinitionRow
-            label="Christian community"
-            value={formatSurveyAnswer(
-              contact.community_interest
-            )}
-          />
-
-          <DefinitionRow
-            label="Life, values & spiritual perspectives interview"
-            value={formatSurveyAnswer(
-              contact.interview_interest
-            )}
-          />
-
-          <DefinitionRow
-            label="Affinity interest"
-            value={
-              affinityNames.length
-                ? affinityNames.join(
-                    ', '
-                  )
-                : 'None marked'
-            }
-          />
+          {[
+            { field: 'jesus_interest', label: 'Relationship with Jesus', value: contact.jesus_interest },
+            { field: 'community_interest', label: 'Christian community', value: contact.community_interest },
+            { field: 'interview_interest', label: 'Life, values & spiritual perspectives interview', value: contact.interview_interest },
+          ].map((answer) => (
+            <EditableSurveyField key={answer.field} contactId={contact.id} field={answer.field} label={answer.label}
+              value={answer.value} displayValue={formatSurveyAnswer(answer.value)} canEdit={canEditAll || answer.field === 'community_interest'}
+              options={[
+                { value: 'yes', label: 'Yes' }, { value: 'maybe', label: 'Maybe' }, { value: 'no', label: 'No' },
+                ...(answer.field === 'jesus_interest' ? [{ value: 'already_have_one', label: 'Already have one' }] : []),
+              ]} />
+          ))}
+          <EditableSurveyAffinities contactId={contact.id} selected={selectedAffinityIds} choices={affinityChoices}
+            displayValue={affinityNames.length ? affinityNames.join(', ') : 'None marked'} canEdit={canEditAll} />
         </DefinitionList>
       </Panel>
 
@@ -1294,27 +1287,13 @@ function SurveyTab({
 
         <div className="mt-4 border-t border-[#eef0f3] pt-1">
           <DefinitionList>
-            <DefinitionRow
-              label="Gender"
-              value={genderLabel(
-                contact.gender_raw
-              )}
-            />
-
-            <DefinitionRow
-              label="Year"
-              value={
-                contact.year_at_um ||
-                'Not provided'
-              }
-            />
-
-            {contact.house_name && (
-              <DefinitionRow
-                label="House"
-                value={contact.house_name}
-              />
-            )}
+            <EditableSurveyField contactId={contact.id} field="gender_raw" label="Gender" value={contact.gender_raw}
+              displayValue={genderLabel(contact.gender_raw)} canEdit={canEditAll}
+              options={[{ value: 'Male', label: 'Male' }, { value: 'Female', label: 'Female' }]} />
+            <EditableSurveyField contactId={contact.id} field="year_at_um" label="Year" value={contact.year_at_um}
+              displayValue={contact.year_at_um || 'Not provided'} canEdit={canEditAll} />
+            {(canEditAll || contact.house_name) && <EditableSurveyField contactId={contact.id} field="house_name" label="House" value={contact.house_name}
+              displayValue={contact.house_name || 'Not provided'} canEdit={canEditAll} />}
           </DefinitionList>
         </div>
       </Panel>
@@ -1810,26 +1789,6 @@ function DefinitionList({
   return (
     <div className="divide-y divide-[#eef0f3]">
       {children}
-    </div>
-  )
-}
-
-function DefinitionRow({
-  label,
-  value,
-}: {
-  label: string
-  value: string
-}) {
-  return (
-    <div className="py-3 first:pt-0 last:pb-0">
-      <FieldLabel>
-        {label}
-      </FieldLabel>
-
-      <div className="mt-1 text-sm font-bold leading-5 text-[#15223a]">
-        {value}
-      </div>
     </div>
   )
 }

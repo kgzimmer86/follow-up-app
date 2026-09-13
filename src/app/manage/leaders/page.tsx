@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
 import { ManageTabs } from '@/components/follow-up/manage-tabs'
+import { NoActiveCampaign } from '@/components/follow-up/no-active-campaign'
+import { isNoActiveCampaignError } from '@/lib/campaign-state'
 
 type PageProps = {
   searchParams: Promise<{
@@ -84,6 +86,7 @@ export default async function ManageLeadersPage({
   )
 
   if (error) {
+    if (isNoActiveCampaignError(error.message)) return <NoActiveCampaign />
     throw new Error(error.message)
   }
 

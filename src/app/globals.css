@@ -48,7 +48,8 @@ body {
   [role="button"],
   input[type="button"],
   input[type="submit"],
-  input[type="reset"]
+  input[type="reset"],
+  [data-click-feedback]
 ) {
   -webkit-tap-highlight-color: rgba(23, 92, 211, 0.12);
   transition:
@@ -66,7 +67,8 @@ body {
   [role="button"],
   input[type="button"],
   input[type="submit"],
-  input[type="reset"]
+  input[type="reset"],
+  [data-click-feedback]
 ):not(:disabled):not([aria-disabled="true"]):active,
 .app-click-acknowledged {
   opacity: 0.68 !important;
@@ -84,7 +86,8 @@ body {
     0 2px 8px rgba(0, 39, 76, 0.16);
 }
 
-article[id^="contact-"] {
+article[id^="contact-"],
+[data-feedback-card] {
   transition:
     filter 90ms ease,
     transform 90ms ease,
@@ -166,9 +169,11 @@ article[id^="contact-"] {
     [role="button"],
     input[type="button"],
     input[type="submit"],
-    input[type="reset"]
+    input[type="reset"],
+    [data-click-feedback]
   ),
-  article[id^="contact-"] {
+  article[id^="contact-"],
+  [data-feedback-card] {
     transition: none;
   }
 

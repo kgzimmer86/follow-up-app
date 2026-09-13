@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { NoActiveCampaign } from '@/components/follow-up/no-active-campaign'
+import { isNoActiveCampaignError } from '@/lib/campaign-state'
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 
@@ -89,6 +91,7 @@ export default async function ManagePage() {
   )
 
   if (error) {
+    if (isNoActiveCampaignError(error.message)) return <NoActiveCampaign />
     throw new Error(error.message)
   }
 

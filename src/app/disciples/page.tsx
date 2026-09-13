@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { NoActiveCampaign } from '@/components/follow-up/no-active-campaign'
+import { isNoActiveCampaignError } from '@/lib/campaign-state'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
@@ -41,6 +43,7 @@ export default async function DisciplesPage() {
   )
 
   if (dashboardError) {
+    if (isNoActiveCampaignError(dashboardError.message)) return <NoActiveCampaign />
     throw new Error(dashboardError.message)
   }
 

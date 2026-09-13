@@ -55,11 +55,13 @@ type PendingPerson = {
 type AddPersonModalProps = {
   open: boolean
   onClose: () => void
+  onContactSelected?: (contactId: string) => Promise<void>
 }
 
 export function AddPersonModal({
   open,
   onClose,
+  onContactSelected,
 }: AddPersonModalProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -177,12 +179,18 @@ export function AddPersonModal({
     return `/contacts/${contactId}?${params.toString()}`
   }
 
-  function openExistingContact(contactId: string) {
+  async function openExistingContact(contactId: string) {
+    if (onContactSelected) {
+      setSaving(true)
+      try { await onContactSelected(contactId) }
+      catch (error) { setErrorMessage(error instanceof Error ? error.message : 'Could not add this person.'); setSaving(false); return }
+      setSaving(false)
+    }
     setErrorMessage(null)
     setDuplicateCandidates(null)
     setPendingPerson(null)
     onClose()
-    router.push(contactUrl(contactId))
+    if (!onContactSelected) router.push(contactUrl(contactId))
   }
 
   function backToEdit() {
@@ -246,14 +254,8 @@ export function AddPersonModal({
       return
     }
 
+    await openExistingContact(result.contact_id)
     setSaving(false)
-    setDuplicateCandidates(null)
-    setPendingPerson(null)
-    onClose()
-
-    router.push(
-      contactUrl(result.contact_id)
-    )
   }
 
   async function handleSubmit(

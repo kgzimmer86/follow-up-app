@@ -1,4 +1,5 @@
 import { EditableSurveyField, EditableSurveyAffinities } from '@/components/follow-up/editable-survey'
+import { ContactCommunity } from '@/components/community/contact-community'
 import { loadRoommateSources } from '@/lib/roommate-provenance'
 import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
@@ -44,6 +45,7 @@ type DetailTab =
   | 'survey'
   | 'history'
   | 'schedule'
+  | 'community'
 
 type ContactRow = {
   id: string
@@ -861,6 +863,8 @@ export default async function ContactDetailPage({
           returnTo={returnTo}
         />
 
+        <DetailTabLink contactId={contact.id} tab="community" label="Community" activeTab={activeTab} returnTo={returnTo}/>
+
         <DetailTabLink
           contactId={contact.id}
           tab="history"
@@ -879,6 +883,7 @@ export default async function ContactDetailPage({
       </nav>
 
       <div className="mt-4">
+        {activeTab === 'community' && <ContactCommunity studentId={contact.student_id} campaignId={contact.campaign_id} status={contact.status}/>}
         {activeTab ===
           'overview' && (
           <OverviewTab
@@ -1982,6 +1987,7 @@ function validTab(
     case 'survey':
     case 'history':
     case 'schedule':
+    case 'community':
       return value
 
     case 'overview':

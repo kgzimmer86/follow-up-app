@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   useEffect,
   useRef,
@@ -12,6 +12,7 @@ import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { MyContactAttentionBadge } from '@/components/follow-up/my-contact-attention'
 import { AddPersonModal } from '@/components/follow-up/add-person-modal'
+import { communityContext } from '@/lib/workspace-navigation'
 
 type AppShellProps = {
   children: ReactNode
@@ -27,6 +28,8 @@ export function AppShell({
   areaLabel,
 }: AppShellProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const inCommunity = communityContext(pathname, searchParams.get('from'))
   const router = useRouter()
   const [profileMenuOpen, setProfileMenuOpen] =
     useState(false)
@@ -127,17 +130,15 @@ export function AppShell({
       pathname.startsWith('/god-at-work/'),
   })
 
+  const visibleNavItems = inCommunity
+    ? [{ href: '/community', label: 'Community Groups', icon: <CommunityIcon />, active: true }]
+    : navItems
+
   return (
     <div className="follow-up-shell min-h-screen bg-[#f7f8fb] text-[#15223a]">
       {/* DESKTOP SIDEBAR */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[230px] bg-[#00274c] px-[18px] py-7 text-white md:block">
-        <Link
-          href="/"
-          className="flex items-center gap-2.5 text-xl font-extrabold tracking-tight"
-        >
-          <BrandMark />
-          <span>Follow Up</span>
-        </Link>
+        <WorkspaceSwitcher key={`${pathname}:${inCommunity}`} community={inCommunity} dark />
 
         <div className="mt-7 rounded-2xl bg-white/[0.08] p-3.5">
           <div className="font-extrabold">
@@ -169,7 +170,7 @@ export function AppShell({
         </div>
 
         <nav className="mt-6 grid gap-2">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -192,20 +193,14 @@ export function AppShell({
       </aside>
 
       {/* MAIN AREA */}
-      <div className="min-h-screen pb-[78px] md:ml-[230px] md:pb-0">
+      <div className={`min-h-screen ${inCommunity ? 'pb-6' : 'pb-[78px]'} md:ml-[230px] md:pb-0`}>
         {/* TOP BAR */}
         <header className="sticky top-0 z-20 border-b border-[#e4e7ec]/80 bg-[#f7f8fb]/95 px-[18px] py-3 backdrop-blur-xl md:px-7 md:py-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <div className="shrink-0 md:hidden">
-                <BrandMark small />
-              </div>
+            <div className="min-w-0 md:hidden"><WorkspaceSwitcher key={`${pathname}:${inCommunity}`} community={inCommunity} /></div>
+            <div className="hidden min-w-0 items-center gap-2.5 md:flex">
 
               <div className="min-w-0">
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#175cd3] md:hidden">
-                  Michigan Cru
-                </div>
-
                 <h1 className="zoom-wrap truncate text-[21px] font-extrabold tracking-[-0.025em] text-[#15223a]">
                   {pageTitle(pathname)}
                 </h1>
@@ -312,7 +307,7 @@ export function AppShell({
       </div>
 
       {/* MOBILE BOTTOM NAV */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-flow-col auto-cols-fr border-t border-[#e4e7ec] bg-white px-1.5 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(16,24,40,0.06)] md:hidden">
+      {!inCommunity && <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-flow-col auto-cols-fr border-t border-[#e4e7ec] bg-white px-1.5 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(16,24,40,0.06)] md:hidden">
         {navItems.map((item) => (
           <Link
             key={item.href}
@@ -331,7 +326,7 @@ export function AppShell({
             {item.label}
           </Link>
         ))}
-      </nav>
+      </nav>}
 
       <AddPersonModal
         open={addPersonOpen}
@@ -343,9 +338,52 @@ export function AppShell({
   )
 }
 
+function WorkspaceSwitcher({ community, dark = false }: { community: boolean; dark?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const container = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const pathname = usePathname()
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (!container.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', dismiss)
+    return () => document.removeEventListener('pointerdown', dismiss)
+  }, [])
+  // A route-keyed menu cannot stay open after navigation or browser Back.
+  const [openedPath, setOpenedPath] = useState(pathname)
+  const expanded = open && openedPath === pathname
+  return <div ref={container} className="relative" onBlur={(event) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
+  }} onKeyDown={(event) => {
+    if (event.key === 'Escape') { setOpen(false); trigger.current?.focus() }
+  }}>
+    <button ref={trigger} type="button" aria-expanded={expanded} aria-label={`Switch workspace, currently ${community ? 'Community' : 'Follow Up'}`}
+      onClick={() => { setOpenedPath(pathname); setOpen(!expanded) }}
+      className={`flex min-h-11 max-w-full items-center gap-2.5 text-left font-extrabold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#ffcb05] ${dark ? 'text-white' : 'text-[#15223a]'}`}>
+      <BrandMark small={!dark} community={community} />
+      <span className="min-w-0">
+        {!dark && <span className="block text-[10px] uppercase tracking-[0.12em] text-[#175cd3]">Michigan Cru</span>}
+        <span className={`flex items-center gap-2 ${dark ? 'text-xl tracking-tight' : 'text-[21px] tracking-[-0.025em]'}`}>
+          <span>{community ? 'Community' : 'Follow Up'}</span>
+          <svg aria-hidden="true" viewBox="0 0 16 16" className={`h-3.5 w-3.5 shrink-0 transition-transform ${dark ? 'text-white' : 'text-black'} ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m4 6 4 4 4-4" /></svg>
+        </span>
+      </span>
+    </button>
+    {expanded && <div className="absolute left-0 top-full z-50 mt-2 w-[220px] max-w-[calc(100vw-36px)] rounded-2xl border border-[#e4e7ec] bg-white p-1.5 text-[#15223a] shadow-[0_8px_28px_rgba(16,24,40,0.22)]">
+      <nav aria-label="Workspaces">{[{ name: 'Follow Up', href: '/', community: false }, { name: 'Community', href: '/community', community: true }].filter((item) => item.community !== community).map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
+        className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-extrabold hover:bg-[#f9fafb] focus-visible:outline-2 focus-visible:outline-[#ffcb05]">
+        <BrandMark small community={item.community}/><span>{item.name}</span>
+      </Link>)}</nav>
+    </div>}
+  </div>
+}
+
 function BrandMark({
+  community = false,
   small = false,
 }: {
+  community?: boolean
   small?: boolean
 }) {
   return (
@@ -357,7 +395,7 @@ function BrandMark({
           : 'h-9 w-9 rounded-[11px]',
       ].join(' ')}
     >
-      <svg
+      {community ? <CommunityIcon /> : <svg
         viewBox="0 0 24 24"
         aria-hidden="true"
         className={
@@ -374,8 +412,18 @@ function BrandMark({
         <path d="M7 4.5h10a3 3 0 0 1 3 3v8.5a3 3 0 0 1-3 3h-5.7L7 22v-2.8H7a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3Z" />
         <path d="M12 7.2v9.8" />
         <path d="M9.4 10.2h5.2" />
-      </svg>
+      </svg>}
     </div>
+  )
+}
+
+function CommunityIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="inline-block h-5 w-5 align-middle" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="9" r="3" />
+      <path d="M7 20v-2a5 5 0 0 1 10 0v2H7Z" />
+      <path d="M6 5a2.5 2.5 0 1 0 0 5M18 5a2.5 2.5 0 1 1 0 5M5 13a4 4 0 0 0-4 4v1h3M19 13a4 4 0 0 1 4 4v1h-3" />
+    </svg>
   )
 }
 
@@ -409,6 +457,7 @@ function formatRole(role: string) {
 }
 
 function pageTitle(pathname: string) {
+  if (pathname.startsWith('/community')) return 'Community'
   if (pathname === '/my-stats') return 'My Stats'
   if (pathname === '/my-activity') return 'My Activity'
 

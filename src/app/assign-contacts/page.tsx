@@ -4,6 +4,8 @@ import { ContactAssignmentWorkspace } from '@/components/follow-up/contact-assig
 import { DiscipleBackButton } from '@/components/follow-up/disciple-back-button'
 import { createClient } from '@/lib/supabase/server'
 import { ManageTabs } from '@/components/follow-up/manage-tabs'
+import { NoActiveCampaign } from '@/components/follow-up/no-active-campaign'
+import { isNoActiveCampaignError } from '@/lib/campaign-state'
 
 type AssignmentWorkspace = {
   role: string
@@ -102,6 +104,7 @@ export default async function AssignContactsPage({
     )
 
   if (error) {
+    if (isNoActiveCampaignError(error.message)) return <NoActiveCampaign />
     throw new Error(error.message)
   }
 

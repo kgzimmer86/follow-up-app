@@ -18,6 +18,7 @@ const INTERACTIVE_SELECTOR = [
   'input[type="button"]',
   'input[type="submit"]',
   'input[type="reset"]',
+  '[data-click-feedback]',
 ].join(',')
 
 const CLICK_FEEDBACK_MS = 1400
@@ -143,6 +144,9 @@ function InteractionFeedbackInner() {
           'app-navigation-pending-tab'
         )
       }
+
+      const feedbackCard = interactive.closest<HTMLElement>('[data-feedback-card]')
+      feedbackCard?.classList.add('app-click-acknowledged-card')
 
       if (
         destination.pathname.startsWith(
@@ -333,6 +337,8 @@ function isStrongTabNavigation(
   const nav = interactive.closest('nav')
 
   if (!nav) return false
+
+  if (nav.hasAttribute('data-navigation-tabs')) return true
 
   const navLinks = Array.from(
     nav.querySelectorAll<HTMLAnchorElement>(

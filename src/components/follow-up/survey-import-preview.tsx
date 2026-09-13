@@ -7,10 +7,12 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
+import { weakConfirmationToken } from '@/lib/import-match-confirmation'
 
 type CsvRow = Record<string, string>
 
@@ -551,6 +553,8 @@ export function SurveyImportPreview({
   const [confirmedWeakMatches, setConfirmedWeakMatches] =
     useState<Record<number, string>>({})
   const [checkingMatches, setCheckingMatches] = useState(false)
+  const [matchReviewNotice, setMatchReviewNotice] = useState('')
+  const matchRequest = useRef(0)
   const [matchError, setMatchError] = useState<string | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -902,41 +906,13 @@ export function SurveyImportPreview({
     ]
   )
 
+  const weakRowEvidence = useCallback((rowNumber: number) => {
+    const row = importRows.find((r) => r.rowNumber === rowNumber)
+    return row ? { name: row.name, uniqname: row.uniqname, phone: row.phoneNormalized, location: row.location, room: row.room } : null
+  }, [importRows])
   const weakMatchChoiceToken = useCallback(
-    (rowNumber: number) => {
-      const choice =
-        weakMatchChoices[
-          rowNumber
-        ]
-
-      const result =
-        weakMatchMap.get(
-          rowNumber
-        )
-
-      if (
-        !choice ||
-        !result ||
-        result.candidate_count === 0
-      ) {
-        return null
-      }
-
-      if (choice === 'keep_separate') {
-        return 'keep_separate'
-      }
-
-      if (
-        choice === 'merge' &&
-        result.candidate_count === 1 &&
-        result.candidates[0]?.contact_id
-      ) {
-        return `merge:${result.candidates[0].contact_id}`
-      }
-
-      return null
-    },
-    [weakMatchChoices, weakMatchMap]
+    (rowNumber: number) => weakConfirmationToken(selectedCampaignId, weakRowEvidence(rowNumber), weakMatchChoices[rowNumber], weakMatchMap.get(rowNumber)),
+    [selectedCampaignId, weakRowEvidence, weakMatchChoices, weakMatchMap]
   )
 
   const isWeakMatchConfirmed = useCallback(
@@ -1730,6 +1706,8 @@ export function SurveyImportPreview({
   function clearMatchResults(
     resetExistingReview = false
   ) {
+    matchRequest.current++
+    setMatchReviewNotice('')
     setMatchResults([])
     setWeakMatchResults([])
     setMatchError(null)
@@ -1828,7 +1806,14 @@ export function SurveyImportPreview({
     field: keyof RowOverride,
     value: string
   ) {
+    matchRequest.current++
+    setCheckingMatches(false)
+    setShowConfirm(false)
+    if (checkingMatches) setCheckedCampaignId(null)
     const changesIdentity =
+      field === 'name' ||
+      field === 'location' ||
+      field === 'room' ||
       field === 'uniqname' ||
       field === 'phone'
 
@@ -1883,6 +1868,9 @@ export function SurveyImportPreview({
   }
 
   function resetRow(rowNumber: number) {
+    matchRequest.current++
+    setCheckingMatches(false)
+    if (checkingMatches) setCheckedCampaignId(null)
     setExistingContactChoices(
       (current) => {
         const next = {
@@ -1907,7 +1895,7 @@ export function SurveyImportPreview({
       (current) => {
         const next =
           new Set(current)
-        next.delete(rowNumber)
+        next.add(rowNumber)
         return next
       }
     )
@@ -2208,6 +2196,7 @@ export function SurveyImportPreview({
   function confirmWeakMatch(
     rowNumber: number
   ) {
+    if (checkingMatches || identityDirtyRows.has(rowNumber) || checkedCampaignId !== selectedCampaignId) return
     const token =
       weakMatchChoiceToken(
         rowNumber
@@ -2269,13 +2258,14 @@ export function SurveyImportPreview({
   async function checkExistingStudents() {
     if (!requiredMapped || !selectedCampaignId) return
 
+    const request = ++matchRequest.current
+    setMatchReviewNotice('')
+    setShowConfirm(false)
+
     setCheckingMatches(true)
     setMatchError(null)
     setCampaignMemberStudentIds(new Set())
     setCampaignContacts([])
-    setWeakMatchResults([])
-    setWeakMatchChoices({})
-    setConfirmedWeakMatches({})
     setCheckedCampaignId(null)
 
     const supabase = createClient()
@@ -2294,6 +2284,7 @@ export function SurveyImportPreview({
       }
     )
 
+    if (request !== matchRequest.current) return
     if (rpcError) {
       setMatchError(rpcError.message)
       setMatchResults([])
@@ -2344,6 +2335,7 @@ export function SurveyImportPreview({
       }
     )
 
+    if (request !== matchRequest.current) return
     if (weakError) {
       setMatchError(
         weakError.message
@@ -2406,6 +2398,7 @@ export function SurveyImportPreview({
           }
         )
 
+      if (request !== matchRequest.current) return
       if (campaignContactError) {
         setMatchError(campaignContactError.message)
         setMatchResults([])
@@ -2528,6 +2521,20 @@ export function SurveyImportPreview({
       }
     )
 
+    const nextWeakMap = new Map(nextWeakMatches.map((result) => [result.row_number, result]))
+    const keptConfirmations: Record<number, string> = {}
+    const reopened: number[] = []
+    for (const [key, token] of Object.entries(confirmedWeakMatches)) {
+      const rowNumber = Number(key)
+      const nextResult = nextWeakMap.get(rowNumber)
+      const nextToken = weakConfirmationToken(selectedCampaignId, weakRowEvidence(rowNumber), weakMatchChoices[rowNumber], nextResult)
+      if (nextToken && nextToken === token) keptConfirmations[rowNumber] = token
+      else reopened.push(rowNumber)
+    }
+    setConfirmedWeakMatches(keptConfirmations)
+    setMatchReviewNotice(reopened.length
+      ? `Check complete. Row${reopened.length === 1 ? '' : 's'} ${reopened.join(', ')} changed: the edited identity/location or refreshed match information differs. Review those rows again; unchanged confirmations were kept.`
+      : '')
     setMatchResults(nextMatches)
     setWeakMatchResults(nextWeakMatches)
     setCampaignMemberStudentIds(nextCampaignMembers)
@@ -3077,6 +3084,7 @@ export function SurveyImportPreview({
               </button>
             </div>
 
+            {matchReviewNotice && <p role="status" className="mb-3 rounded-2xl border border-[#fedf89] bg-[#fff8eb] px-4 py-3 text-sm font-bold text-[#b54708]">{matchReviewNotice}</p>}
             {matchError && (
               <div className="mt-3 rounded-[12px] border border-[#fecdca] bg-[#fef3f2] px-3 py-2.5 text-xs font-semibold text-[#b42318]">
                 {matchError}
@@ -3791,7 +3799,7 @@ export function SurveyImportPreview({
 
               {identityDirtyRows.size > 0 && (
                 <div className="mt-3 rounded-[12px] border border-[#fedf89] bg-[#fffaf0] px-3 py-2.5 text-xs leading-5 text-[#667085]">
-                  You changed a phone number or uniqname on {identityDirtyRows.size} {identityDirtyRows.size === 1 ? 'row' : 'rows'}. Those rows are no longer counted under <strong>Needs Review</strong>. Keep fixing the rest, then run <strong>Check existing students</strong> once when you are finished to refresh those identity matches before import.
+                  You changed matching information (name, phone, uniqname, dorm, or room) on {identityDirtyRows.size} {identityDirtyRows.size === 1 ? 'row' : 'rows'}. Keep fixing the rest, then run <strong>Check existing students</strong> once when you are finished to refresh those matches before import.
                 </div>
               )}
 

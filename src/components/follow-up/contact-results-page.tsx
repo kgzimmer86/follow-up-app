@@ -1,4 +1,6 @@
 import { loadRoommateSources } from '@/lib/roommate-provenance'
+import { NoActiveCampaign } from '@/components/follow-up/no-active-campaign'
+import { isNoActiveCampaignError } from '@/lib/campaign-state'
 import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
@@ -86,6 +88,7 @@ export type ContactResultsSearchParams = {
 }
 
 type Props = {
+  communityScope?: { groupId: string; segment: string; campaignId: string; title: string; backHref: string }
   view: ContactView
   basePath: string
   searchParams: ContactResultsSearchParams
@@ -266,6 +269,7 @@ function spreadsheetYesNo(value: string | undefined) {
 }
 
 export async function ContactResultsPage({
+  communityScope,
   view,
   basePath,
   searchParams,
@@ -418,7 +422,7 @@ export async function ContactResultsPage({
   // A fresh smart-card visit restores only this user's personal context.
   const storedFilters = (await cookies()).get(personalFilterCookie(userId))?.value
   if (
-    shouldRestorePersonalFilters(view, searchParams)
+    !communityScope && shouldRestorePersonalFilters(view, searchParams)
   ) {
     const saved = readPersonalFilters(storedFilters ?? '')
     if (storedFilters !== undefined) {
@@ -482,12 +486,7 @@ export async function ContactResultsPage({
     redirect(resultsHref({ basePath, sort: sortBy, dir: sortDir, filters: normalizedLocationFilters }))
   }
 
-  const {
-    data: resultsData,
-    error: resultsError,
-  } = await supabase.rpc(
-    'get_follow_up_contact_results_v2',
-    {
+  const resultArgs = {
       p_view: view,
       p_sort: sortBy,
       p_dir: sortDir,
@@ -540,9 +539,12 @@ export async function ContactResultsPage({
       ...(filters.sheetInterview ? { p_spreadsheet_interview: filters.sheetInterview } : {}),
       ...(filters.sheetStatus ? { p_spreadsheet_status: filters.sheetStatus } : {}),
     }
-  )
+  const { data: resultsData, error: resultsError } = communityScope
+    ? await supabase.rpc('get_community_contact_results', { ...resultArgs, p_group_id: communityScope.groupId, p_segment: communityScope.segment })
+    : await supabase.rpc('get_follow_up_contact_results_v2', resultArgs)
 
   if (resultsError) {
+    if (isNoActiveCampaignError(resultsError.message)) return <NoActiveCampaign />
     throw new Error(
       resultsError.message
     )
@@ -555,6 +557,10 @@ export async function ContactResultsPage({
     throw new Error(
       'Follow Up contact results could not be loaded.'
     )
+  }
+
+  if (communityScope) {
+    if (results.campaign_id !== communityScope.campaignId) redirect(communityScope.backHref)
   }
 
   let assignmentAssignees:
@@ -1023,14 +1029,14 @@ export async function ContactResultsPage({
         </div>
 
         <h2 className="mt-1 text-[30px] font-extrabold leading-[1.05] tracking-[-0.04em] text-[#15223a]">
-          {viewInfo.title}
+          {communityScope?.title ?? viewInfo.title}
         </h2>
 
         <p className="mt-2 max-w-[650px] text-sm leading-6 text-[#667085]">
-          {viewInfo.description}
+          {communityScope ? 'Follow up with these group members using your usual contact tools. Existing contact permissions and any filters below still apply.' : viewInfo.description}
         </p>
 
-        {view === 'area' ? (
+        {communityScope ? <Link href={communityScope.backHref} className="mt-3 inline-flex min-h-11 items-center text-sm font-extrabold text-[#475467]">← Back to group</Link> : view === 'area' ? (
           <Link
             href="/"
             className="mt-3 inline-flex items-center gap-1 text-xs font-extrabold text-[#175cd3] hover:underline"

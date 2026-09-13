@@ -10,12 +10,21 @@ export const inputClass = 'mt-1 min-h-11 w-full min-w-0 rounded-xl border border
 export const buttonClass = 'inline-flex min-h-11 items-center justify-center rounded-xl bg-[#00274c] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#113a67] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#175cd3] disabled:cursor-not-allowed disabled:opacity-50'
 export const secondaryButtonClass = 'inline-flex min-h-11 items-center justify-center rounded-xl border border-[#d0d5dd] bg-white px-4 py-2.5 text-sm font-extrabold text-[#475467] transition hover:bg-[#f9fafb] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#175cd3] disabled:cursor-not-allowed disabled:opacity-50'
 
-export function GroupEditor({ group, areas, leaders, assignedArea }: { group?: CommunityGroup; areas: CommunityArea[]; leaders: { id: string; display_name: string; area: string | null; selected: boolean }[]; assignedArea: string | null }) {
+export function GroupEditor({ group, areas, leaders, assignedArea }: { group?: CommunityGroup; areas: (CommunityArea & { area_type: string })[]; leaders: { id: string; display_name: string; area: string | null; selected: boolean }[]; assignedArea: string | null }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [area, setArea] = useState(group?.ministry_area_id ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const allowedAreas = areas.filter((a) => withinArea(a.id, assignedArea, areas))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const campusGroups = areas.filter((a) => a.parent_id === null && a.area_type !== 'affinity')
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((campus) => ({ campus, options: allowedAreas.filter((a) => a.area_type !== 'affinity' && withinArea(a.id, campus.id, areas)) }))
+    .filter(({ options }) => options.length > 0)
+  const groupedIds = new Set(campusGroups.flatMap(({ options }) => options.map((a) => a.id)))
+  const affinityAreas = allowedAreas.filter((a) => a.area_type === 'affinity')
+  const otherAreas = allowedAreas.filter((a) => a.area_type !== 'affinity' && !groupedIds.has(a.id))
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError('')
     const form = new FormData(event.currentTarget)
@@ -31,7 +40,21 @@ export function GroupEditor({ group, areas, leaders, assignedArea }: { group?: C
     {open && <form onSubmit={save} className="mt-3 space-y-4 rounded-2xl border border-[#dbe8f8] bg-white p-5">
       <fieldset disabled={busy} className="space-y-4">
         <label className="block text-sm font-bold">Group name<input name="name" required maxLength={120} defaultValue={group?.name} className={inputClass}/></label>
-        <label className="block text-sm font-bold">Ministry area<select required value={area} onChange={(e) => setArea(e.target.value)} className={inputClass}><option value="">Choose an area</option>{areas.filter((a) => withinArea(a.id, assignedArea, areas)).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+        <label className="block text-sm font-bold">Ministry area
+          <select required value={area} onChange={(e) => setArea(e.target.value)} className={inputClass}>
+            <option value="">Choose an area</option>
+            {campusGroups.map(({ campus, options }) => <optgroup key={campus.id} label={campus.name.toUpperCase()}>
+              {options.some((a) => a.id === campus.id) && <option value={campus.id}>All {campus.name}</option>}
+              {options.filter((a) => a.id !== campus.id).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </optgroup>)}
+            {affinityAreas.length > 0 && <optgroup label="AFFINITY MINISTRIES">
+              {affinityAreas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </optgroup>}
+            {otherAreas.length > 0 && <optgroup label="OTHER AREAS">
+              {otherAreas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </optgroup>}
+          </select>
+        </label>
         <label className="block text-sm font-bold">Usual meeting day<select name="day" defaultValue={group?.meeting_day ?? ''} className={inputClass}><option value="">Not set</option>{['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((d) => <option key={d}>{d}</option>)}</select></label>
         <fieldset><legend className="text-sm font-bold">Group leaders</legend><p className="my-2 text-xs text-[#667085]">Choose at least one leader assigned to this area or a parent area.</p>
           {area && leaders.filter((p) => withinArea(area, p.area, areas)).map((p) => <label key={`${area}-${p.id}`} className="flex min-h-11 items-center gap-3"><input type="checkbox" name="leader" value={p.id} defaultChecked={p.selected} className="h-5 w-5"/>{p.display_name}</label>)}

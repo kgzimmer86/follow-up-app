@@ -5,7 +5,7 @@ import type { CommunityGroup } from '@/lib/community'
 export async function GroupSettings({ campaignId, userId, group }: { campaignId: string; userId: string; group?: CommunityGroup }) {
   const client = await createClient()
   const [areas, profiles, assignments, selected] = await Promise.all([
-    client.from('ministry_areas').select('id,name,parent_id').eq('is_active', true).order('sort_order'),
+    client.from('ministry_areas').select('id,name,parent_id,area_type').eq('is_active', true).order('name'),
     client.from('profiles').select('id,display_name,email').eq('is_active', true).in('role', ['student_leader', 'discipler', 'staff', 'admin']).order('display_name'),
     client.from('profile_ministry_area_assignments').select('profile_id,ministry_area_id').eq('campaign_id', campaignId).eq('is_default', true),
     group ? client.from('community_group_leaders').select('profile_id').eq('group_id', group.id) : Promise.resolve({ data: [], error: null }),

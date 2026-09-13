@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAppAccess } from '@/lib/supabase/access'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { AttendanceChecklist } from '@/components/community/attendance-checklist'
+import { DeleteMeeting } from '@/components/community/delete-meeting'
 import { AddAttender, MemberActions } from '@/components/community/group-controls'
 import { GroupSettings } from '@/components/community/group-settings'
 import { groupData } from '@/lib/community-server'
@@ -76,7 +77,10 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
     </>}
     {tab === 'history' && <section className="space-y-3">{!meetings.length && <p>No attendance has been saved yet.</p>}{meetings.map((m) => {
       const entries = attendance.filter((a) => a.meeting_id === m.id)
-      return <Link key={m.id} href={`/community/groups/${groupId}?date=${m.meeting_date}`} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#e4e7ec] bg-white p-4 text-sm transition hover:bg-[#f9fafb]"><span className="font-extrabold text-[#15223a]">{m.meeting_date}</span><span className="text-[#667085]">{entries.filter((a) => a.is_present).length} of {entries.length} attended →</span></Link>
+      return <article key={m.id} className="overflow-hidden rounded-2xl border border-[#e4e7ec] bg-white">
+        <Link href={`/community/groups/${groupId}?date=${m.meeting_date}`} className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm transition hover:bg-[#f9fafb]"><span className="font-extrabold text-[#15223a]">{m.meeting_date}</span><span className="text-[#667085]">{entries.filter((a) => a.is_present).length} of {entries.length} attended →</span></Link>
+        {editable && <DeleteMeeting groupId={groupId} meetingId={m.id} meetingDate={m.meeting_date} version={m.version} revision={group.revision}/>}
+      </article>
     })}</section>}
     {tab === 'settings' && editable && ['staff', 'admin'].includes(access.profile.role) && <GroupSettings campaignId={year.id} userId={access.user.id} group={group}/>}
   </main>

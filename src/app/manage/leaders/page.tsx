@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Form from 'next/form'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
@@ -323,8 +324,9 @@ export default async function ManageLeadersPage({
             </div>
           </div>
 
-          <form
-            method="get"
+          <Form
+            action="/manage/leaders"
+            scroll={false}
             className="mt-4 grid gap-3 rounded-[18px] border border-[#e4e7ec] bg-white p-4 md:grid-cols-[minmax(0,1fr)_170px_210px_190px_auto]"
           >
             <label className="min-w-0">
@@ -498,7 +500,7 @@ export default async function ManageLeadersPage({
                 </Link>
               )}
             </div>
-          </form>
+          </Form>
 
           {filtered.length === 0 ? (
             <div className="mt-4 rounded-[18px] border border-dashed border-[#d0d5dd] bg-white p-7 text-center text-sm text-[#667085]">

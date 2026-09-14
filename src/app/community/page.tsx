@@ -40,7 +40,6 @@ export default async function CommunityPage({ searchParams }: { searchParams: Pr
       </div>
       {campaign.status === 'archived' && <p className="mt-2 text-sm font-semibold text-[#667085]">Archived — attendance history is read-only.</p>}
       <p className="mt-1 text-sm text-[#667085]">{campaign.label}</p>
-      <Link href={`/community/events?campaign=${campaign.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-[#175cd3]">Campaign events →</Link>
       {campaign.status === 'active' && ['staff', 'admin'].includes(access.profile.role) && <div className="mt-3 [&>div]:my-0"><GroupSettings campaignId={campaign.id} userId={access.user.id}/></div>}
     </section>
     <div className="mt-5 grid gap-4 md:grid-cols-2">{groups.map((g) => <article data-feedback-card key={g.id} className="relative min-w-0 rounded-[22px] border border-[#dbe8f8] bg-white p-5 shadow-sm transition hover:border-[#b2ccff] hover:bg-[#fbfdff]">

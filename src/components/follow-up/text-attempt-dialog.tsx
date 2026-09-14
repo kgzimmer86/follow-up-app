@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { validateTextAttempt, type PendingTextAttempt } from '@/lib/text-attempts'
 import { TextPurposeFields } from './text-purpose-fields'
+import { OutreachFields, type OutreachSelection } from '@/components/community/outreach-fields'
+import { invitationsChanged } from '@/components/community/invite-attention'
 
 export default function TextAttemptDialog({ pending, onConfirm, onClose }: {
   pending: PendingTextAttempt; onConfirm: () => void; onClose: () => void
@@ -12,8 +14,10 @@ export default function TextAttemptDialog({ pending, onConfirm, onClose }: {
   const router = useRouter()
   const dialog = useRef<HTMLDialogElement>(null)
   const submitting = useRef(false)
-  const [purposes, setPurposes] = useState<string[]>([])
+  const [purposes, setPurposes] = useState<string[]>(pending.contact.invitationEvent ? ['invite_event'] : [])
   const [eventName, setEventName] = useState('')
+  const [campaignEvent, setCampaignEvent] = useState<OutreachSelection | null>(pending.contact.invitationEvent ? { ...pending.contact.invitationEvent, response: null } : null)
+  const [useCampaignEvent, setUseCampaignEvent] = useState(true)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,13 +31,18 @@ export default function TextAttemptDialog({ pending, onConfirm, onClose }: {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (submitting.current) return
-    const validation = validateTextAttempt(purposes, eventName, notes)
+    const linked = purposes.includes('invite_event') && useCampaignEvent
+    if (linked && !campaignEvent) { setError('Choose the campaign event.'); return }
+    const validation = validateTextAttempt(purposes, linked ? campaignEvent!.name.slice(0, 100) : eventName, notes)
     if (validation) { setError(validation); return }
     submitting.current = true
     setSaving(true)
     setError(null)
     try {
-      const { error: saveError } = await createClient().rpc('log_text_attempt', {
+      const { error: saveError } = await createClient().rpc(linked ? 'community_log_outreach' : 'log_text_attempt', linked ? {
+        p_submission: pending.eventId, p_event: campaignEvent!.id, p_contact: pending.contact.id,
+        p_response: campaignEvent!.response, p_method: 'text', p_payload: { p_purposes: purposes, p_notes: notes.trim() || null },
+      } : {
         p_event_id: pending.eventId,
         p_contact_id: pending.contact.id,
         p_purposes: purposes,
@@ -41,6 +50,7 @@ export default function TextAttemptDialog({ pending, onConfirm, onClose }: {
         p_notes: notes.trim() || null,
       })
       if (saveError) throw saveError
+      if (linked) invitationsChanged()
       onClose()
       router.refresh()
     } catch {
@@ -75,9 +85,13 @@ export default function TextAttemptDialog({ pending, onConfirm, onClose }: {
       ) : (
         <form onSubmit={save}>
           <fieldset disabled={saving} className="grid gap-5 p-5 disabled:opacity-75">
-            <TextPurposeFields purposes={purposes} eventName={eventName} onChange={(values, name) => {
+            <TextPurposeFields hideEventName={useCampaignEvent} purposes={purposes} eventName={eventName} onChange={(values, name) => {
               setPurposes(values); setEventName(name)
             }} />
+            {purposes.includes('invite_event') && <>
+              <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={useCampaignEvent} onChange={e => setUseCampaignEvent(e.target.checked)}/>Track a campaign event invitation</label>
+              {useCampaignEvent && <OutreachFields contactId={pending.contact.id} value={campaignEvent} onChange={setCampaignEvent}/>}
+            </>}
             <label className="grid gap-2 text-sm font-extrabold">
               Note (optional)
               <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} maxLength={2000}

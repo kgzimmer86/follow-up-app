@@ -11,6 +11,7 @@ import type { ReactNode } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
 import { MyContactAttentionBadge } from '@/components/follow-up/my-contact-attention'
+import { InviteBadge } from '@/components/community/invite-attention'
 import { AddPersonModal } from '@/components/follow-up/add-person-modal'
 import { communityContext } from '@/lib/workspace-navigation'
 
@@ -132,13 +133,14 @@ export function AppShell({
 
   const campaignQuery = searchParams.get('campaign') ? `?campaign=${encodeURIComponent(searchParams.get('campaign')!)}` : ''
   const groupPath = (pathname.startsWith('/community/') ? pathname : searchParams.get('from') ?? '').match(/^\/community\/groups\/([\da-f-]{36})(?:[/?]|$)/i)
-  const leaderEvents = ['student_leader', 'discipler'].includes(role) && groupPath
-    ? `/community/groups/${groupPath[1]}?tab=events`
-    : `/community/events${campaignQuery}`
-  const onEvents = pathname.startsWith('/community/events') || Boolean(groupPath && searchParams.get('tab') === 'events')
+  const leaderEvents = groupPath ? `/community/events?group=${groupPath[1]}` : `/community/events${campaignQuery}`
+  const sectionPath = pathname.startsWith('/contacts/') ? searchParams.get('from') ?? pathname : pathname
+  const onEvents = sectionPath.startsWith('/community/events')
+  const onInvitations = sectionPath.startsWith('/community/invites')
   const communityNavItems = [
-    { href: `/community${campaignQuery}`, label: 'Groups', icon: <CommunityIcon />, active: !onEvents },
+    { href: `/community${campaignQuery}`, label: 'Groups', icon: <CommunityIcon />, active: !onEvents && !onInvitations },
     { href: leaderEvents, label: 'Events', icon: <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg>, active: onEvents },
+    { href: '/community/invites', label: 'Invitations', icon: <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>, active: onInvitations },
   ]
   const visibleNavItems = inCommunity
     ? communityNavItems
@@ -194,6 +196,7 @@ export function AppShell({
               <span className="relative w-5 shrink-0 text-center text-lg">
                 {item.icon}
                 {item.href === '/contacts' && <MyContactAttentionBadge />}
+                {inCommunity && item.label === 'Invitations' && <InviteBadge />}
               </span>
 
               <span>{item.label}</span>
@@ -331,7 +334,7 @@ export function AppShell({
             ].join(' ')}
           >
             <span className="mb-0.5 block text-xl leading-none">
-              <span className="relative inline-block">{item.icon}{item.href === '/contacts' && <MyContactAttentionBadge />}</span>
+              <span className="relative inline-block">{item.icon}{item.href === '/contacts' && <MyContactAttentionBadge />}{inCommunity && item.label === 'Invitations' && <InviteBadge />}</span>
             </span>
 
             {item.label}
@@ -377,6 +380,7 @@ function WorkspaceSwitcher({ community, dark = false }: { community: boolean; da
         {!dark && <span className="block text-[10px] uppercase tracking-[0.12em] text-[#175cd3]">Michigan Cru</span>}
         <span className={`flex items-center gap-2 ${dark ? 'text-xl tracking-tight' : 'text-[21px] tracking-[-0.025em]'}`}>
           <span>{community ? 'Community' : 'Follow Up'}</span>
+          {community ? <MyContactAttentionBadge inline/> : <InviteBadge inline/>}
           <svg aria-hidden="true" viewBox="0 0 16 16" className={`h-3.5 w-3.5 shrink-0 transition-transform ${dark ? 'text-white' : 'text-black'} ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m4 6 4 4 4-4" /></svg>
         </span>
       </span>
@@ -385,6 +389,7 @@ function WorkspaceSwitcher({ community, dark = false }: { community: boolean; da
       <nav aria-label="Workspaces">{[{ name: 'Follow Up', href: '/', community: false }, { name: 'Community', href: '/community', community: true }].filter((item) => item.community !== community).map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
         className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-extrabold hover:bg-[#f9fafb] focus-visible:outline-2 focus-visible:outline-[#ffcb05]">
         <BrandMark small community={item.community}/><span>{item.name}</span>
+        {item.community ? <InviteBadge inline/> : <MyContactAttentionBadge inline/>}
       </Link>)}</nav>
     </div>}
   </div>

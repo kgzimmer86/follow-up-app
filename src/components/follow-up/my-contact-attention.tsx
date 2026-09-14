@@ -41,10 +41,10 @@ export function MyContactAttentionProvider({ refreshKey, children }: { refreshKe
   return <AttentionContext.Provider value={{ counts, error, retry: () => setAttempt((value) => value + 1) }}>{children}</AttentionContext.Provider>
 }
 
-export function MyContactAttentionBadge() {
+export function MyContactAttentionBadge({ inline = false }: { inline?: boolean }) {
   const { counts, error } = useContext(AttentionContext)
   if (error || !counts?.total) return null
-  return <span aria-label={`${counts.total} of your contacts need attention`} className="absolute -right-3 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#d92d20] px-1 text-[9px] font-extrabold leading-none text-white">{counts.total}</span>
+  return <span aria-label={`${counts.total} of your contacts need attention`} className={`${inline ? 'inline-flex' : 'absolute -right-3 -top-1 flex'} h-4 min-w-4 items-center justify-center rounded-full bg-[#d92d20] px-1 text-[9px] font-extrabold leading-none text-white`}>{counts.total}</span>
 }
 
 export function MyContactAttentionSection() {

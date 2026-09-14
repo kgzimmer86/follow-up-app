@@ -2,7 +2,8 @@
 
 import { textPurposes } from '@/lib/text-attempts'
 
-export function TextPurposeFields({ purposes, eventName, onChange }: {
+export function TextPurposeFields({ purposes, eventName, onChange, hideEventName = false }: {
+  hideEventName?: boolean
   purposes: string[]
   eventName: string
   onChange: (purposes: string[], eventName: string) => void
@@ -21,7 +22,7 @@ export function TextPurposeFields({ purposes, eventName, onChange }: {
           {purpose.label}
         </label>
       ))}
-      {purposes.includes('invite_event') && (
+      {purposes.includes('invite_event') && !hideEventName && (
         <label className="mt-1 grid gap-1.5 text-sm font-bold text-[#344054]">
           Event name
           <input value={eventName} onChange={(event) => onChange(purposes, event.target.value)}

@@ -46,7 +46,7 @@ export function textGreetingHref(href: string, contactName: string, userAgent = 
   return `${href}${separator}body=${encodeURIComponent(greeting)}`
 }
 
-export type TextContact = { id: string; name: string }
+export type TextContact = { id: string; name: string; invitationEvent?: { id: string; name: string } }
 export type PendingTextAttempt = {
   eventId: string
   contact: TextContact
@@ -64,6 +64,7 @@ export function readPendingTextAttempt(raw: string | null, now = Date.now()): Pe
       !['waiting', 'confirm', 'form'].includes(value.stage) ||
       typeof value.startedAt !== 'number' || value.startedAt > now ||
       now - value.startedAt > 24 * 60 * 60 * 1000) return null
+    if (value.contact.invitationEvent && (!uuid.test(value.contact.invitationEvent.id) || typeof value.contact.invitationEvent.name !== 'string')) return null
     return value as PendingTextAttempt
   } catch { return null }
 }

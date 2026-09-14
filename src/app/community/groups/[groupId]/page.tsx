@@ -9,7 +9,6 @@ import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { AttendanceChecklist } from '@/components/community/attendance-checklist'
 import { DeleteMeeting } from '@/components/community/delete-meeting'
 import { NeedsAttention } from '@/components/community/needs-attention'
-import { GroupEvents } from '@/components/community/group-events'
 import { AddAttender, MemberActions } from '@/components/community/group-controls'
 import { GroupSettings } from '@/components/community/group-settings'
 import { groupData } from '@/lib/community-server'
@@ -30,11 +29,12 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
   const { data: campaign, error: campaignError } = await client.from('follow_up_campaigns').select('id,label,status,starts_on,ends_on').eq('id', group.campaign_id).single()
   if (campaignError) throw new Error(campaignError.message)
   const year = campaign as CommunityCampaign
+  if (query.tab === 'events') redirect(`/community/events?${new URLSearchParams({ campaign: year.id, group: groupId, ...(query.event ? { event: query.event } : {}) })}`)
   const editable = year.status === 'active' && group.is_active
   const { members, meetings, attendance, contacts } = await groupData(group)
   const date = validMeetingDate(query.date, editable ? ministryToday() : meetings[0]?.meeting_date ?? year.ends_on)
   const dateAllowed = isMeetingDateAllowed(query.date ?? date, year.starts_on, year.ends_on, ministryToday())
-  const tab = ['people', 'history', 'settings', 'events', ...(editable ? ['attention'] : [])].includes(query.tab ?? '') ? query.tab : 'attendance'
+  const tab = ['people', 'history', 'settings', ...(editable ? ['attention'] : [])].includes(query.tab ?? '') ? query.tab : 'attendance'
   const people = attendanceRoster(members, meetings, attendance, date).map((person) => {
     const contact = contacts.find((c) => c.student_id === person.student_id)
     return { ...person, gender: contact?.gender_raw ?? null, status: contact?.status ?? '' }
@@ -55,9 +55,9 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
   return <main className="mx-auto max-w-[800px] px-[18px] py-6 md:px-7">
     <DiscipleBackButton href={`/community?campaign=${year.id}`} />
     <h2 className="mt-3 break-words text-2xl font-extrabold tracking-tight text-[#15223a] md:text-3xl">{group.name}</h2><p className="mt-2 text-sm leading-6 text-[#667085]">{year.label}{!editable && ' · Read-only history'}</p>
-    <nav data-navigation-tabs aria-label="Group sections" className="my-5 flex gap-1 overflow-x-auto rounded-[14px] border border-[#e4e7ec] bg-[#f9fafb] p-1.5">{['attendance', 'people', ...(editable ? ['attention'] : []), 'events', 'history', ...(['staff', 'admin'].includes(access.profile.role) && editable ? ['settings'] : [])].map((t) => <Link key={t} aria-current={t === tab ? 'page' : undefined} href={`/community/groups/${groupId}?tab=${t}&date=${date}`} className={`inline-flex min-h-11 shrink-0 items-center rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold capitalize transition ${t === tab ? 'bg-[#00274c] text-white' : 'text-[#475467] hover:bg-white hover:text-[#15223a]'}`}>{t === 'attention' ? 'Needs Attention' : t}</Link>)}</nav>
+    {editable && ['staff', 'admin'].includes(access.profile.role) && <Link href={`/community/groups/${groupId}?tab=settings`} className="mt-2 inline-flex min-h-11 items-center text-sm font-bold text-[#475467]">Group settings</Link>}
+    <nav data-navigation-tabs aria-label="Group sections" className="my-5 flex gap-1 overflow-x-auto rounded-[14px] border border-[#e4e7ec] bg-[#f9fafb] p-1.5">{['attendance', 'people', ...(editable ? ['attention'] : []), 'history'].map((t) => <Link key={t} aria-current={t === tab ? 'page' : undefined} href={`/community/groups/${groupId}?tab=${t}&date=${date}`} className={`inline-flex min-h-11 shrink-0 items-center rounded-[10px] px-3.5 py-2.5 text-xs font-extrabold capitalize transition ${t === tab ? 'bg-[#00274c] text-white' : 'text-[#475467] hover:bg-white hover:text-[#15223a]'}`}>{t === 'attention' ? 'Needs Attention' : t}</Link>)}</nav>
     {tab === 'attention' && editable && <NeedsAttention groupId={groupId} members={members} meetings={meetings} attendance={attendance} contacts={contacts}/>}
-    {tab === 'events' && <GroupEvents groupId={groupId} campaignId={year.id} members={members} contacts={contacts} editable={editable} eventId={query.event}/>}
     {tab === 'attendance' && <>
       <form className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl border border-[#e4e7ec] bg-white p-4"><label htmlFor="meeting-date" className="w-full text-xs font-extrabold text-[#475467] sm:w-auto sm:mr-2">Meeting date</label><input id="meeting-date" type="date" name="date" defaultValue={date} min={year.starts_on} max={editable ? (ministryToday() < year.ends_on ? ministryToday() : year.ends_on) : year.ends_on} className="min-h-11 min-w-0 flex-1 rounded-xl border border-[#d0d5dd] bg-white px-3 py-2 text-base text-[#15223a] focus:outline-[#175cd3] sm:flex-none"/><button className="min-h-11 rounded-xl border border-[#d0d5dd] bg-white px-4 py-2 text-sm font-extrabold text-[#475467] hover:bg-[#f9fafb]">Open</button></form>
       {dateAllowed ? <AttendanceChecklist key={`${groupId}:${date}:${meeting?.version ?? 0}:${group.revision}`} groupId={groupId} meetingDate={date} people={people} version={meeting?.version ?? 0} revision={group.revision} editable={editable}/> : <p role="alert" className="rounded-full border border-[#fedf89] bg-[#fff8eb] px-4 py-3 text-sm font-bold text-[#b54708]">Choose a meeting date within the campaign, no later than today.</p>}

@@ -49,8 +49,8 @@ export function TextAttemptSession({ userId, children }: { userId: string; child
   )
 }
 
-export function ContactTextLink({ contactId, contactName, href, className, children, promptToLog = true }: {
-  contactId: string; contactName: string; href: string; className: string; children: ReactNode; promptToLog?: boolean
+export function ContactTextLink({ contactId, contactName, href, className, children, promptToLog = true, invitationEvent }: {
+  contactId: string; contactName: string; href: string; className: string; children: ReactNode; promptToLog?: boolean; invitationEvent?: { id: string; name: string }
 }) {
   const session = useContext(TextSessionContext)
   return <a href={textGreetingHref(href, contactName)} className={className} onClick={(event) => {
@@ -58,16 +58,16 @@ export function ContactTextLink({ contactId, contactName, href, className, child
     // directly on the user's tap without a fetch, timer, or extra navigation.
     event.currentTarget.href = textGreetingHref(href, contactName, navigator.userAgent)
     if (promptToLog && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
-      session?.begin({ id: contactId, name: contactName }, 'waiting')
+      session?.begin({ id: contactId, name: contactName, invitationEvent }, 'waiting')
     }
   }}>{children}</a>
 }
 
-export function AddTextAttemptButton({ contactId, contactName }: { contactId: string; contactName: string }) {
+export function AddTextAttemptButton({ contactId, contactName, invitationEvent, className }: { contactId: string; contactName: string; invitationEvent?: { id: string; name: string }; className?: string }) {
   const session = useContext(TextSessionContext)
   return (
-    <button type="button" onClick={() => session?.begin({ id: contactId, name: contactName }, 'form')}
-      className="w-full rounded-[11px] border border-[#b2ddff] bg-[#eff8ff] px-3 py-2.5 text-sm font-extrabold text-[#175cd3] transition hover:bg-[#dff1ff]">
+    <button type="button" onClick={() => session?.begin({ id: contactId, name: contactName, invitationEvent }, 'form')}
+      className={className ?? 'w-full rounded-[11px] border border-[#b2ddff] bg-[#eff8ff] px-3 py-2.5 text-sm font-extrabold text-[#175cd3] transition hover:bg-[#dff1ff]'}>
       + Text Attempt
     </button>
   )

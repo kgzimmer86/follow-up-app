@@ -9,6 +9,7 @@ import { FilterSession } from '@/components/follow-up/filter-session'
 import { TextAttemptSession } from '@/components/follow-up/text-attempt-session'
 import { PhotoCleanupProvider } from '@/components/follow-up/photo-cleanup-provider'
 import { MyContactAttentionProvider } from '@/components/follow-up/my-contact-attention'
+import { InviteAttentionProvider } from '@/components/community/invite-attention'
 import { AppShell } from '@/components/follow-up/app-shell'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { AppLoading } from '@/components/follow-up/app-loading'
@@ -147,6 +148,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
       <TextAttemptSession userId={user.id}>
         <PhotoCleanupProvider userId={user.id}>
         <MyContactAttentionProvider refreshKey={{}}>
+        <InviteAttentionProvider>
         <AppShell
           displayName={displayName}
           role={profile.role}
@@ -161,6 +163,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
             {children}
           </Suspense>
         </AppShell>
+        </InviteAttentionProvider>
         </MyContactAttentionProvider>
         </PhotoCleanupProvider>
       </TextAttemptSession>

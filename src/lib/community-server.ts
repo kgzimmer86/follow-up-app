@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { CommunityAttendance, CommunityContact, CommunityGroup, CommunityMeeting, CommunityMember } from '@/lib/community'
 
 // Paginate history rather than silently truncating at Supabase's row cap.
-export async function groupData(group: CommunityGroup) {
+export async function groupData(group: CommunityGroup, includeAttendance = true) {
   const client = await createClient()
   const members: CommunityMember[] = []
   const meetings: CommunityMeeting[] = []
@@ -13,7 +13,7 @@ export async function groupData(group: CommunityGroup) {
     members.push(...data as unknown as CommunityMember[])
     if (data.length < 500) break
   }
-  for (let offset = 0; ; offset += 500) {
+  for (let offset = 0; includeAttendance; offset += 500) {
     const { data, error } = await client.from('community_group_meetings').select('id,group_id,meeting_date,version,saved_at').eq('group_id', group.id).order('meeting_date', { ascending: false }).range(offset, offset + 499)
     if (error) throw new Error(error.message)
     meetings.push(...data)

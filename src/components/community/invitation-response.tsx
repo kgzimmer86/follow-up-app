@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { invitationStatuses } from '@/lib/community-events'
+import { invitationsChanged } from './invite-attention'
 import { buttonClass, inputClass } from './group-controls'
 
 export function InvitationResponse({ groupId, eventId, studentId, name, status, version }: {
@@ -22,6 +23,7 @@ export function InvitationResponse({ groupId, eventId, studentId, name, status, 
         p_group_id: groupId, p_event_id: eventId, p_student_id: studentId, p_status: value, p_version: currentVersion,
       })
       if (error) throw new Error(error.message)
+      invitationsChanged()
       setCurrentVersion(data); setSaved(value); setMessage('Response saved.'); router.refresh()
     } catch (e) { setFailed(true); setMessage(e instanceof Error ? e.message : 'Unable to save this response.') }
     finally { setBusy(false) }

@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { OutreachFields, type OutreachSelection } from '@/components/community/outreach-fields'
+import { invitationsChanged } from '@/components/community/invite-attention'
 import Image from 'next/image'
 import {
   usePathname,
@@ -21,6 +23,7 @@ type InteractionButtonProps = {
   currentStatus: string
   isPrimary: boolean
   autoOpen?: boolean
+  invitationEvent?: { id: string; name: string }
 }
 
 export function InteractionButton({
@@ -29,6 +32,7 @@ export function InteractionButton({
   currentStatus,
   isPrimary,
   autoOpen = false,
+  invitationEvent,
 }: InteractionButtonProps) {
   const router = useRouter()
   const cleanupPhoto = usePhotoCleanup()
@@ -36,6 +40,9 @@ export function InteractionButton({
   const searchParams = useSearchParams()
 
   const [open, setOpen] = useState(autoOpen)
+  const [invitedToEvent, setInvitedToEvent] = useState(Boolean(invitationEvent))
+  const [campaignEvent, setCampaignEvent] = useState<OutreachSelection | null>(invitationEvent ? { ...invitationEvent, response: null } : null)
+  const submission = useRef<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(
     null
@@ -81,6 +88,8 @@ export function InteractionButton({
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault()
+    if (saving) return
+    if (invitedToEvent && !campaignEvent) { setErrorMessage('Choose the campaign event.'); return }
 
     const form = event.currentTarget
     const formData = new FormData(form)
@@ -169,7 +178,11 @@ export function InteractionButton({
 
     let error: { message: string; code?: string } | null
     try {
-      const response = await supabase.rpc(rpcName, rpcArgs)
+      submission.current ??= crypto.randomUUID()
+      const response = await supabase.rpc(invitedToEvent ? 'community_log_outreach' : rpcName, invitedToEvent ? {
+        p_submission: submission.current, p_event: campaignEvent!.id, p_contact: contactId,
+        p_response: campaignEvent!.response, p_method: 'interaction', p_payload: rpcArgs,
+      } : rpcArgs)
       error = response.error
     } catch {
       error = { message: 'Could not confirm whether the interaction saved. Check the contact history before trying again.' }
@@ -186,7 +199,14 @@ export function InteractionButton({
       }
     }
 
+    // A retried submission may return the earlier saved interaction. Remove only
+    // an unreferenced new upload; the cleanup RPC protects referenced images.
+    if (invitedToEvent && uploadedPath) await cleanupPhoto(uploadedPath, true)
     form.reset()
+    if (invitedToEvent) invitationsChanged()
+    submission.current = null
+    setInvitedToEvent(Boolean(invitationEvent))
+    setCampaignEvent(invitationEvent ? { ...invitationEvent, response: null } : null)
     setPhotoFile(null)
     setPhotoPreviewUrl(null)
     setPhotoError(null)
@@ -219,6 +239,9 @@ export function InteractionButton({
   }
 
   function closeForm() {
+    submission.current = null
+    setInvitedToEvent(Boolean(invitationEvent))
+    setCampaignEvent(invitationEvent ? { ...invitationEvent, response: null } : null)
     setErrorMessage(null)
     setStatusError(false)
     setPhotoFile(null)
@@ -406,15 +429,16 @@ export function InteractionButton({
                     />
 
                     <CheckOption
-                      name="invitedToCg"
-                      label="Invited to Bible study / Community Group"
-                    />
-
-                    <CheckOption
                       name="receivedChrist"
                       label="Received Christ"
                       emphasize
                     />
+                    <CheckOption
+                      name="invitedToCg"
+                      label="Invited to Bible study / Community Group"
+                    />
+                    <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" className="h-5 w-5" checked={invitedToEvent} onChange={e => setInvitedToEvent(e.target.checked)}/>Invited to an event</label>
+                    {invitedToEvent && <OutreachFields contactId={contactId} value={campaignEvent} onChange={setCampaignEvent}/>}
                   </div>
                 </div>
 

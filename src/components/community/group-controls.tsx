@@ -31,7 +31,9 @@ export function GroupEditor({ group, areas, leaders, assignedArea }: { group?: C
     try {
       const { data, error } = await createClient().rpc('community_save_group', { p_group_id: group?.id ?? null, p_name: form.get('name'), p_area_id: area, p_meeting_day: form.get('day'), p_leader_ids: form.getAll('leader'), p_revision: group?.revision ?? 0 })
       if (error) throw error
-      setOpen(false); router.push(`/community/groups/${data}`); router.refresh()
+      setOpen(false)
+      if (group) router.refresh()
+      else router.push(`/community/groups/${data}`)
     } catch (e) { setError(e instanceof Error ? e.message : (e as { message?: string }).message ?? 'Unable to save the group.') }
     finally { setBusy(false) }
   }

@@ -662,7 +662,7 @@ export async function ContactResultsPage({
       : null
 
   const assignedFilters = assignedAreaFilters(defaultArea)
-  if (shouldRestorePersonalFilters(view, searchParams) && view !== 'noaddress') {
+  if (!communityScope && shouldRestorePersonalFilters(view, searchParams) && view !== 'noaddress') {
     redirect(resultsHref({
       basePath, sort: sortBy, dir: sortDir,
       filters: { ...filters, ...assignedFilters }, page: requestedPage,
@@ -889,7 +889,7 @@ export async function ContactResultsPage({
     const { data: { user: currentUser } } = await client.auth.getUser()
     if (!currentUser || currentUser.id !== userId) redirect('/')
 
-    {
+    if (!communityScope) {
       const cookieStore = await cookies()
       let personal = readPersonalFilters(JSON.stringify(nextFilters))
       // No-address browsing is campus-wide; retain the other lists' geography.
@@ -1018,11 +1018,11 @@ export async function ContactResultsPage({
       ].join(' ')}
     >
       <SpreadsheetFilterProvider saveFiltersAction={saveSpreadsheetFilters}>
-      <FilterViewSession
+      {!communityScope && <FilterViewSession
         userId={userId}
         view={view}
         needsActivation={storedFilters !== undefined && readPersonalFilterView(storedFilters) !== view}
-      />
+      />}
       <section>
         <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-[#175cd3]">
           {viewInfo.eyebrow}
@@ -1601,6 +1601,10 @@ export async function ContactResultsPage({
           </div>
         </div>
       </section>
+
+      {communityScope && ['ever', 'ever_attending', 'ever_former'].includes(communityScope.segment) && <nav data-navigation-tabs aria-label="Ever attended membership" className="mt-4 flex flex-wrap gap-2">
+        {[{ segment: 'ever', label: 'All' }, { segment: 'ever_attending', label: 'Attending' }, { segment: 'ever_former', label: 'No longer attending' }].map((item) => <Link key={item.segment} aria-current={communityScope.segment === item.segment ? 'page' : undefined} href={`${communityScope.backHref}/contacts/${item.segment}`} className={`inline-flex min-h-11 items-center rounded-xl border px-4 py-2 text-sm font-extrabold ${communityScope.segment === item.segment ? 'border-[#00274c] bg-[#00274c] text-white' : 'border-[#d0d5dd] bg-white text-[#475467]'}`}>{item.label}</Link>)}
+      </nav>}
 
       <div
         id="results"

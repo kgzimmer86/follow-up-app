@@ -27,6 +27,7 @@ test('database-scoped contact results: scale, parity, permissions, filters and a
   const migration = await readFile(new URL('../migrations/20260912_community_contact_results.sql',import.meta.url),'utf8')
   await db.exec(migration)
   await db.exec(migration) // rerun-safe
+  await db.exec(await readFile(new URL('../migrations/20260914_community_attendance_filters.sql',import.meta.url),'utf8'))
   assert.equal(await original(), before, 'normal Follow Up function stays byte-for-byte unchanged')
   const admin=id(1), leader=id(2), outsider=id(3), campaign=id(4), area=id(5), group=id(6), otherGroup=id(7)
   for (const [user,role] of [[admin,'admin'],[leader,'student_leader'],[outsider,'student_leader']]) {
@@ -70,6 +71,8 @@ test('database-scoped contact results: scale, parity, permissions, filters and a
   await db.query("update community_group_memberships set ended_on=current_date where group_id=$1 and student_id=(select id from students where display_name='Invented 10000')",[group])
   assert.equal((await rpc('roster')).total_count,124)
   assert.equal((await rpc('ever')).total_count,125,'former members remain in lifetime attendance')
+  assert.equal((await rpc('ever_attending')).total_count,124)
+  assert.equal((await rpc('ever_former')).total_count,1)
   await db.exec('set role authenticated')
   await db.query("select set_config('request.jwt.claim.sub',$1,false)",[leader])
   assert.equal((await rpc('roster')).total_count,124)

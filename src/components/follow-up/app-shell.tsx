@@ -130,8 +130,18 @@ export function AppShell({
       pathname.startsWith('/god-at-work/'),
   })
 
+  const campaignQuery = searchParams.get('campaign') ? `?campaign=${encodeURIComponent(searchParams.get('campaign')!)}` : ''
+  const groupPath = (pathname.startsWith('/community/') ? pathname : searchParams.get('from') ?? '').match(/^\/community\/groups\/([\da-f-]{36})(?:[/?]|$)/i)
+  const leaderEvents = ['student_leader', 'discipler'].includes(role) && groupPath
+    ? `/community/groups/${groupPath[1]}?tab=events`
+    : `/community/events${campaignQuery}`
+  const onEvents = pathname.startsWith('/community/events') || Boolean(groupPath && searchParams.get('tab') === 'events')
+  const communityNavItems = [
+    { href: `/community${campaignQuery}`, label: 'Groups', icon: <CommunityIcon />, active: !onEvents },
+    { href: leaderEvents, label: 'Events', icon: <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg>, active: onEvents },
+  ]
   const visibleNavItems = inCommunity
-    ? [{ href: '/community', label: 'Community Groups', icon: <CommunityIcon />, active: true }]
+    ? communityNavItems
     : navItems
 
   return (
@@ -193,7 +203,7 @@ export function AppShell({
       </aside>
 
       {/* MAIN AREA */}
-      <div className={`min-h-screen ${inCommunity ? 'pb-6' : 'pb-[78px]'} md:ml-[230px] md:pb-0`}>
+      <div className="min-h-screen pb-[calc(88px+env(safe-area-inset-bottom))] md:ml-[230px] md:pb-0">
         {/* TOP BAR */}
         <header className="sticky top-0 z-20 border-b border-[#e4e7ec]/80 bg-[#f7f8fb]/95 px-[18px] py-3 backdrop-blur-xl md:px-7 md:py-4">
           <div className="flex items-center justify-between gap-3">
@@ -307,13 +317,14 @@ export function AppShell({
       </div>
 
       {/* MOBILE BOTTOM NAV */}
-      {!inCommunity && <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-flow-col auto-cols-fr border-t border-[#e4e7ec] bg-white px-1.5 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(16,24,40,0.06)] md:hidden">
-        {navItems.map((item) => (
+      <nav aria-label={inCommunity ? 'Community navigation' : 'Follow Up navigation'} className="fixed inset-x-0 bottom-0 z-30 grid grid-flow-col auto-cols-fr border-t border-[#e4e7ec] bg-white px-1.5 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(16,24,40,0.06)] md:hidden">
+        {(inCommunity ? communityNavItems : navItems).map((item) => (
           <Link
             key={item.href}
             href={item.href}
+            aria-current={item.active ? 'page' : undefined}
             className={[
-              'px-1 py-1 text-center text-[11px] font-bold',
+              'flex min-h-11 flex-col items-center justify-center px-1 py-1 text-center text-[11px] font-bold',
               item.active
                 ? 'text-[#00274c]'
                 : 'text-[#667085]',
@@ -326,7 +337,7 @@ export function AppShell({
             {item.label}
           </Link>
         ))}
-      </nav>}
+      </nav>
 
       <AddPersonModal
         open={addPersonOpen}

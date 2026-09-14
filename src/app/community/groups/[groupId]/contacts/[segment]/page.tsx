@@ -7,7 +7,7 @@ export default async function GroupContactsPage({ params, searchParams }: {
   searchParams: Promise<ContactResultsSearchParams>
 }) {
   const { groupId, segment } = await params
-  const labels: Record<string, string> = { involved: 'Involved', attended: 'Latest attendance', ever: 'Ever attended', roster: 'Current roster' }
+  const labels: Record<string, string> = { involved: 'Involved', attended: 'Latest attendance', ever: 'Ever attended · All', ever_attending: 'Ever attended · Attending', ever_former: 'Ever attended · No longer attending', roster: 'Current roster' }
   if (!/^[\da-f-]{36}$/i.test(groupId) || !Object.hasOwn(labels, segment)) notFound()
   const client = await createClient()
   const { data: { user } } = await client.auth.getUser()
@@ -21,5 +21,5 @@ export default async function GroupContactsPage({ params, searchParams }: {
   const backHref = `/community/groups/${groupId}`
   if (campaign.status !== 'active') redirect(backHref)
   return <ContactResultsPage view="area" basePath={`${backHref}/contacts/${segment}`} searchParams={await searchParams}
-    communityScope={{ groupId, segment, campaignId: group.campaign_id, title: `${group.name} · ${labels[segment]}`, backHref }} />
+      communityScope={{ groupId, segment, campaignId: group.campaign_id, title: `${group.name} · ${labels[segment]}`, backHref }} />
 }

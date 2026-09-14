@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { OutreachFields, type OutreachSelection } from '@/components/community/outreach-fields'
+import { celebrationSaved } from '@/components/community/celebration-listener'
 import { invitationsChanged } from '@/components/community/invite-attention'
 import Image from 'next/image'
 import {
@@ -203,7 +204,7 @@ export function InteractionButton({
     // an unreferenced new upload; the cleanup RPC protects referenced images.
     if (invitedToEvent && uploadedPath) await cleanupPhoto(uploadedPath, true)
     form.reset()
-    if (invitedToEvent) invitationsChanged()
+    invitationsChanged()
     submission.current = null
     setInvitedToEvent(Boolean(invitationEvent))
     setCampaignEvent(invitationEvent ? { ...invitationEvent, response: null } : null)
@@ -213,6 +214,8 @@ export function InteractionButton({
     setSaving(false)
     setStatusError(false)
     setOpen(false)
+
+    if (rpcArgs.p_received_christ) celebrationSaved()
 
     if (searchParams.has('interaction')) {
       const nextParams =

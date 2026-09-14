@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 
 const changed = 'community-invitations-changed'
 export function invitationsChanged() { window.dispatchEvent(new Event(changed)) }
-const Context = createContext<{ initial: number; reminders: number } | null>(null)
+const Context = createContext<{ initial: number; reminders: number; groups: number } | null>(null)
 
 export function InviteAttentionProvider({ children }: { children: ReactNode }) {
-  const [counts, setCounts] = useState<{ initial: number; reminders: number } | null>(null)
+  const [counts, setCounts] = useState<{ initial: number; reminders: number; groups: number } | null>(null)
   useEffect(() => {
     let disposed = false, running = false, dirty = false, last = 0
     let retry: ReturnType<typeof setTimeout> | undefined
@@ -18,7 +18,7 @@ export function InviteAttentionProvider({ children }: { children: ReactNode }) {
       if (!force && Date.now() - last < 30000) return
       running = true
       try {
-        const { data, error } = await createClient().rpc('community_invite_counts')
+        const { data, error } = await createClient().rpc('community_workspace_counts')
         if (!disposed) setCounts(error ? null : data)
       } catch { if (!disposed) setCounts(null) }
       finally {
@@ -44,8 +44,9 @@ export function InviteAttentionProvider({ children }: { children: ReactNode }) {
   return <Context.Provider value={counts}>{children}</Context.Provider>
 }
 
-export function InviteBadge({ inline = false }: { inline?: boolean }) {
+export function InviteBadge({ inline = false, kind = 'invitations' }: { inline?: boolean; kind?: 'invitations' | 'groups' | 'total' }) {
   const counts = useContext(Context)
-  if (!counts?.initial) return null
-  return <span aria-label={`${counts.initial} invitations assigned to you need an invitation`} className={`${inline ? 'inline-flex' : 'absolute -right-3 -top-1 flex'} h-4 min-w-4 items-center justify-center rounded-full bg-[#d92d20] px-1 text-[9px] font-extrabold leading-none text-white`}>{counts.initial}</span>
+  const count = !counts ? 0 : kind === 'groups' ? counts.groups : kind === 'total' ? counts.initial + counts.groups : counts.initial
+  if (!count) return null
+  return <span aria-label={`${count} ${kind === 'groups' ? 'group attendance follow-ups' : kind === 'total' ? 'Community items need attention' : 'invitations need an invitation'}`} className={`${inline ? 'inline-flex' : 'absolute -right-3 -top-1 flex'} h-4 min-w-4 items-center justify-center rounded-full bg-[#d92d20] px-1 text-[9px] font-extrabold leading-none text-white`}>{count}</span>
 }

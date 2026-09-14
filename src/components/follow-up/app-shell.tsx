@@ -197,6 +197,7 @@ export function AppShell({
                 {item.icon}
                 {item.href === '/contacts' && <MyContactAttentionBadge />}
                 {inCommunity && item.label === 'Invitations' && <InviteBadge />}
+                {inCommunity && item.label === 'Groups' && <InviteBadge kind="groups"/>}
               </span>
 
               <span>{item.label}</span>
@@ -334,7 +335,7 @@ export function AppShell({
             ].join(' ')}
           >
             <span className="mb-0.5 block text-xl leading-none">
-              <span className="relative inline-block">{item.icon}{item.href === '/contacts' && <MyContactAttentionBadge />}{inCommunity && item.label === 'Invitations' && <InviteBadge />}</span>
+              <span className="relative inline-block">{item.icon}{item.href === '/contacts' && <MyContactAttentionBadge />}{inCommunity && item.label === 'Invitations' && <InviteBadge />}{inCommunity && item.label === 'Groups' && <InviteBadge kind="groups"/>}</span>
             </span>
 
             {item.label}
@@ -380,7 +381,7 @@ function WorkspaceSwitcher({ community, dark = false }: { community: boolean; da
         {!dark && <span className="block text-[10px] uppercase tracking-[0.12em] text-[#175cd3]">Michigan Cru</span>}
         <span className={`flex items-center gap-2 ${dark ? 'text-xl tracking-tight' : 'text-[21px] tracking-[-0.025em]'}`}>
           <span>{community ? 'Community' : 'Follow Up'}</span>
-          {community ? <MyContactAttentionBadge inline/> : <InviteBadge inline/>}
+          {community ? <MyContactAttentionBadge inline/> : <InviteBadge inline kind="total"/>}
           <svg aria-hidden="true" viewBox="0 0 16 16" className={`h-3.5 w-3.5 shrink-0 transition-transform ${dark ? 'text-white' : 'text-black'} ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m4 6 4 4 4-4" /></svg>
         </span>
       </span>
@@ -389,7 +390,7 @@ function WorkspaceSwitcher({ community, dark = false }: { community: boolean; da
       <nav aria-label="Workspaces">{[{ name: 'Follow Up', href: '/', community: false }, { name: 'Community', href: '/community', community: true }].filter((item) => item.community !== community).map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
         className="flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-extrabold hover:bg-[#f9fafb] focus-visible:outline-2 focus-visible:outline-[#ffcb05]">
         <BrandMark small community={item.community}/><span>{item.name}</span>
-        {item.community ? <InviteBadge inline/> : <MyContactAttentionBadge inline/>}
+        {item.community ? <InviteBadge inline kind="total"/> : <MyContactAttentionBadge inline/>}
       </Link>)}</nav>
     </div>}
   </div>

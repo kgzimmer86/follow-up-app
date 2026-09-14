@@ -10,6 +10,7 @@ import { TextAttemptSession } from '@/components/follow-up/text-attempt-session'
 import { PhotoCleanupProvider } from '@/components/follow-up/photo-cleanup-provider'
 import { MyContactAttentionProvider } from '@/components/follow-up/my-contact-attention'
 import { InviteAttentionProvider } from '@/components/community/invite-attention'
+import { CelebrationListener } from '@/components/community/celebration-listener'
 import { AppShell } from '@/components/follow-up/app-shell'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { AppLoading } from '@/components/follow-up/app-loading'
@@ -145,6 +146,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
 
   return (
     <FilterSession key={user.id} userId={user.id}>
+      <CelebrationListener/>
       <TextAttemptSession userId={user.id}>
         <PhotoCleanupProvider userId={user.id}>
         <MyContactAttentionProvider refreshKey={{}}>

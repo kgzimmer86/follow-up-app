@@ -6,8 +6,6 @@ import { createClient } from '@/lib/supabase/server'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { GroupSettings } from '@/components/community/group-settings'
 import type { CommunityGroup } from '@/lib/community'
-import type { CommunityAttendance, CommunityMember } from '@/lib/community'
-import { communityAttention } from '@/lib/community-attention'
 
 export default async function CommunityPage({ searchParams }: { searchParams: Promise<{ campaign?: string }> }) {
   const access = await getAppAccess()
@@ -57,12 +55,10 @@ async function GroupCounts({ groupId, campaignId, active }: { groupId: string; c
   if (latest.error) throw new Error(latest.error.message)
   // Count shared campaign status only for people currently on this group's roster.
   const studentIds = new Set<string>()
-  const activeMembers: CommunityMember[] = []
   for (let offset = 0; ; offset += 500) {
     const result = await client.from('community_group_memberships').select('id,group_id,student_id,started_on,ended_on').eq('group_id', groupId).is('ended_on', null).order('id').range(offset, offset + 499)
     if (result.error) throw new Error(result.error.message)
     result.data.forEach((member) => studentIds.add(member.student_id))
-    activeMembers.push(...result.data.map((member) => ({ ...member, students: { display_name: '' } })))
     if (result.data.length < 500) break
   }
   const ids = [...studentIds]
@@ -73,17 +69,9 @@ async function GroupCounts({ groupId, campaignId, active }: { groupId: string; c
     involved += result.count ?? 0
   }
   const meeting = latest.data[0]
-  const recentAttendance: CommunityAttendance[] = []
-  if (active && latest.data.length >= 2) {
-    for (let offset = 0; ; offset += 500) {
-      const result = await client.from('community_group_attendance').select('meeting_id,student_id,is_present')
-        .in('meeting_id', latest.data.map((m) => m.id)).order('meeting_id').order('student_id').range(offset, offset + 499)
-      if (result.error) throw new Error(result.error.message)
-      recentAttendance.push(...result.data)
-      if (result.data.length < 500) break
-    }
-  }
-  const needsAttention = communityAttention(activeMembers, latest.data, recentAttendance).length
+  const attention = active ? await client.rpc('community_group_checkin_attention', { p_group: groupId }, { count: 'exact', head: true }) : { count: 0, error: null }
+  if (attention.error) throw new Error(attention.error.message)
+  const needsAttention = attention.count ?? 0
   let attended = 0
   if (meeting) {
     const result = await client.from('community_group_attendance').select('student_id', { count: 'exact', head: true }).eq('meeting_id', meeting.id).eq('is_present', true)

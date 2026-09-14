@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { invitationsChanged } from './invite-attention'
 import { createClient } from '@/lib/supabase/client'
 import { AddAttender, buttonClass } from './group-controls'
 import { cardClass, stripeClass } from './student-card-style'
@@ -31,7 +32,7 @@ export function AttendanceChecklist({ groupId, meetingDate, people, version, rev
     try {
       const { error } = await createClient().rpc('save_community_group_attendance', { p_group_id: groupId, p_meeting_date: meetingDate, p_present_student_ids: [...present], p_roster_student_ids: people.map((p) => p.student_id), p_version: version, p_revision: revision })
       if (error) throw new Error(error.message)
-      setDirty(false); setMessage('Attendance saved.'); router.refresh()
+      setDirty(false); setMessage('Attendance saved.'); invitationsChanged(); router.refresh()
     } catch (e) { setFailed(true); setMessage(`Save failed. ${e instanceof Error ? e.message : 'Your selections are still here. Please retry.'}`) }
     finally { setSaving(false) }
   }

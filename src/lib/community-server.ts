@@ -35,5 +35,12 @@ export async function groupData(group: CommunityGroup, includeAttendance = true)
     if (error) throw new Error(error.message)
     contacts.push(...data)
   }
-  return { members, meetings, attendance, contacts }
+  const attentionIds: string[] = []
+  for (let offset = 0; includeAttendance; offset += 500) {
+    const result = await client.rpc('community_group_checkin_attention', { p_group: group.id }).order('student_id').range(offset, offset + 499)
+    if (result.error) throw new Error(result.error.message)
+    attentionIds.push(...result.data.map((row: { student_id: string }) => row.student_id))
+    if (result.data.length < 500) break
+  }
+  return { members, meetings, attendance, contacts, attentionIds }
 }

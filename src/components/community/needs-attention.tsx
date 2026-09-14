@@ -3,14 +3,15 @@ import { communityAttention } from '@/lib/community-attention'
 import type { CommunityAttendance, CommunityContact, CommunityMeeting, CommunityMember } from '@/lib/community'
 import { cardClass, stripeClass } from './student-card-style'
 
-export function NeedsAttention({ groupId, members, meetings, attendance, contacts }: {
+export function NeedsAttention({ groupId, members, meetings, attendance, contacts, attentionIds }: {
   groupId: string; members: CommunityMember[]; meetings: CommunityMeeting[]; attendance: CommunityAttendance[]; contacts: CommunityContact[]
+  attentionIds: string[]
 }) {
-  const people = communityAttention(members, meetings, attendance)
+  const people = communityAttention(members, meetings, attendance).filter(person => attentionIds.includes(person.studentId))
   return <section className="space-y-3">
     <h3 className="text-xl font-extrabold text-[#15223a]">Needs Attention</h3>
-    <p className="text-sm text-[#667085]">A prompt to check in after two consecutive missed meetings. Only saved attendance since joining or returning to the roster counts.</p>
-    {!people.length && <p className="rounded-2xl border border-[#e4e7ec] bg-white p-5 text-sm text-[#667085]">No one on the current roster has two consecutive recorded absences.</p>}
+    <p className="text-sm text-[#667085]">Check in after two missed meetings. An interaction marked Invited to CG clears the reminder; two more missed meetings bring it back.</p>
+    {!people.length && <p className="rounded-2xl border border-[#e4e7ec] bg-white p-5 text-sm text-[#667085]">No one currently needs a check-in.</p>}
     {people.map((person) => {
       const contact = contacts.find((c) => c.student_id === person.studentId)
       return <article key={person.studentId} className={`${cardClass(contact?.gender_raw ?? null, contact?.status ?? '')} p-4 pl-5`}>

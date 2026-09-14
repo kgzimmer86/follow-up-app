@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { invitationsChanged } from './invite-attention'
 import { createClient } from '@/lib/supabase/client'
 import { secondaryButtonClass } from './group-controls'
 
@@ -21,7 +22,7 @@ export function DeleteMeeting({ groupId, meetingId, meetingDate, version, revisi
         p_group_id: groupId, p_meeting_id: meetingId, p_version: version, p_revision: revision,
       })
       if (error) throw new Error(error.message)
-      router.refresh()
+      invitationsChanged(); router.refresh()
     } catch (e) {
       setError(`Delete failed. ${e instanceof Error ? e.message : 'Please try again.'}`)
       setBusy(false)

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { readInvitationFilters, rememberInvitationFilters } from '@/lib/invitation-filter-memory'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { invitationStatuses, type CommunityEvent } from '@/lib/community-events'
@@ -32,9 +33,14 @@ export function InvitationWorkspace({ mine, events, userId, role, people, areas,
   people: { id: string; display_name: string | null }[]; areas: Area[]; defaultArea: string | null
   groups: { id: string; name: string }[]
 }) {
-  const [eventId, setEventId] = useState(mine ? '' : events.find(e => e.is_open && e.event_date >= ministryToday())?.id ?? events[0]?.id ?? '')
-  const [query, setQuery] = useState(''), [area, setArea] = useState(mine ? '' : defaultArea ?? '')
-  const [filters, setFilters] = useState(() => defaultInvitationFilters(areas.find(a => a.id === defaultArea) ?? null))
+  const memoryKey = `${userId}:${role}:${events[0]?.campaign_id ?? 'none'}:${defaultArea ?? 'all'}`
+  const [remembered] = useState(() => mine ? undefined : readInvitationFilters(memoryKey))
+  const [eventId, setEventId] = useState(mine ? '' : events.some(e => e.id === remembered?.eventId) ? remembered!.eventId : events.find(e => e.is_open && e.event_date >= ministryToday())?.id ?? events[0]?.id ?? '')
+  const [query, setQuery] = useState(remembered?.query ?? ''), [area, setArea] = useState(mine ? '' : defaultArea ?? '')
+  const [filters, setFilters] = useState(() => remembered?.filters ?? defaultInvitationFilters(areas.find(a => a.id === defaultArea) ?? null))
+  useEffect(() => {
+    if (!mine) rememberInvitationFilters(memoryKey, { eventId, query, filters })
+  }, [mine, memoryKey, eventId, query, filters])
   const [spatialOptions, setSpatialOptions] = useState<{ floors: string[]; wings: string[] }>({ floors: [], wings: [] })
   const [page, setPage] = useState(1), [refresh, setRefresh] = useState(0)
   const [result, setResult] = useState<{ rows: Row[]; total: number } | null>(null)

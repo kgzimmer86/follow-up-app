@@ -14,6 +14,7 @@ import { MyContactAttentionBadge } from '@/components/follow-up/my-contact-atten
 import { InviteBadge } from '@/components/community/invite-attention'
 import { AddPersonModal } from '@/components/follow-up/add-person-modal'
 import { communityContext } from '@/lib/workspace-navigation'
+import { clearInvitationFilters } from '@/lib/invitation-filter-memory'
 
 type AppShellProps = {
   children: ReactNode
@@ -31,6 +32,9 @@ export function AppShell({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const inCommunity = communityContext(pathname, searchParams.get('from'))
+  useEffect(() => {
+    if (!inCommunity) clearInvitationFilters()
+  }, [inCommunity])
   const router = useRouter()
   const [profileMenuOpen, setProfileMenuOpen] =
     useState(false)

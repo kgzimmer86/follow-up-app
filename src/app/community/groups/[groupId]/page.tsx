@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Form from 'next/form'
+import { PeopleView } from '@/components/community/people-view'
 import { cardClass, stripeClass } from '@/components/community/student-card-style'
 import { DiscipleBackButton } from '@/components/follow-up/disciple-back-button'
 import { isMeetingDateAllowed } from '@/lib/campaign-state'
@@ -67,6 +68,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
       {editable && <AddAttender groupId={groupId} date={ministryToday()}/>}
       {filter && <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm"><p className="font-extrabold text-[#475467]">{filterLabel} · {filteredPeople.length}</p><Link className="inline-flex min-h-11 items-center font-bold text-[#175cd3]" href={`/community/groups/${groupId}?tab=people`}>Show all people</Link></div>}
       {!filteredPeople.length && <p className="rounded-xl border border-[#e4e7ec] bg-white p-6 text-sm text-[#667085]">{filter ? 'No people match this filter.' : 'Add your first attender to start a lasting roster.'}</p>}
+      <PeopleView people={filteredPeople} members={members} meetings={meetings} attendance={attendance}>
       <div className="space-y-3">{filteredPeople.map((m) => {
         const active = members.some((p) => p.student_id === m.student_id && !p.ended_on)
         const contact = contacts.find((c) => c.student_id === m.student_id)
@@ -79,6 +81,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
           {editable && <MemberActions groupId={groupId} studentId={m.student_id} involved={contact?.status === 'involved'} active={active} date={ministryToday()}/>}
         </article>
       })}</div>
+      </PeopleView>
     </>}
     {tab === 'history' && <section className="space-y-3">{!meetings.length && <p>No attendance has been saved yet.</p>}{meetings.map((m) => {
       const entries = attendance.filter((a) => a.meeting_id === m.id)

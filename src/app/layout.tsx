@@ -17,6 +17,7 @@ import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { AppLoading } from '@/components/follow-up/app-loading'
 import { InteractionFeedback } from '@/components/interaction-feedback'
 import { appleStartupImages } from '@/lib/startup-images'
+import { TestEnvironmentBanner } from '@/components/follow-up/test-environment-banner'
 
 export const metadata: Metadata = {
   title: 'Follow Up | Michigan Cru',
@@ -69,6 +70,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <TestEnvironmentBanner />
         <InteractionFeedback />
         <Suspense fallback={<AppLoading />}>
           <AppRuntime>{children}</AppRuntime>

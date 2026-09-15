@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import {
+  memo,
+  useCallback,
   useMemo,
   useState,
 } from 'react'
@@ -12,6 +14,7 @@ import {
 
 import { createClient } from '@/lib/supabase/client'
 import { contactDisplayName } from '@/lib/contact-name'
+import { AssignmentAssigneeSelect, type AssignmentOption } from './assignment-assignee-select'
 
 type Assignee = {
   id: string
@@ -118,6 +121,16 @@ export function ContactAssignmentWorkspace({
     [initialWorkspace.assignees]
   )
 
+  const assigneeOptions = useMemo(() => initialWorkspace.assignees.map(assignee => ({
+    id: assignee.id,
+    label: `${assignee.display_name} • ${formatRole(assignee.role)}${assignee.area_name ? ` • ${assignee.area_name}` : ''}`,
+  })), [initialWorkspace.assignees])
+  const searchIndex = useMemo(() => new Map(contacts.map(contact => [contact.id, [
+    contactDisplayName(contact.display_name), contact.primary_owner_name,
+    contact.location_name, contact.house_name, contact.room_or_address,
+  ].filter(Boolean).join(' ').toLowerCase()])), [contacts])
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+
   const visibleContacts = useMemo(() => {
     const normalizedQuery =
       query.trim().toLowerCase()
@@ -141,18 +154,7 @@ export function ContactAssignmentWorkspace({
         return true
       }
 
-      const searchable = [
-        contactDisplayName(contact.display_name),
-        contact.primary_owner_name,
-        contact.location_name,
-        contact.house_name,
-        contact.room_or_address,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-
-      return searchable.includes(
+      return searchIndex.get(contact.id)!.includes(
         normalizedQuery
       )
     })
@@ -160,11 +162,12 @@ export function ContactAssignmentWorkspace({
     contacts,
     query,
     assignmentFilter,
+    searchIndex,
   ])
 
-  const unassignedCount = contacts.filter(
+  const unassignedCount = useMemo(() => contacts.filter(
     (contact) => !contact.primary_owner_id
-  ).length
+  ).length, [contacts])
 
   const assignedCount =
     contacts.length - unassignedCount
@@ -173,7 +176,7 @@ export function ContactAssignmentWorkspace({
     visibleContacts
       .map((contact) => contact.id)
       .filter((id) =>
-        selectedIds.includes(id)
+        selectedSet.has(id)
       )
 
   const allVisibleSelected =
@@ -181,7 +184,7 @@ export function ContactAssignmentWorkspace({
     selectedVisibleIds.length ===
       visibleContacts.length
 
-  async function assignContacts(
+  const assignContacts = useCallback(async function assignContacts(
     contactIds: string[],
     assigneeId: string,
     savingKey: string
@@ -218,10 +221,11 @@ export function ContactAssignmentWorkspace({
 
     const assignee =
       assigneeMap.get(assigneeId)
+    const assignedIds = new Set(contactIds)
 
     setContacts((current) =>
       current.map((contact) =>
-        contactIds.includes(contact.id)
+        assignedIds.has(contact.id)
           ? {
               ...contact,
               primary_owner_id:
@@ -246,7 +250,7 @@ export function ContactAssignmentWorkspace({
 
     setSelectedIds((current) =>
       current.filter(
-        (id) => !contactIds.includes(id)
+        (id) => !assignedIds.has(id)
       )
     )
 
@@ -262,9 +266,9 @@ export function ContactAssignmentWorkspace({
     )
 
     setSaving(null)
-  }
+  }, [assigneeMap])
 
-  function toggleSelected(
+  const toggleSelected = useCallback(function toggleSelected(
     contactId: string,
     checked: boolean
   ) {
@@ -279,17 +283,18 @@ export function ContactAssignmentWorkspace({
         (id) => id !== contactId
       )
     })
-  }
+  }, [])
+
+  const chooseRowAssignee = useCallback((contactId: string, assigneeId: string) => {
+    setRowAssignees(current => ({ ...current, [contactId]: assigneeId }))
+  }, [])
 
   function toggleAllVisible() {
     setSelectedIds((current) => {
       if (allVisibleSelected) {
+        const visibleIds = new Set(visibleContacts.map(contact => contact.id))
         return current.filter(
-          (id) =>
-            !visibleContacts.some(
-              (contact) =>
-                contact.id === id
-            )
+          (id) => !visibleIds.has(id)
         )
       }
 
@@ -556,10 +561,8 @@ export function ContactAssignmentWorkspace({
                   key={contact.id}
                   contact={contact}
                   returnTo={returnTo}
-                  assignees={
-                    initialWorkspace.assignees
-                  }
-                  selected={selectedIds.includes(
+                  assigneeOptions={assigneeOptions}
+                  selected={selectedSet.has(
                     contact.id
                   )}
                   selectedAssigneeId={
@@ -570,34 +573,9 @@ export function ContactAssignmentWorkspace({
                   saving={
                     saving === contact.id
                   }
-                  onSelectedChange={(
-                    checked
-                  ) =>
-                    toggleSelected(
-                      contact.id,
-                      checked
-                    )
-                  }
-                  onAssigneeChange={(
-                    assigneeId
-                  ) =>
-                    setRowAssignees(
-                      (current) => ({
-                        ...current,
-                        [contact.id]:
-                          assigneeId,
-                      })
-                    )
-                  }
-                  onSave={() =>
-                    assignContacts(
-                      [contact.id],
-                      rowAssignees[
-                        contact.id
-                      ] ?? '',
-                      contact.id
-                    )
-                  }
+                  onSelectedChange={toggleSelected}
+                  onAssigneeChange={chooseRowAssignee}
+                  onSave={assignContacts}
                 />
               )
             )}
@@ -608,10 +586,10 @@ export function ContactAssignmentWorkspace({
   )
 }
 
-function ContactAssignmentRow({
+const ContactAssignmentRow = memo(function ContactAssignmentRow({
   contact,
   returnTo,
-  assignees,
+  assigneeOptions,
   selected,
   selectedAssigneeId,
   saving,
@@ -621,17 +599,19 @@ function ContactAssignmentRow({
 }: {
   contact: AssignableContact
   returnTo: string
-  assignees: Assignee[]
+  assigneeOptions: AssignmentOption[]
   selected: boolean
   selectedAssigneeId: string
   saving: boolean
   onSelectedChange: (
+    contactId: string,
     checked: boolean
   ) => void
   onAssigneeChange: (
+    contactId: string,
     assigneeId: string
   ) => void
-  onSave: () => void
+  onSave: (ids: string[], assigneeId: string, savingKey: string) => Promise<void>
 }) {
   const isAssigned =
     Boolean(contact.primary_owner_id)
@@ -662,6 +642,7 @@ function ContactAssignmentRow({
           checked={selected}
           onChange={(event) =>
             onSelectedChange(
+              contact.id,
               event.target.checked
             )
           }
@@ -756,40 +737,13 @@ function ContactAssignmentRow({
           </div>
 
           <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-            <select
+            <AssignmentAssigneeSelect
               value={selectedAssigneeId}
               disabled={saving}
-              onChange={(event) =>
-                onAssigneeChange(
-                  event.target.value
-                )
-              }
-              className="w-full rounded-[11px] border border-[#d0d5dd] bg-white px-3 py-2.5 text-sm font-semibold text-[#15223a]"
-            >
-              <option value="">
-                {isAssigned
-                  ? 'Choose new assignee...'
-                  : 'Choose assignee...'}
-              </option>
-
-              {assignees.map(
-                (assignee) => (
-                  <option
-                    key={assignee.id}
-                    value={assignee.id}
-                  >
-                    {assignee.display_name}
-                    {' • '}
-                    {formatRole(
-                      assignee.role
-                    )}
-                    {assignee.area_name
-                      ? ` • ${assignee.area_name}`
-                      : ''}
-                  </option>
-                )
-              )}
-            </select>
+              options={assigneeOptions}
+              placeholder={isAssigned ? 'Choose new assignee...' : 'Choose assignee...'}
+              onChange={assigneeId => onAssigneeChange(contact.id, assigneeId)}
+            />
 
             <button
               type="button"
@@ -799,7 +753,7 @@ function ContactAssignmentRow({
                 selectedAssigneeId ===
                   contact.primary_owner_id
               }
-              onClick={onSave}
+              onClick={() => onSave([contact.id], selectedAssigneeId, contact.id)}
               className="rounded-[11px] bg-[#00274c] px-4 py-2.5 text-sm font-extrabold text-white disabled:opacity-40"
             >
               {saving
@@ -813,7 +767,7 @@ function ContactAssignmentRow({
       </div>
     </article>
   )
-}
+})
 
 function FilterSummaryCard({
   value,

@@ -189,4 +189,49 @@ test('staff handoffs, personal coaching, and owner-specific attention', async (t
     const rights=(await db.query("select has_function_privilege('anon','public.get_my_contact_attention_list(text,integer)','EXECUTE') a,has_function_privilege('authenticated','public.get_my_contact_attention_list(text,integer)','EXECUTE') b,has_function_privilege('authenticated','private.my_contact_attention_rows()','EXECUTE') c")).rows[0]
     assert.deepEqual(rights,{a:false,b:true,c:false})
   })
+
+  await t.test('bounded assignment reader exactly matches installed permissions and keeps the original function intact', async () => {
+    const before = (await db.query("select pg_get_functiondef('get_contact_assignment_workspace()'::regprocedure) def")).rows[0].def
+    const performanceSql = await readFile(new URL('../migrations/20260918_loading_performance.sql', import.meta.url), 'utf8')
+    await db.exec(performanceSql)
+    await db.exec(performanceSql)
+    assert.equal((await db.query("select pg_get_functiondef('get_contact_assignment_workspace()'::regprocedure) def")).rows[0].def, before)
+    // Large eligible pool, multiple pages, out-of-area/closed/not-interested,
+    // and contacts owned by staff vs ordinary disciples all share the old rules.
+    for (let i = 0; i < 110; i++) await makeContact({ area: i % 2 ? north : central, owner: i % 3 ? student : recipient })
+    const ids = (await db.query('select id from follow_up_contacts order by id')).rows.map(row => row.id)
+    for (const actor of [admin, staff, recipient, discipler]) {
+      await asUser(actor)
+      const full = await rpc('get_contact_assignment_workspace')
+      for (let offset = 0; offset < ids.length; offset += 50) {
+        const pageIds = ids.slice(offset, offset + 50)
+        const page = await rpc('get_contact_assignment_page', [pageIds])
+        assert.deepEqual(page, { ...full, contacts: full.contacts.filter(c => pageIds.includes(c.id)) })
+        assert(page.contacts.length <= 50)
+      }
+      const empty = await rpc('get_contact_assignment_page', [[]])
+      assert.deepEqual(empty, { ...full, contacts: [] })
+      assert.deepEqual((await rpc('get_contact_assignment_page', [[randomUUID(), null]])).contacts, [])
+    }
+    // Affinity membership uses the same installed permission branch.
+    const affinity = randomUUID()
+    await db.query("insert into ministry_areas(id,name,area_type) values($1,'Affinity','affinity')", [affinity])
+    await db.query('update profile_ministry_area_assignments set ministry_area_id=$1 where profile_id=$2', [affinity, staff])
+    await db.query('insert into follow_up_contact_affinities values($1,$2)', [ids[0], affinity])
+    await asUser(staff)
+    const full = await rpc('get_contact_assignment_workspace')
+    assert.deepEqual(await rpc('get_contact_assignment_page', [ids.slice(0, 50)]), { ...full, contacts: full.contacts.filter(c => ids.slice(0, 50).includes(c.id)) })
+    await assert.rejects(rpc('get_contact_assignment_page', [null]), /at most 50/)
+    await assert.rejects(rpc('get_contact_assignment_page', [Array(51).fill(ids[0])]), /at most 50/)
+    for (const actor of [student, inactive, pending, null]) {
+      await asUser(actor)
+      await assert.rejects(rpc('get_contact_assignment_page', [ids.slice(0, 50)]), /access required|signed in/)
+    }
+    const rights = (await db.query("select has_function_privilege('anon','get_contact_assignment_page(uuid[])','execute') anon, has_function_privilege('authenticated','get_contact_assignment_page(uuid[])','execute') approved")).rows[0]
+    assert.deepEqual(rights, { anon: false, approved: true })
+    // A changed installed definition fails closed instead of patching another query.
+    await db.exec(before.replace("c.status <> 'not_interested'", "c.status != 'not_interested'"))
+    await assert.rejects(db.exec(performanceSql), /differs from the verified shape/)
+    await db.exec('rollback')
+  })
 })

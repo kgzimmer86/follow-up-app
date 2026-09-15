@@ -18,7 +18,9 @@ export async function ContactCommunity({ studentId, campaignId, status }: { stud
   return <section className="space-y-4"><p className="text-sm font-bold">Ministry status: {status.replaceAll('_', ' ')}</p>
     {!groups.length && <p>No visible groups in this campaign.</p>}
     {await Promise.all((groups as CommunityGroup[]).map(async (g) => {
-      const { members, meetings, attendance } = await groupData(g)
+      const { members, meetings, attendance } = await groupData(g, {
+        studentId, contacts: false, attention: false,
+      })
       const periods = members.filter((m) => m.student_id === studentId)
       const active = periods.some((p) => !p.ended_on)
       const stats = attendanceSummary(studentId, meetings, attendance)

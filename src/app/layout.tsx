@@ -117,22 +117,14 @@ async function AppRuntime({ children }: { children: ReactNode }) {
   if (campaign) {
     const { data: assignment } = await supabase
       .from('profile_ministry_area_assignments')
-      .select('ministry_area_id')
+      .select('ministry_area_id, ministry_areas(name)')
       .eq('campaign_id', campaign.id)
       .eq('profile_id', user.id)
       .eq('is_default', true)
       .maybeSingle()
 
     if (assignment?.ministry_area_id) {
-      const { data: area } = await supabase
-        .from('ministry_areas')
-        .select('name')
-        .eq(
-          'id',
-          assignment.ministry_area_id
-        )
-        .maybeSingle()
-
+      const area = assignment.ministry_areas as unknown as { name: string } | null
       if (area?.name) {
         areaLabel = area.name
       }

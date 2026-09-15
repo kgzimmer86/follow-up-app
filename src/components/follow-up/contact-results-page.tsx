@@ -23,6 +23,8 @@ import type { ReactNode } from 'react'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getAppAccess } from '@/lib/supabase/access'
+import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { contactDisplayName } from '@/lib/contact-name'
 import { MyContactAttentionSection } from '@/components/follow-up/my-contact-attention'
 import { InteractionButton } from '@/components/follow-up/interaction-button'
@@ -393,30 +395,19 @@ export async function ContactResultsPage({
 
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/')
-  }
-
-  const userId = user.id
-
-  const { data: profile } =
-    await supabase
-      .from('profiles')
-      .select('display_name, role, is_active')
-      .eq('id', userId)
-      .maybeSingle()
+  const access = await getAppAccess()
+  if (access.status === 'unavailable') return <LoadRecovery />
+  const { user, profile } = access
 
   if (
-    !profile ||
+    !user || !profile ||
     profile.role === 'pending' ||
     !profile.is_active
   ) {
     redirect('/')
   }
+
+  const userId = user.id
 
   // Explicit result URLs are snapshots, including an explicitly empty set.
   // A fresh smart-card visit restores only this user's personal context.
@@ -563,64 +554,6 @@ export async function ContactResultsPage({
     if (results.campaign_id !== communityScope.campaignId) redirect(communityScope.backHref)
   }
 
-  let assignmentAssignees:
-    AssignmentAssignee[] = []
-  let editableAssignmentContactIds =
-    new Set<string>()
-
-  if (
-    displayMode === 'sheet' &&
-    ['discipler', 'staff', 'admin'].includes(
-      profile.role
-    )
-  ) {
-    const {
-      data: assignmentWorkspaceData,
-      error: assignmentWorkspaceError,
-    } = await supabase.rpc(
-      'get_contact_assignment_workspace'
-    )
-
-    if (assignmentWorkspaceError) {
-      throw new Error(
-        assignmentWorkspaceError.message
-      )
-    }
-
-    const assignmentWorkspace =
-      assignmentWorkspaceData as AssignmentWorkspace
-
-    assignmentAssignees = [
-      ...assignmentWorkspace.assignees,
-    ]
-
-    if (
-      !assignmentAssignees.some(
-        (assignee) => assignee.id === userId
-      )
-    ) {
-      assignmentAssignees = [
-        {
-          id: userId,
-          display_name:
-            profile.display_name?.trim() ||
-            user.email?.split('@')[0] ||
-            'Me',
-          role: profile.role,
-          area_name: null,
-        },
-        ...assignmentAssignees,
-      ]
-    }
-
-    editableAssignmentContactIds =
-      new Set(
-        assignmentWorkspace.contacts.map(
-          (contact) => contact.id
-        )
-      )
-  }
-
   const totalVisibleContacts =
     Number(results.total_count) || 0
 
@@ -736,30 +669,94 @@ export async function ContactResultsPage({
       display_name: contactDisplayName(contact.display_name),
     })) as ContactResultRow[]
 
+  const pageContactIds = paginatedContacts.map(contact => contact.id)
+  const needsSpreadsheetEventHistory = selectedSpreadsheetColumns.some((column) => [
+    'text_cg', 'text_acg', 'text_appointment', 'text_event', 'text_follow_up', 'invited_cg',
+  ].includes(column))
+  const [assignmentRead, preferencesRead, roommateSources, spreadsheetEventsRead] = await Promise.all([
+    displayMode === 'sheet' && ['discipler', 'staff', 'admin'].includes(profile.role)
+      ? (async () => {
+        const result = await supabase.rpc('get_contact_assignment_page', { p_contact_ids: pageContactIds })
+        // SQL is installed manually. Only a missing RPC uses the original reader.
+        return result.error?.code === 'PGRST202'
+          ? await supabase.rpc('get_contact_assignment_workspace') : result
+      })() : null,
+    view === 'cg' && pageContactIds.length
+      ? supabase.from('follow_up_contacts').select('id, cg_text_invite_only').in('id', pageContactIds) : null,
+    loadRoommateSources(supabase, pageContactIds),
+    displayMode === 'sheet' && pageContactIds.length && needsSpreadsheetEventHistory
+      ? supabase.from('follow_up_events')
+        .select('contact_id, event_type, text_purposes, text_event_name, invited_to_community_group, occurred_at')
+        .in('contact_id', pageContactIds) : null,
+  ])
+
+  let assignmentAssignees:
+    AssignmentAssignee[] = []
+  let editableAssignmentContactIds =
+    new Set<string>()
+
+  if (
+    displayMode === 'sheet' &&
+    ['discipler', 'staff', 'admin'].includes(
+      profile.role
+    )
+  ) {
+    const { data: assignmentWorkspaceData, error: assignmentWorkspaceError } = assignmentRead!
+
+    if (assignmentWorkspaceError) {
+      throw new Error(
+        assignmentWorkspaceError.message
+      )
+    }
+
+    const assignmentWorkspace =
+      assignmentWorkspaceData as AssignmentWorkspace
+
+    assignmentAssignees = [
+      ...assignmentWorkspace.assignees,
+    ]
+
+    if (
+      !assignmentAssignees.some(
+        (assignee) => assignee.id === userId
+      )
+    ) {
+      assignmentAssignees = [
+        {
+          id: userId,
+          display_name:
+            profile.display_name?.trim() ||
+            user.email?.split('@')[0] ||
+            'Me',
+          role: profile.role,
+          area_name: null,
+        },
+        ...assignmentAssignees,
+      ]
+    }
+
+    editableAssignmentContactIds =
+      new Set(
+        assignmentWorkspace.contacts.map(
+          (contact) => contact.id
+        )
+      )
+  }
+
   // Read only for this smart list; preferences never alter result eligibility or other views.
   const cgTextOnlyIds = new Set<string>()
   if (view === 'cg' && paginatedContacts.length) {
-    const { data: preferences, error: preferenceError } = await supabase
-      .from('follow_up_contacts').select('id, cg_text_invite_only')
-      .in('id', paginatedContacts.map((contact) => contact.id))
+    const { data: preferences, error: preferenceError } = preferencesRead!
     if (preferenceError || preferences?.length !== paginatedContacts.length) {
       throw new Error('Couldn’t load Community Group invitation preferences. Please retry.')
     }
     for (const preference of preferences) if (preference.cg_text_invite_only) cgTextOnlyIds.add(preference.id)
   }
 
-  const roommateSources = await loadRoommateSources(supabase, paginatedContacts.map((contact) => contact.id))
-
   const spreadsheetTextHistory: SpreadsheetTextHistory = new Map()
   const spreadsheetInvitedHistory: SpreadsheetInvitedHistory = new Map()
-  const needsSpreadsheetEventHistory = selectedSpreadsheetColumns.some((column) => [
-    'text_cg', 'text_acg', 'text_appointment', 'text_event', 'text_follow_up', 'invited_cg',
-  ].includes(column))
   if (displayMode === 'sheet' && paginatedContacts.length > 0 && needsSpreadsheetEventHistory) {
-    const { data: spreadsheetEventData, error: spreadsheetEventError } = await supabase
-      .from('follow_up_events')
-      .select('contact_id, event_type, text_purposes, text_event_name, invited_to_community_group, occurred_at')
-      .in('contact_id', paginatedContacts.map((contact) => contact.id))
+    const { data: spreadsheetEventData, error: spreadsheetEventError } = spreadsheetEventsRead!
 
     if (spreadsheetEventError) {
       throw new Error(spreadsheetEventError.message)

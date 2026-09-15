@@ -41,6 +41,90 @@ async function setup(t) {
   return { db, ids, asUser, rpc, today }
 }
 
+test('batched group summaries match existing counts, preserve RLS and reflect history changes', async t => {
+  const { db, ids, asUser } = await setup(t)
+  const { group, second, campaign, admin, leader, outsider, student, duplicate, former, never } = ids
+  await db.exec(`create table follow_up_events(id uuid default gen_random_uuid(),contact_id uuid,event_type text,occurred_at timestamptz,invited_to_community_group boolean);
+    create function private.invitation_user_role() returns text language sql as $$select role from public.profiles where id=auth.uid() and is_active$$;`)
+  await migration(db, '20260917_community_checkin_attention')
+  const performanceSql = await readFile(new URL('../migrations/20260918_loading_performance.sql', import.meta.url), 'utf8')
+  // The complete migration/shape guard is exercised in staff-handoffs.test.mjs.
+  await db.exec(performanceSql.slice(performanceSql.indexOf('create or replace function public.get_community_group_summaries'), performanceSql.indexOf('notify pgrst')))
+  await db.exec('grant usage on schema auth to authenticated; grant select on profiles,follow_up_campaigns,follow_up_contacts to authenticated;')
+  await db.query("update community_group_memberships set started_on=current_date-40")
+  await db.query("update follow_up_contacts set status='involved' where student_id=any($1)", [[student, former]])
+  const meetings = []
+  for (let i = 5; i > 0; i--) {
+    const meeting = (await db.query('insert into community_group_meetings(group_id,meeting_date) values($1,current_date-$2::int) returning id', [group, i])).rows[0].id
+    meetings.push(meeting)
+    for (const person of [student, duplicate, former]) await db.query('insert into community_group_attendance(meeting_id,student_id,is_present) values($1,$2,$3)', [meeting, person, person !== student || i > 2])
+  }
+  const requested = [group, second]
+  const summaries = async (groups = requested) => (await db.query('select * from get_community_group_summaries($1)', [groups])).rows
+  const oldCounts = async g => (await db.query(`select g.id group_id,
+    (select max(meeting_date) from community_group_meetings where group_id=g.id) latest_meeting_date,
+    (select count(*) from follow_up_contacts c where c.campaign_id=g.campaign_id and c.status='involved'
+      and c.student_id in(select student_id from community_group_memberships where group_id=g.id and ended_on is null)) involved,
+    (select count(*) from community_group_attendance where is_present and meeting_id=(select id from community_group_meetings where group_id=g.id order by meeting_date desc limit 1)) attended,
+    (select count(distinct a.student_id) from community_group_attendance a join community_group_meetings m on m.id=a.meeting_id where m.group_id=g.id and a.is_present) ever_attended,
+    case when g.is_active and year.status='active' then (select count(*) from community_group_checkin_attention(g.id)) else 0 end needs_attention
+    from community_groups g join follow_up_campaigns year on year.id=g.campaign_id where g.id=$1`, [g])).rows[0]
+  await asUser(admin)
+  await db.exec('set role authenticated')
+  for (const row of await summaries()) assert.deepEqual(row, await oldCounts(row.group_id))
+  const first = (await summaries()).find(r => r.group_id === group)
+  assert.deepEqual([Number(first.involved), Number(first.attended), Number(first.ever_attended), Number(first.needs_attention)], [1, 2, 3, 1])
+  assert.equal((await summaries()).find(r => r.group_id === second).latest_meeting_date, null)
+  await db.exec('reset role')
+  // Ended memberships stay in Ever attended; rejoining does not double count.
+  await db.query('insert into community_group_memberships(group_id,student_id,started_on) values($1,$2,current_date)', [group, former])
+  await db.exec('set role authenticated')
+  assert.equal(Number((await summaries()).find(r => r.group_id === group).involved), 2)
+  await db.exec('reset role')
+  await db.query("insert into follow_up_events(contact_id,event_type,occurred_at,invited_to_community_group) select id,'interaction',now(),true from follow_up_contacts where student_id=$1 and campaign_id=$2", [student, campaign])
+  await db.exec('set role authenticated')
+  assert.equal(Number((await summaries()).find(r => r.group_id === group).needs_attention), 0)
+  await db.exec('reset role')
+  // More than 1,000 records: the summary counts the full history without sending it.
+  for (let n = 0; n < 550; n++) {
+    await db.query('insert into community_group_attendance(meeting_id,student_id,is_present) values($1,$2,true)', [meetings[0], (await db.query('insert into students(id) values(gen_random_uuid()) returning id')).rows[0].id])
+    await db.query('insert into community_group_attendance(meeting_id,student_id,is_present) values($1,$2,true)', [meetings[1], (await db.query('insert into students(id) values(gen_random_uuid()) returning id')).rows[0].id])
+  }
+  await db.exec('set role authenticated')
+  assert.equal(Number((await summaries()).find(r => r.group_id === group).ever_attended), 1103)
+  await db.exec('reset role')
+  await db.query('delete from community_group_meetings where id=$1', [meetings.at(-1)])
+  await db.query("update follow_up_campaigns set status='archived' where id=$1", [campaign])
+  await db.exec('set role authenticated')
+  for (const row of await summaries()) assert.deepEqual(row, await oldCounts(row.group_id))
+  assert.equal(Number((await summaries()).find(r => r.group_id === group).needs_attention), 0)
+  await db.exec('reset role')
+  await asUser(leader)
+  await db.exec('set role authenticated')
+  assert.deepEqual((await summaries()).map(r => r.group_id), [group])
+  await db.exec('reset role')
+  await asUser(outsider)
+  // Give the outsider an archived-campaign default too (no default means all campus).
+  await db.exec('set role authenticated')
+  assert.deepEqual(await summaries(), [])
+  await db.exec('reset role')
+  await asUser(admin)
+  // A separate contact RLS restriction must also be honored by Involved counts.
+  await db.exec('alter table follow_up_contacts enable row level security; create policy no_contact_reads on follow_up_contacts for select to authenticated using(false); set role authenticated;')
+  assert.equal(Number((await summaries()).find(r => r.group_id === group).involved), 0)
+  await assert.rejects(summaries(null), /at most 100/)
+  await assert.rejects(summaries(Array(101).fill(group)), /at most 100/)
+  assert.deepEqual(await summaries([]), [])
+  await db.exec('reset role')
+  await db.query('update profiles set is_active=false where id=$1', [admin])
+  await db.exec('set role authenticated')
+  await assert.rejects(summaries(), /approved account/)
+  await db.exec('reset role; set role anon')
+  await assert.rejects(summaries(), /permission denied/)
+  await db.exec('reset role')
+  assert(!(await db.query('select student_id from community_group_attendance')).rows.some(r => r.student_id === never))
+})
+
 test('campaign events: permissions, shared responses, stale edits, archives and merge preservation', async t => {
   const { db, ids, asUser, rpc, today } = await setup(t)
   const { campaign, oldCampaign, north, south, admin, staff, leader, otherLeader, outsider, student, duplicate, former, group, second } = ids

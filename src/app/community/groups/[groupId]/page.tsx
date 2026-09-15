@@ -33,11 +33,20 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
   const year = campaign as CommunityCampaign
   if (query.tab === 'events') redirect(`/community/events?${new URLSearchParams({ campaign: year.id, group: groupId, ...(query.event ? { event: query.event } : {}) })}`)
   const editable = year.status === 'active' && group.is_active
-  const { members, meetings, attendance, contacts, attentionIds } = await groupData(group)
-  const attentionCount = editable ? attentionIds.length : 0
-  const date = validMeetingDate(query.date, editable ? ministryToday() : meetings[0]?.meeting_date ?? year.ends_on)
-  const dateAllowed = isMeetingDateAllowed(query.date ?? date, year.starts_on, year.ends_on, ministryToday())
   const tab = ['people', 'history', 'settings', ...(editable ? ['attention'] : [])].includes(query.tab ?? '') ? query.tab : 'attendance'
+  const today = ministryToday()
+  const selectedDate = (meetings: { meeting_date: string }[]) => validMeetingDate(query.date, editable ? today : meetings[0]?.meeting_date ?? year.ends_on)
+  const { members, meetings, attendance, contacts, attentionIds } = await groupData(group, {
+    members: tab !== 'settings' && tab !== 'history',
+    contacts: tab !== 'settings' && tab !== 'history',
+    attendance: tab !== 'settings',
+    attention: editable,
+    // Navigation still uses the same dates; the checklist only needs this meeting.
+    attendanceDate: tab === 'attendance' ? selectedDate : undefined,
+  })
+  const attentionCount = editable ? attentionIds.length : 0
+  const date = selectedDate(meetings)
+  const dateAllowed = isMeetingDateAllowed(query.date ?? date, year.starts_on, year.ends_on, ministryToday())
   const people = attendanceRoster(members, meetings, attendance, date).map((person) => {
     const contact = contacts.find((c) => c.student_id === person.student_id)
     return { ...person, gender: contact?.gender_raw ?? null, status: contact?.status ?? '' }

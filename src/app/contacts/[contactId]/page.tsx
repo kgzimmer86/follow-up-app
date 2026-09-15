@@ -152,7 +152,6 @@ export default async function ContactDetailPage({
 
   const supabase = await createClient()
   const userId = user.id
-  const roommateSources = await loadRoommateSources(supabase, [contactId])
 
   const {
     data: contactData,
@@ -198,16 +197,27 @@ export default async function ContactDetailPage({
   const contact =
     contactData as ContactRow
 
-  const {
-    data: studentData,
-    error: studentError,
-  } = await supabase
-    .from('students')
-    .select(
-      'id, uniqname, display_name, umich_email'
-    )
-    .eq('id', contact.student_id)
-    .maybeSingle()
+  // Once the contact is verified, these reads are independent. Keep the same
+  // signed-in client and error checks, without serial database round trips.
+  const [studentResult, areasResult, affinityResult, eventsResult, roommateSources] = await Promise.all([
+    supabase
+      .from('students')
+      .select('id, uniqname, display_name, umich_email')
+      .eq('id', contact.student_id)
+      .maybeSingle(),
+    supabase.from('ministry_areas').select('id, name, area_type, parent_id').eq('is_active', true),
+    supabase.from('follow_up_contact_affinities').select('contact_id, ministry_area_id').eq('contact_id', contactId),
+    supabase.from('follow_up_events').select(`
+      id, contact_id, performed_by, performed_by_name, event_type, occurred_at,
+      notes, found_home, had_spiritual_conversation, interview_completed,
+      kgp_shared, received_christ, invited_to_community_group,
+      attachment_path, attachment_name, attachment_mime_type, attachment_size_bytes,
+      text_purposes, text_event_name
+    `).eq('contact_id', contactId).order('occurred_at', { ascending: false }),
+    loadRoommateSources(supabase, [contactId]),
+  ])
+
+  const { data: studentData, error: studentError } = studentResult
 
   if (studentError) {
     throw new Error(
@@ -228,12 +238,7 @@ export default async function ContactDetailPage({
   const {
     data: areasData,
     error: areasError,
-  } = await supabase
-    .from('ministry_areas')
-    .select(
-      'id, name, area_type, parent_id'
-    )
-    .eq('is_active', true)
+  } = areasResult
 
   if (areasError) {
     throw new Error(
@@ -261,14 +266,7 @@ export default async function ContactDetailPage({
   const {
     data: affinityData,
     error: affinityError,
-  } = await supabase
-    .from(
-      'follow_up_contact_affinities'
-    )
-    .select(
-      'contact_id, ministry_area_id'
-    )
-    .eq('contact_id', contactId)
+  } = affinityResult
 
   if (affinityError) {
     throw new Error(
@@ -299,33 +297,7 @@ export default async function ContactDetailPage({
   const {
     data: eventsData,
     error: eventsError,
-  } = await supabase
-    .from('follow_up_events')
-    .select(`
-      id,
-      contact_id,
-      performed_by,
-      performed_by_name,
-      event_type,
-      occurred_at,
-      notes,
-      found_home,
-      had_spiritual_conversation,
-      interview_completed,
-      kgp_shared,
-      received_christ,
-      invited_to_community_group,
-      attachment_path,
-      attachment_name,
-      attachment_mime_type,
-      attachment_size_bytes,
-      text_purposes,
-      text_event_name
-    `)
-    .eq('contact_id', contactId)
-    .order('occurred_at', {
-      ascending: false,
-    })
+  } = eventsResult
 
   if (eventsError) {
     throw new Error(

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { ManageTabs } from '@/components/follow-up/manage-tabs'
 import { NoActiveCampaign } from '@/components/follow-up/no-active-campaign'
 import { isNoActiveCampaignError } from '@/lib/campaign-state'
+import { AssignmentFocusDiagnostics } from '@/components/follow-up/assignment-focus-diagnostics'
 
 type AssignmentWorkspace = {
   role: string
@@ -43,6 +44,7 @@ type PageProps = {
   searchParams: Promise<{
     areaId?: string
     queue?: string
+    focusDiagnostics?: string
   }>
 }
 
@@ -263,6 +265,7 @@ export default async function AssignContactsPage({
         active="assign"
       />
 
+      {params.focusDiagnostics === '1' && <AssignmentFocusDiagnostics />}
       <ContactAssignmentWorkspace
         initialWorkspace={workspace}
         focused={isAttentionMode}

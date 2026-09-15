@@ -18,18 +18,20 @@ function compile(file,overrides={}) {
     if(name==='@/lib/contact-name')return require('./contact-name.ts')
     if(name==='@/lib/assignment-viewport')return require('./assignment-viewport.ts')
     if(name==='./assignment-assignee-select')return compile('../components/follow-up/assignment-assignee-select.tsx')
+    if(name==='./assignment-contact-window')return compile('../components/follow-up/assignment-contact-window.tsx')
     return require(name)
   }})
   return testModule.exports
 }
 
-test('large assignment list keeps every contact but avoids contacts × assignees option markup',()=>{
+test('large assignment list initially mounts only twenty cards and retains the full contact count',()=>{
   const {ContactAssignmentWorkspace}=compile('../components/follow-up/contact-assignment-workspace.tsx')
   const workspace={role:'admin',scope:'Invented fixture',assignees:Array.from({length:100},(_,i)=>({id:`user-${i}`,display_name:`Invented Leader ${i}`,role:'staff',area_name:'Invented Area'})),contacts:Array.from({length:1000},(_,i)=>({id:`contact-${i}`,display_name:`Invented Contact ${i}`,status:'uncontacted',primary_owner_id:i%2?'user-0':null,primary_owner_name:i%2?'Invented Leader 0':null}))}
   const html=renderToStaticMarkup(React.createElement(ContactAssignmentWorkspace,{initialWorkspace:workspace}))
-  assert.equal((html.match(/<article/g)||[]).length,1000,'no pagination or hidden contacts')
-  assert.equal((html.match(/<option/g)||[]).length,1503,'only placeholder/current option per offscreen row plus three filters')
-  assert.match(html,/Invented Contact 999/)
+  assert.equal((html.match(/<article/g)||[]).length,20,'offscreen sections contain no form controls')
+  assert.equal((html.match(/<option/g)||[]).length,33)
+  assert.doesNotMatch(html,/Invented Contact 999/)
+  assert.match(html,/1000/,'the full dataset still supplies counts and filtering')
   assert.match(html,/Invented Leader 0 • Staff • Invented Area/,'current owner label is retained')
 })
 
@@ -58,5 +60,25 @@ test('native picker expands before focus/pointer/keyboard default actions and pr
     doc.activeElement=null;tree.props.onBlur();tree=render()
     assert.equal(optionCount(tree),2);assert.equal(tree.props.children[1][0].props.value,'user-75')
     visibility(true);tree=render();assert.equal(optionCount(tree),101,'preload when approaching screen')
+  }
+})
+
+test('search reaches the final contact before windowing and select-visible uses every filtered ID',()=>{
+  const contacts=Array.from({length:3806},(_,i)=>({id:`contact-${i}`,display_name:`Invented Contact ${i}`,status:'uncontacted',primary_owner_id:null}))
+  for(const query of ['Invented Contact 3805','']) {
+    let stateIndex=0
+    const {ContactAssignmentWorkspace}=compile('../components/follow-up/contact-assignment-workspace.tsx',{
+      react:{...React,useState:initial=>{
+        stateIndex++
+        return React.useState(stateIndex===2?query:stateIndex===4?contacts.map(contact=>contact.id):initial)
+      }},
+    })
+    const html=renderToStaticMarkup(React.createElement(ContactAssignmentWorkspace,{initialWorkspace:{role:'admin',scope:'Invented',contacts,assignees:[]}}))
+    assert.match(html,/3806 contacts selected/,'selection remains independent of mounted rows')
+    assert.match(html,/checked=""[^>]*\/>Select visible/,'all matching IDs are selected, including unmounted contacts')
+    if(query) {
+      assert.equal((html.match(/<article/g)||[]).length,1)
+      assert.match(html,/Invented Contact 3805/)
+    } else assert.equal((html.match(/<article/g)||[]).length,20)
   }
 })

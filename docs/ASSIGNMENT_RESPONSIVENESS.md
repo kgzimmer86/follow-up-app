@@ -36,3 +36,23 @@ Verification after removing the temporary fixtures: all 205 self-contained tests
 ## Phone acceptance check after deployment
 
 Open Assign Contacts afresh, let it settle, then tap the search field once. Search a name near the end of the full list. Check the first opening of a row dropdown, scrolling to another row, recipient labels/choices, and selected-row state when searching. Confirm the first-tap delay is improved before calling the original phone issue resolved. No SQL or notification setup changes are required.
+# Follow-up: window contact sections
+
+The iPhone timing report showed 3,806 cards, 3,808 selects, 3,810 inputs,
+5,057 ms tap-to-focus, and a 4,993 ms frame gap despite only 38 ms event
+delivery delay. Reducing option counts alone did not resolve the delay.
+
+The assignment list now mounts sections of 20 cards near the viewport
+(1,000 px buffer). Offscreen sections keep a measured-height placeholder;
+unvisited sections initially estimate 360 px per card. The scrollbar estimate
+can adjust as previously unvisited sections are measured. Card contents,
+document scrolling, full-data search/filtering, bulk selection, assignment
+RPCs, and parent-held draft choices are unchanged. Focused sections stay
+mounted; keyboard focus can enter unloaded sections in either direction.
+
+Validation: a network-blocked headless Chrome check with 3,806 invented
+contacts exercises bounded mounted-card counts, searching the last contact,
+selecting and assigning all 3,806 IDs, updated owner display, and scrolling
+to the end and back. This is not an iPhone timing result. After deployment,
+repeat the opt-in focus diagnostic on the user's phone to confirm the delay
+is resolved. No database migration or notification changes are involved.

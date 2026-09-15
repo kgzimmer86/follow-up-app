@@ -15,6 +15,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { contactDisplayName } from '@/lib/contact-name'
 import { AssignmentAssigneeSelect, type AssignmentOption } from './assignment-assignee-select'
+import { AssignmentContactWindow } from './assignment-contact-window'
 
 type Assignee = {
   id: string
@@ -168,6 +169,14 @@ export function ContactAssignmentWorkspace({
   const unassignedCount = useMemo(() => contacts.filter(
     (contact) => !contact.primary_owner_id
   ).length, [contacts])
+
+  const contactSections = useMemo(() => {
+    const sections: AssignableContact[][] = []
+    for (let index = 0; index < visibleContacts.length; index += 20) {
+      sections.push(visibleContacts.slice(index, index + 20))
+    }
+    return sections
+  }, [visibleContacts])
 
   const assignedCount =
     contacts.length - unassignedCount
@@ -555,7 +564,13 @@ export function ContactAssignmentWorkspace({
           </div>
         ) : (
           <div className="mt-3 grid gap-3">
-            {visibleContacts.map(
+            {contactSections.map((section, index) => (
+              <AssignmentContactWindow
+                key={`${query}:${assignmentFilter}:${section[0].id}`}
+                count={section.length}
+                first={index === 0}
+              >
+            {section.map(
               (contact) => (
                 <ContactAssignmentRow
                   key={contact.id}
@@ -579,6 +594,8 @@ export function ContactAssignmentWorkspace({
                 />
               )
             )}
+              </AssignmentContactWindow>
+            ))}
           </div>
         )}
       </div>

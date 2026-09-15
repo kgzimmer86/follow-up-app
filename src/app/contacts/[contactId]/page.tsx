@@ -1,6 +1,7 @@
 import { EditableSurveyField, EditableSurveyAffinities } from '@/components/follow-up/editable-survey'
 import { ContactCommunity } from '@/components/community/contact-community'
 import { loadRoommateSources } from '@/lib/roommate-provenance'
+import { SelfUnassignContact } from '@/components/follow-up/self-unassign-contact'
 import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
@@ -1060,6 +1061,8 @@ function OverviewTab({
               </div>
             )}
           </div>
+
+          {isPrimary && <SelfUnassignContact key={contact.id} contactId={contact.id} />}
 
           <div className="zoom-stack grid grid-cols-2 gap-3 border-t border-[#eef0f3] pt-4">
             <ProgressBox

@@ -82,7 +82,7 @@ export function smartCardCriteria(view: string) {
   const interested = 'Jesus, Community or Interview: Yes or Maybe in at least one'
   const pursuing = 'Status: excludes Not Interested'
   switch (view) {
-    case 'mine': return ['Assigned to you as the primary follow-up person']
+    case 'mine': return ['Assigned to you as the primary follow-up person', pursuing]
     case 'goback': return ['You have personally recorded an interaction', pursuing]
     case 'gospel': return [
       pursuing, 'KGP shared: No',

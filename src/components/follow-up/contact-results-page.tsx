@@ -41,6 +41,7 @@ import {
   SurveyInterestRow,
 } from '@/components/follow-up/contact-card-indicators'
 import { ContactAssignmentCell } from '@/components/follow-up/contact-assignment-cell'
+import { ContactNameSearch } from '@/components/follow-up/contact-name-search'
 
 export type ContactView =
   | 'mine'
@@ -52,6 +53,7 @@ export type ContactView =
   | 'area'
 
 export type ContactResultsSearchParams = {
+  q?: string
   context?: string
   sort?: string
   dir?: string
@@ -100,6 +102,7 @@ type SortBy = 'name' | 'room'
 type SortDir = 'asc' | 'desc'
 
 type FilterValues = {
+  q: string
   campus: string
   location: string
   gender: string
@@ -292,6 +295,7 @@ export async function ContactResultsPage({
     )
 
   const filters: FilterValues = normalizeSharedContactFilters({
+    q: view === 'area' && !communityScope ? (searchParams.q ?? '').trim().slice(0, 200) : '',
     campus: searchParams.campus ?? '',
     location: searchParams.location ?? '',
     gender: searchParams.gender ?? '',
@@ -532,7 +536,9 @@ export async function ContactResultsPage({
     }
   const { data: resultsData, error: resultsError } = communityScope
     ? await supabase.rpc('get_community_contact_results', { ...resultArgs, p_group_id: communityScope.groupId, p_segment: communityScope.segment })
-    : await supabase.rpc('get_follow_up_contact_results_v2', resultArgs)
+    : filters.q
+      ? await supabase.rpc('get_follow_up_contact_results_search', { ...resultArgs, p_search: filters.q })
+      : await supabase.rpc('get_follow_up_contact_results_v2', resultArgs)
 
   if (resultsError) {
     if (isNoActiveCampaignError(resultsError.message)) return <NoActiveCampaign />
@@ -843,6 +849,7 @@ export async function ContactResultsPage({
   )
 
   const displayOnlyFilters: FilterValues = {
+    q: filters.q,
     campus: '',
     location: '',
     gender: '',
@@ -1051,6 +1058,12 @@ export async function ContactResultsPage({
       </section>
 
       {view === 'mine' && <MyContactAttentionSection />}
+
+      {view === 'area' && !communityScope && <ContactNameSearch
+        key={filters.q}
+        query={filters.q}
+        href={resultsHref({ basePath, sort: sortBy, dir: sortDir, filters })}
+      />}
 
       <details
         key={`filters-${view}`}

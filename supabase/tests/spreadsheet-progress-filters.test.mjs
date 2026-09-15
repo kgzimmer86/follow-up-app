@@ -245,6 +245,120 @@ test('spreadsheet progress filters preserve existing results and filter before p
     }
   })
 
+  const searchMigration = await readFile(new URL('../migrations/20260921_contact_name_search_and_self_unassign.sql', import.meta.url), 'utf8')
+  const search = async (params = {}) => {
+    const entries = Object.entries({ p_view: 'area', p_search: '', ...params })
+    return (await db.query(`select get_follow_up_contact_results_search(${entries.map(([key],i)=>`${key} => $${i+1}`).join(',')}) as result`, entries.map(([,value])=>value))).rows[0].result
+  }
+  await t.test('name search migration reruns safely, preserves blank-search parity and searches before pagination', async () => {
+    const before = await Promise.all(oldQueries.map(results))
+    await db.exec(searchMigration)
+    await db.exec(searchMigration)
+    assert.deepEqual(await Promise.all(oldQueries.map(results)), before, 'original reader unchanged')
+    assert.deepEqual(await Promise.all(oldQueries.map(search)), before, 'blank search has full parity')
+    const last = await search({ p_search:'  eXaMpLe 127  ' })
+    assert.equal(last.total_count, 1)
+    assert.equal(last.rows[0].id, contacts[127].id)
+    const paged = await search({p_search:'Example 0',p_page:2,p_page_size:7})
+    assert.equal(paged.total_count,100)
+    assert.deepEqual(paged.rows.map(row=>row.id),contacts.slice(7,14).map(row=>row.id))
+    assert.equal((await search({p_search:'%',p_page:1})).total_count,0,'percent is literal, not a wildcard')
+    assert.equal((await search({p_search:'_',p_page:1})).total_count,0)
+    assert.equal((await search({p_search:'no such invented name'})).total_count,0)
+    const filtered = await search({p_search:'Example 0',p_spreadsheet_kgp_shared:'yes'})
+    assert.equal(filtered.total_count,contacts.slice(0,100).filter(c=>c.kgp).length)
+    for(const name of ['get_follow_up_contact_results_search','unassign_my_follow_up_contact']) {
+      const {rows:[row]}=await db.query(`select has_function_privilege('anon',oid,'execute') as anon,has_function_privilege('authenticated',oid,'execute') as authenticated from pg_proc where proname=$1`,[name])
+      assert.deepEqual(row,{anon:false,authenticated:true})
+    }
+  })
+
+  await t.test('self-unassign is owner-only for every active role and preserves status/history', async () => {
+    await db.exec('create schema private; alter table follow_up_contacts add column primary_assigned_at timestamptz; alter table follow_up_contacts add column primary_assigned_by uuid;')
+    const author = await readFile(new URL('../migrations/20260910_assignment_author.sql',import.meta.url),'utf8')
+    const trigger = author.match(/create or replace function private.track_follow_up_assignment_time\(\)[\s\S]*?\$function\$;/)[0]
+    await db.exec(trigger)
+    await db.exec('create trigger assignment_time before insert or update of primary_owner_id on follow_up_contacts for each row execute function private.track_follow_up_assignment_time()')
+    const release = id => db.query('select unassign_my_follow_up_contact($1)',[id])
+    const asUser = id => db.query("select set_config('test.user_id',$1,false)",[id ?? ''])
+    const other = randomUUID()
+    await db.query("insert into profiles values($1,'Invented other owner',true,'student_leader')",[other])
+    for(const role of ['student_leader','discipler','staff','admin']) {
+      await db.query('update profiles set role=$1 where id=$2',[role,user])
+      const id=contacts[0].id
+      await db.query("update follow_up_contacts set primary_owner_id=$1,status='not_interested' where id=$2",[user,id])
+      const before=(await db.query('select * from follow_up_contacts where id=$1',[id])).rows[0]
+      const history=(await db.query('select * from follow_up_events where contact_id=$1 order by id',[id])).rows
+      await release(id)
+      const after=(await db.query('select * from follow_up_contacts where id=$1',[id])).rows[0]
+      assert.deepEqual(after,{...before,primary_owner_id:null,primary_assigned_at:null,primary_assigned_by:null})
+      assert.deepEqual((await db.query('select * from follow_up_events where contact_id=$1 order by id',[id])).rows,history)
+      assert(!(await results({p_view:'mine',p_page_size:100})).rows.some(row=>row.id===id))
+      await assert.rejects(release(id),/no longer assigned/)
+    }
+    await db.query('update follow_up_contacts set primary_owner_id=$1 where id=$2',[other,contacts[1].id])
+    await assert.rejects(release(contacts[1].id),/no longer assigned/,'stale ownership cannot clear another owner')
+    await assert.rejects(release(randomUUID()),/no longer assigned/)
+    await assert.rejects(release(null),/no longer assigned/)
+    const old=randomUUID()
+    await db.query('insert into follow_up_contacts(id,student_id,campaign_id,primary_owner_id) select $1,student_id,$2,$3 from follow_up_contacts limit 1',[old,inactiveCampaign,user])
+    await assert.rejects(release(old),/no longer assigned/)
+    await asUser(null)
+    await assert.rejects(release(contacts[2].id),/Active Follow Up access/)
+    await assert.rejects(search({p_search:'Example'}),/signed in/)
+    await asUser(user)
+    await db.query("update profiles set role='pending' where id=$1",[user])
+    await assert.rejects(release(contacts[2].id),/Active Follow Up access/)
+    await assert.rejects(search({p_search:'Example'}),/Active Follow Up access/)
+    await db.query("update profiles set role='staff',is_active=false where id=$1",[user])
+    await assert.rejects(release(contacts[2].id),/Active Follow Up access/)
+    await assert.rejects(search({p_search:'Example'}),/Active Follow Up access/)
+    await db.query('update profiles set is_active=true where id=$1',[user])
+  })
+
+  await t.test('Not Interested clears My Contacts and all personal attention without clearing ownership', async () => {
+    const staffSql = await readFile(new URL('../migrations/20260910_staff_handoffs_and_assignment_attention.sql', import.meta.url), 'utf8')
+    const authorSql = await readFile(new URL('../migrations/20260910_assignment_author.sql', import.meta.url), 'utf8')
+    for (const [source,name] of [[staffSql,'private.my_contact_attention_rows'],[staffSql,'public.get_my_contact_attention'],[authorSql,'public.get_my_contact_attention_list']]) {
+      const start=source.indexOf(`create or replace function ${name}(`)
+      const end=source.indexOf('$function$;',source.indexOf('$function$',start)+10)+11
+      assert(start>=0 && end>start)
+      await db.exec(source.slice(start,end))
+    }
+    const queries = oldQueries.filter(query=>query.p_view!=='mine')
+    const before=await Promise.all(queries.map(results))
+    const ruleSql=await readFile(new URL('../migrations/20260922_not_interested_my_contacts.sql',import.meta.url),'utf8')
+    await db.exec(ruleSql)
+    await db.exec(ruleSql)
+    assert.deepEqual(await Promise.all(queries.map(results)),before,'all non-mine views unchanged')
+    assert.deepEqual(await Promise.all(queries.map(search)),before,'search clone shares new rules')
+    const id=contacts[127].id
+    await db.query("update follow_up_contacts set status='go_back',received_christ_at=now()-interval '2 days',primary_owner_id=$1 where id=$2",[user,id])
+    const counts=async()=> (await db.query('select get_my_contact_attention() result')).rows[0].result
+    const attentionRows=async()=> (await db.query('select * from private.my_contact_attention_rows() where contact_id=$1',[id])).rows
+    const beforeCounts=await counts()
+    const flags=(await attentionRows())[0]
+    assert(flags.unattempted && flags.new_believer)
+    const history=(await db.query('select * from follow_up_events where contact_id=$1 order by id',[id])).rows
+    await db.query("update follow_up_contacts set status='not_interested' where id=$1",[id])
+    assert.equal((await db.query('select primary_owner_id from follow_up_contacts where id=$1',[id])).rows[0].primary_owner_id,user)
+    assert.equal((await search({p_search:'Example 127',p_view:'mine'})).total_count,0)
+    assert.equal((await search({p_search:'Example 127',p_view:'area'})).total_count,1)
+    assert.deepEqual(await attentionRows(),[])
+    const afterCounts=await counts()
+    assert.equal(afterCounts.total,beforeCounts.total-1)
+    assert.equal(afterCounts.unattempted,beforeCounts.unattempted-1)
+    assert.equal(afterCounts.newBelievers,beforeCounts.newBelievers-1)
+    for(const category of ['awaiting','stale','new-believers']) {
+      const list=(await db.query('select get_my_contact_attention_list($1) result',[category])).rows[0].result
+      assert(!list.contacts.some(contact=>contact.id===id))
+    }
+    assert.deepEqual((await db.query('select * from follow_up_events where contact_id=$1 order by id',[id])).rows,history)
+    await db.query("update follow_up_contacts set status='go_back' where id=$1",[id])
+    assert.equal((await search({p_search:'Example 127',p_view:'mine'})).total_count,1)
+    assert.deepEqual(await counts(),beforeCounts)
+  })
+
   await t.test('execution privileges and access checks remain enforced', async () => {
     const definition = await db.query("select oid::regprocedure::text as signature from pg_proc where proname='get_follow_up_contact_results_v2'")
     const signature = definition.rows[0].signature

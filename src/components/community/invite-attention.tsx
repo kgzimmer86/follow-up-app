@@ -7,6 +7,8 @@ const changed = 'community-invitations-changed'
 export function invitationsChanged() { window.dispatchEvent(new Event(changed)) }
 const Context = createContext<{ initial: number; reminders: number; groups: number } | null>(null)
 
+export function useInviteAttentionCounts() { return useContext(Context) }
+
 export function InviteAttentionProvider({ children }: { children: ReactNode }) {
   const [counts, setCounts] = useState<{ initial: number; reminders: number; groups: number } | null>(null)
   useEffect(() => {

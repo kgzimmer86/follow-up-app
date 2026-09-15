@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/client'
+import { clearPushOnSignOut } from '@/lib/push-client'
 
 type Props = {
   displayName: string
@@ -78,6 +79,7 @@ export function ProfileSettings({
     const supabase =
       createClient()
 
+    await clearPushOnSignOut()
     await supabase.auth.signOut()
 
     router.push('/')

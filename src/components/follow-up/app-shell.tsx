@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
+import { clearPushOnSignOut } from '@/lib/push-client'
 import { MyContactAttentionBadge } from '@/components/follow-up/my-contact-attention'
 import { InviteBadge } from '@/components/community/invite-attention'
 import { AddPersonModal } from '@/components/follow-up/add-person-modal'
@@ -73,6 +74,7 @@ export function AppShell({
   async function signOut() {
     const supabase = createClient()
 
+    await clearPushOnSignOut()
     await supabase.auth.signOut()
 
     setProfileMenuOpen(false)

@@ -12,6 +12,7 @@ import { MyContactAttentionProvider } from '@/components/follow-up/my-contact-at
 import { InviteAttentionProvider } from '@/components/community/invite-attention'
 import { CelebrationListener } from '@/components/community/celebration-listener'
 import { AppShell } from '@/components/follow-up/app-shell'
+import { PushBadgeSync } from '@/components/follow-up/push-badge-sync'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
 import { AppLoading } from '@/components/follow-up/app-loading'
 import { InteractionFeedback } from '@/components/interaction-feedback'
@@ -143,6 +144,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
         <PhotoCleanupProvider userId={user.id}>
         <MyContactAttentionProvider refreshKey={{}}>
         <InviteAttentionProvider>
+        <PushBadgeSync userId={user.id} />
         <AppShell
           displayName={displayName}
           role={profile.role}

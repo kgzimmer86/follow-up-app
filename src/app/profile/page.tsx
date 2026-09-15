@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 
 import { ProfileSettings } from '@/components/follow-up/profile-settings'
+import { PushNotificationSettings } from '@/components/follow-up/push-notification-settings'
 import { createClient } from '@/lib/supabase/server'
 
 type ProfileRow = {
@@ -203,6 +204,7 @@ export default async function ProfilePage() {
           areaLabel={areaLabel}
           disciplerName={disciplerName}
         />
+        <PushNotificationSettings userId={user.id} publicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''} />
       </div>
     </main>
   )

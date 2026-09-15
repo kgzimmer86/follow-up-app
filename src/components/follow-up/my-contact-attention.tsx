@@ -8,6 +8,11 @@ import { createClient } from '@/lib/supabase/client'
 type Counts = { unattempted: number; staleGoBacks: number; newBelievers: number; total: number }
 const AttentionContext = createContext<{ counts: Counts | null; error: boolean; retry: () => void }>({ counts: null, error: false, retry: () => {} })
 
+export function useMyContactAttentionCounts() {
+  const { counts, error } = useContext(AttentionContext)
+  return error ? null : counts
+}
+
 export function MyContactAttentionProvider({ refreshKey, children }: { refreshKey: Record<string, never>; children: ReactNode }) {
   const pathname = usePathname()
   const [counts, setCounts] = useState<Counts | null>(null)

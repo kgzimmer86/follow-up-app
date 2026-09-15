@@ -122,6 +122,67 @@ test('workspace badge counts match two explicit absences and respect group acces
   assert.equal((await rpc('community_workspace_counts')).groups,0,'leaving roster clears reminder')
 })
 
+test('group notification totals require explicit leadership while oversight details remain accessible', async t => {
+  const {db,ids,contact,assign,rpc,asUser}=await setup(t)
+  await db.exec(await sql('20260917_community_attention_badges'))
+  await db.exec('alter table follow_up_events add column occurred_at timestamptz default now(), add column invited_to_community_group boolean default false')
+  await db.exec(await sql('20260917_community_checkin_attention'))
+  const a=await contact(); await assign([a],ids.admin)
+  const groups=[randomUUID(),randomUUID()]
+  for (const group of groups) {
+    await db.query("insert into community_groups(id,campaign_id,ministry_area_id,name) values($1,$2,$3,'Invented group')",[group,ids.campaign,ids.area])
+    await db.query('insert into community_group_memberships(group_id,student_id,started_on) values($1,$2,current_date-10)',[group,a.student])
+    const meetings=(await db.query('insert into community_group_meetings(group_id,meeting_date) values($1,current_date-2),($1,current_date-1) returning id',[group])).rows
+    for (const meeting of meetings) await db.query('insert into community_group_attendance(meeting_id,student_id,is_present) values($1,$2,false)',[meeting.id,a.student])
+  }
+  assert.deepEqual(await rpc('community_workspace_counts'),{initial:1,reminders:0,groups:2})
+  const detailBefore=(await db.query("select pg_get_functiondef('public.community_group_checkin_attention(uuid)'::regprocedure) d")).rows[0].d
+  await db.exec(await sql('20260919_leader_group_badges'))
+  await db.exec(await sql('20260919_leader_group_badges'))
+  assert.equal((await db.query("select pg_get_functiondef('public.community_group_checkin_attention(uuid)'::regprocedure) d")).rows[0].d,detailBefore)
+  await db.exec('set role authenticated')
+  assert.deepEqual(await rpc('community_workspace_counts'),{initial:1,reminders:0,groups:0},'admin oversight alone is not a personal notification')
+  assert.equal((await db.query('select * from community_group_checkin_attention($1)',[groups[0]])).rows.length,1,'oversight details still available')
+  await db.exec('reset role')
+  // Explicitly leading one or both groups counts each applicable group/member.
+  for (let i=0;i<groups.length;i++) {
+    await db.query('insert into community_group_leaders(group_id,profile_id) values($1,$2)',[groups[i],ids.admin])
+    assert.equal((await rpc('community_workspace_counts')).groups,i+1)
+  }
+  await db.query('delete from community_group_leaders where profile_id=$1',[ids.admin])
+  assert.equal((await rpc('community_workspace_counts')).groups,0,'removal clears personal badge without removing group access')
+  for (const actor of [ids.staff,ids.leader,ids.discipler]) {
+    await asUser(actor)
+    assert.equal((await rpc('community_workspace_counts')).groups,0)
+    await db.query('insert into community_group_leaders(group_id,profile_id) values($1,$2)',[groups[0],actor])
+    await db.exec('set role authenticated')
+    assert.equal((await rpc('community_workspace_counts')).groups,1)
+    await db.exec('reset role')
+  }
+  // Leadership does not bypass the existing area-access restriction.
+  const elsewhere=randomUUID()
+  await db.query('insert into ministry_areas(id) values($1)',[elsewhere])
+  await db.query('insert into profile_ministry_area_assignments values($1,$2,$3,true)',[ids.discipler,ids.campaign,elsewhere])
+  assert.equal((await rpc('community_workspace_counts')).groups,0)
+  await asUser(ids.staff)
+  await db.query('update community_groups set is_active=false where id=$1',[groups[0]])
+  assert.equal((await rpc('community_workspace_counts')).groups,0)
+  await db.query('update community_groups set is_active=true where id=$1',[groups[0]])
+  await db.query("insert into follow_up_events(contact_id,event_type,invited_to_community_group) values($1,'interaction',true)",[a.id])
+  assert.equal((await rpc('community_workspace_counts')).groups,0,'existing check-in clearing is preserved')
+  await db.query('delete from follow_up_events where contact_id=$1',[a.id])
+  assert.equal((await rpc('community_workspace_counts')).groups,1)
+  await db.query("update follow_up_campaigns set status='archived' where id=$1",[ids.campaign])
+  assert.equal((await rpc('community_workspace_counts')).groups,0)
+  for (const actor of [ids.inactive,ids.pending,'']) {
+    await asUser(actor)
+    await assert.rejects(rpc('community_workspace_counts'),/Active Follow Up access/)
+  }
+  await db.exec('set role anon')
+  await assert.rejects(rpc('community_workspace_counts'),/permission denied/)
+  await db.exec('reset role')
+})
+
 test('test reminder aging changes one invented invitation and safely restores its clock', async t => {
   const {db,ids,assign,log,invitation}=await setup(t)
   await db.exec("alter table follow_up_campaigns add column label text default 'TEST ONLY'; alter table students add column umich_email text")

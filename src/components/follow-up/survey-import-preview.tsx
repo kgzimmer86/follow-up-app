@@ -12,7 +12,7 @@ import {
 } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
-import { weakConfirmationToken } from '@/lib/import-match-confirmation'
+import { remainingImportCandidates, weakConfirmationToken } from '@/lib/import-match-confirmation'
 
 type CsvRow = Record<string, string>
 
@@ -2346,36 +2346,13 @@ export function SurveyImportPreview({
       return
     }
 
-    const strongMatchedRows =
-      new Set(
-        nextMatches
-          .filter(
-            (result) =>
-              Boolean(
-                result.matched_student_id
-              )
-          )
-          .map(
-            (result) =>
-              result.row_number
-          )
-      )
-
     const nextWeakMatches =
-      ((weakData ?? []) as WeakMatchResult[]).map(
-        (result) =>
-          strongMatchedRows.has(
-            result.row_number
-          )
-            ? {
-                ...result,
-                candidate_count: 0,
-                status:
-                  'no_weak_match' as const,
-                candidates: [],
-              }
-            : result
-      )
+      ((weakData ?? []) as WeakMatchResult[]).map((result) => {
+        const matched = nextMatches.find(match => match.row_number === result.row_number)?.matched_student_id
+        const candidates = remainingImportCandidates(result.candidates, matched)
+        return { ...result, candidates, candidate_count: candidates.length,
+          status: (candidates.length === 0 ? 'no_weak_match' : candidates.length === 1 ? 'weak_match' : 'multiple_weak_matches') as WeakMatchResult['status'] }
+      })
 
     const matchedStudentIds = Array.from(
       new Set(
@@ -2615,6 +2592,8 @@ export function SurveyImportPreview({
             action,
             merge_contact_id:
               mergeContactId,
+            match_review_choice: isWeakMatchConfirmed(row.rowNumber) ? weakMatchChoices[row.rowNumber] : null,
+            reviewed_match_candidates: isWeakMatchConfirmed(row.rowNumber) ? weakMatch?.candidates ?? [] : [],
             skip_reason:
               skipReason,
             raw_data:
@@ -3900,7 +3879,7 @@ export function SurveyImportPreview({
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Follow Up will add {rowsToCreate.length.toLocaleString()} new {rowsToCreate.length === 1 ? 'contact' : 'contacts'}, merge {rowsToMerge.length.toLocaleString()} incoming survey {rowsToMerge.length === 1 ? 'row' : 'rows'} into reviewed field-added {rowsToMerge.length === 1 ? 'contact' : 'contacts'}, and refresh {rowsToUpdate.length.toLocaleString()} existing {rowsToUpdate.length === 1 ? 'contact' : 'contacts'} from the newer survey response. {existingContactsKeptCount.toLocaleString()} existing {existingContactsKeptCount === 1 ? 'contact will' : 'contacts will'} keep the current survey version. {excludedPreviewRows.length.toLocaleString()} excluded rows and {duplicatesSkipped.toLocaleString()} repeat submissions will be recorded as skipped in import history.
+                  Follow Up will add {rowsToCreate.length.toLocaleString()} new {rowsToCreate.length === 1 ? 'contact' : 'contacts'}, merge {rowsToMerge.length.toLocaleString()} incoming survey {rowsToMerge.length === 1 ? 'row' : 'rows'} into reviewed existing {rowsToMerge.length === 1 ? 'contact' : 'contacts'}, and refresh {rowsToUpdate.length.toLocaleString()} existing {rowsToUpdate.length === 1 ? 'contact' : 'contacts'} from the newer survey response. {existingContactsKeptCount.toLocaleString()} existing {existingContactsKeptCount === 1 ? 'contact will' : 'contacts will'} keep the current survey version. {excludedPreviewRows.length.toLocaleString()} excluded rows and {duplicatesSkipped.toLocaleString()} repeat submissions will be recorded as skipped in import history.
                 </p>
 
                 {nonBlockingWarningCount > 0 && (
@@ -4454,6 +4433,13 @@ function DatabaseMatchBadge({
     )
   }
 
+  if (result.matched_student_id && weakMatchResult && weakMatchResult.candidate_count > 0) {
+    return <div className="max-w-[340px] rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs">
+      <strong>Conflicting possible match</strong>
+      <p>A name, location, and room match needs review despite the phone or U-M identity match. Verify the uniqname in <a href="https://mcommunity.umich.edu/" target="_blank" rel="noreferrer" className="underline">MCommunity</a> and confirm the phone. Correct the row and check again, or exclude it. This row cannot be merged automatically.</p>
+    </div>
+  }
+
   if (alreadyInCampaign) {
     const changes = campaignContact
       ? buildExistingContactChanges(row, campaignContact, affinitiesMapped)
@@ -4607,13 +4593,13 @@ function DatabaseMatchBadge({
         <div className="min-w-[270px] max-w-[340px]">
           <span className="inline-flex rounded-full bg-[#ecfdf3] px-2.5 py-1 text-[9px] font-extrabold text-[#027a48]">
             ✓ Choice confirmed • {weakChoice === 'merge'
-              ? 'merge with field contact'
+              ? 'merge with existing contact'
               : 'keep separate'}
           </span>
 
           {candidate && (
             <div className="mt-1.5 text-[10px] font-semibold leading-4 text-[#667085]">
-              Field contact: {candidate.display_name || 'Unnamed'}
+              Existing contact: {candidate.display_name || 'Unnamed'}
               {candidate.location_name ? ` • ${candidate.location_name}` : ''}
               {candidate.room_or_address ? ` • ${candidate.room_or_address}` : ''}
             </div>
@@ -4633,7 +4619,7 @@ function DatabaseMatchBadge({
     return (
       <div className="min-w-[270px] max-w-[340px] rounded-[10px] border border-[#fedf89] bg-[#fffaf0] p-2.5">
         <div className="text-[9px] font-extrabold uppercase tracking-[0.06em] text-[#b54708]">
-          Possible field-added match
+          Possible existing-contact match
         </div>
 
         <div className="mt-1 text-[10px] font-semibold leading-4 text-[#667085]">
@@ -4662,7 +4648,7 @@ function DatabaseMatchBadge({
 
             <div className="rounded-[8px] bg-white px-2.5 py-2">
               <div className="text-[9px] font-extrabold text-[#344054]">
-                Field-added contact
+                Existing {candidate.contact_origin === 'survey' ? 'survey' : 'field-added'} contact
               </div>
               <div className="mt-0.5 text-[10px] leading-4 text-[#667085]">
                 {candidate.display_name || 'Unnamed'}
@@ -4687,13 +4673,14 @@ function DatabaseMatchBadge({
                   ? ' (U-M identity and phone).'
                   : candidate.identity_conflict
                     ? ' (U-M identity).'
-                    : ' (phone).'}
+                  : ' (phone).'}
+                {' '}A small spelling or digit difference may be a typo. Verify the U-M identity in <a href="https://mcommunity.umich.edu/" target="_blank" rel="noreferrer" className="underline">MCommunity</a> and confirm the phone. Correct the row, then run Check existing students again. Choose Keep separate only after confirming these are different people.
               </div>
             )}
           </div>
         ) : (
           <div className="mt-2 rounded-[8px] border border-[#fecdca] bg-[#fef3f2] px-2.5 py-2 text-[9px] font-semibold leading-4 text-[#b42318]">
-            Multiple field-added contacts match this name, location, and room. The importer will not guess which one is correct.
+            Multiple existing contacts match this name, location, and room. The importer will not guess which one is correct. Verify the identity before correcting the row or confirming these are different people.
           </div>
         )}
 
@@ -4729,7 +4716,7 @@ function DatabaseMatchBadge({
         </div>
 
         <div className="mt-2 text-[9px] font-semibold leading-4 text-[#667085]">
-          <strong className="text-[#344054]">Merge records</strong> keeps the field-added contact and its Follow Up history, adds the incoming survey information, then removes the duplicate survey record. <strong className="text-[#344054]">Keep separate</strong> imports this survey row as a different person.
+          <strong className="text-[#344054]">Merge records</strong> keeps the existing contact, assignment, and Follow Up history. Existing survey information takes priority for survey contacts; incoming survey information takes priority for field-added contacts. <strong className="text-[#344054]">Keep separate</strong> confirms these are different people and imports a separate contact.
         </div>
 
         <button

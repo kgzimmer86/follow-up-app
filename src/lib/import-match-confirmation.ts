@@ -1,4 +1,8 @@
 // Stable fingerprints preserve decisions only while the reviewed evidence agrees.
+export function remainingImportCandidates<T extends { student_id: string; identity_conflict: boolean; phone_differs: boolean }>(candidates: T[], matchedStudentId: string | null | undefined): T[] {
+  return candidates.filter(candidate => !matchedStudentId || candidate.student_id !== matchedStudentId || candidate.identity_conflict || candidate.phone_differs)
+}
+
 function stable(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
   if (value && typeof value === 'object') return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`).join(',')}}`

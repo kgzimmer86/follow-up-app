@@ -8,7 +8,7 @@ const { PGlite } = await import(process.env.FOLLOW_UP_PGLITE_MODULE || '@electri
 const fixture = name => readFile(new URL(`./fixtures/${name}`, import.meta.url), 'utf8')
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`
 const admin=id(1), campaign=id(2), north=id(3), dorm=id(4), affinity=id(5)
-async function setup(t, community) {
+export async function setup(t, community) {
   const db=new PGlite(); t.after(()=>db.close())
   await db.exec(`create role authenticated; create role anon; create schema auth; create schema private;
     create table auth.users(id uuid primary key);

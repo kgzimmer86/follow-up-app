@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { weakConfirmationToken as token } from './import-match-confirmation.ts'
+import { remainingImportCandidates, weakConfirmationToken as token } from './import-match-confirmation.ts'
 const row = { name:'TEST Alex', uniqname:'', phone:'', location:'Bursley', room:'101' }
 const candidate = { contact_id:'contact-a', student_id:'student-a', identity_conflict:false, phone_differs:false, phone:null, location_name:'Bursley', room_or_address:'101', match_reason:'name_location' }
 const result = { candidate_count:1, status:'weak_match', candidates:[candidate] }
+test('a strong match hides only its own nonconflicting candidate',()=>{
+  const conflict={...candidate,phone_differs:true}
+  const other={...candidate,student_id:'student-b'}
+  assert.deepEqual(remainingImportCandidates([candidate,conflict,other],'student-a'),[conflict,other])
+  assert.deepEqual(remainingImportCandidates([candidate],null),[candidate])
+})
 test('unchanged recheck preserves both merge and keep-separate decisions', () => {
   for (const choice of ['merge','keep_separate']) assert.equal(token('year',row,choice,result), token('year',{...row},choice,JSON.parse(JSON.stringify(result))))
 })

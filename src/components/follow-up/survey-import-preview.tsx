@@ -3727,7 +3727,7 @@ export function SurveyImportPreview({
                 />
                 <FinalStat
                   value={importResult.contacts_merged ?? 0}
-                  label="Field matches merged"
+                  label="Contact matches merged"
                 />
               </div>
 
@@ -3789,7 +3789,7 @@ export function SurveyImportPreview({
                 />
                 <FinalStat
                   value={rowsToMerge.length}
-                  label="Field matches to merge"
+                  label="Contact matches to merge"
                 />
                 <FinalStat
                   value={rowsToUpdate.length}

@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
-import { pushBody, validPushEndpoint, type PushSnapshot } from '@/lib/push'
+import { pushBody, pushDestination, validPushEndpoint, type PushSnapshot } from '@/lib/push'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -40,8 +40,12 @@ export async function POST(request: Request) {
       let result: 'sent' | 'expired' | 'retry' = 'retry'
       if (!validPushEndpoint(job.endpoint)) result = 'expired'
       else try {
+        const snapshot = process.env.NEXT_PUBLIC_NEXT_STEPS_ENABLED === 'true' ? job.snapshot : {
+          contacts: job.snapshot.contacts, invitations: job.snapshot.invitations, groups: job.snapshot.groups,
+          total: job.snapshot.contacts + job.snapshot.invitations + job.snapshot.groups, fingerprint: job.snapshot.fingerprint,
+        }
         await webpush.sendNotification({ endpoint: job.endpoint, keys: { p256dh: job.p256dh, auth: job.auth } },
-          JSON.stringify({ subscriptionId: job.id, sentAt: job.sentAt, count: job.snapshot.total, body: pushBody(job.snapshot) }),
+          JSON.stringify({ subscriptionId: job.id, sentAt: job.sentAt, count: snapshot.total, body: pushBody(snapshot), url: pushDestination(snapshot) }),
           { vapidDetails: { subject, publicKey, privateKey }, TTL: 3600, timeout: 5000, topic: 'follow-up-attention', urgency: 'normal' })
         result = 'sent'
       } catch (error) {

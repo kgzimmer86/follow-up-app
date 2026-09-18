@@ -55,6 +55,8 @@ export type ContactView =
   | 'area'
 
 export type ContactResultsSearchParams = {
+  attention?: string
+  contact?: string
   q?: string
   context?: string
   sort?: string
@@ -1060,7 +1062,7 @@ export async function ContactResultsPage({
       </section>
 
       {view === 'mine' && nextStepsEnabled && <MyContactsTabs active="contacts" />}
-      {view === 'mine' && <MyContactAttentionSection />}
+      {view === 'mine' && <MyContactAttentionSection key={`${searchParams.attention ?? ""}-${searchParams.contact ?? ""}`} category={searchParams.attention} target={searchParams.contact} />}
 
       {view === 'area' && !communityScope && <ContactNameSearch
         key={filters.q}

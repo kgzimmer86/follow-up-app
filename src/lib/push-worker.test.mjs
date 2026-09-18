@@ -80,7 +80,7 @@ test('malformed pushes still display a generic notice without arbitrary counts',
 })
 
 test('named reminders open only approved contact or next-step destinations',async()=>{
-  for(const url of ['/contacts/next-steps','/contacts/00000000-0000-4000-8000-000000000001?nextStep=1']){
+  for(const url of ['/contacts?context=1&attention=new-believers&contact=00000000-0000-4000-8000-000000000001','/contacts?context=1&attention=awaiting&contact=00000000-0000-4000-8000-000000000001','/contacts/next-steps','/contacts/00000000-0000-4000-8000-000000000001?nextStep=1']){
     const w=worker();await w.message({type:'BIND',id:'device-a'})
     await w.push({subscriptionId:'device-a',sentAt:100,count:1,body:'What’s your next step with Invented Student?',url})
     assert.equal(w.notices[0].data.url,url)

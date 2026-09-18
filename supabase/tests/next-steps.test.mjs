@@ -39,6 +39,7 @@ async function setup(t, push = false) {
     await db.exec(attention.slice(attention.indexOf('create or replace function private.my_contact_attention_rows()'), attention.indexOf('create or replace function public.get_my_contact_attention_list(')))
     await db.exec(await sql('20260920_personal_push_notifications'))
     await db.exec(await sql('20260923_personal_next_steps_push'))
+    await db.exec(await sql('20260924_attention_next_steps'))
   }
   const ids = Object.fromEntries(['user','other','staff','admin','discipler','inactive','pending','campaign','archived','area','otherArea','event'].map(key => [key,randomUUID()]))
   await db.query("insert into profiles values($1,'student_leader',true,'Invented Leader'),($2,'student_leader',true,'Invented Other'),($3,'staff',true,'Invented Staff'),($4,'admin',true,'Invented Admin'),($5,'discipler',true,'Invented Discipler'),($6,'staff',false,'Inactive'),($7,'pending',true,'Pending')",[ids.user,ids.other,ids.staff,ids.admin,ids.discipler,ids.inactive,ids.pending])
@@ -217,3 +218,20 @@ test('verification and recovery files run as complete files and preserve saved p
   const snapshot=await root(async()=>(await db.query('select private.follow_up_push_snapshot() s')).rows[0].s)
   assert.equal(snapshot.nextSteps,undefined)
 })
+
+ test('attention reminders name all categories and AI budget is owner-scoped', async t => {
+  const f=await setup(t,true), c=await f.contact();
+  await assert.rejects(f.rpc('follow_up_next_step_ai_claim',[c]), /assigned/);
+  await f.root(()=>f.db.query('update follow_up_contacts set primary_owner_id=$1 where id=$2',[f.ids.user,c]));
+  const snapshot=()=>f.root(async()=> (await f.db.query('select private.follow_up_push_snapshot() value')).rows[0].value);
+  let value=await snapshot();
+  assert.equal(value.attentionCategory,'awaiting'); assert.equal(value.attentionContactId,c);
+  assert.equal(await f.rpc('follow_up_next_step_ai_claim',[c]),true);
+  assert.equal(await f.rpc('follow_up_next_step_ai_claim',[c]),false);
+  await f.root(()=>f.db.query("update follow_up_contacts set received_christ_at=now()-interval '2 days' where id=$1",[c]));
+  value=await snapshot(); assert.equal(value.attentionCategory,'new-believers');
+  await f.save(c); value=await snapshot(); assert.equal(value.attentionContactId,null); assert.equal(value.suppressContactReminder,true);
+  await f.root(async()=>{const result=await f.db.query(await readFile(new URL('../ready-to-run/attention-next-steps-verify.sql',import.meta.url),'utf8'));assert.ok(Object.values(result.rows[0]).every(v=>v===true))});
+  await assert.rejects(f.db.query('select * from private.follow_up_next_step_ai_requests'), /permission denied/);
+  await f.asUser(f.ids.inactive); await assert.rejects(f.rpc('follow_up_next_step_ai_claim',[c]));
+});

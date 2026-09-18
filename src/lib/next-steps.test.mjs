@@ -21,7 +21,7 @@ test('notifications distinguish stale contacts from planned steps and restrict d
   assert.match(pushBody({contacts:2,invitations:0,groups:0,nextSteps:2,total:4}),/2 planned steps are/)
   const stale={contacts:1,invitations:0,groups:0,total:1,staleContactName:'Invented Student',staleContactId:'00000000-0000-4000-8000-000000000001'}
   assert.equal(pushBody(stale),'What’s your next step with Invented Student?')
-  assert.equal(pushDestination(stale),'/contacts/00000000-0000-4000-8000-000000000001?nextStep=1')
+  assert.equal(pushDestination(stale),'/contacts?context=1&attention=stale&contact=00000000-0000-4000-8000-000000000001')
   assert.match(pushBody({...stale,nextSteps:1,nextStepContactName:'Invented Other'}),/^How did it go with Invented Other\?/)
   assert.equal(pushDestination({...stale,nextSteps:1}),'/contacts/next-steps')
   assert.equal(pushDestination({...stale,staleContactId:'https://evil.test'}),'/notifications')

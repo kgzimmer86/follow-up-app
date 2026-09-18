@@ -1,5 +1,9 @@
 # Personal next steps — first build
 
+For the subsequent Needs Attention card flow and fictional-contact AI testing,
+see [the next revision](attention-next-step-ideas.md). Kyle reported this initial
+build worked on the test site, including the manual plan actions.
+
 ## Summary and status
 
 Adds a My Next Steps tab under My Contacts and a personal plan section on contact

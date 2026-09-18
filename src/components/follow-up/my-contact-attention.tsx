@@ -1,8 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { AttentionContactList } from './attention-contact-list'
 import { createClient } from '@/lib/supabase/client'
 
 type Counts = { unattempted: number; staleGoBacks: number; newBelievers: number; total: number }
@@ -52,14 +52,16 @@ export function MyContactAttentionBadge({ inline = false }: { inline?: boolean }
   return <span aria-label={`${counts.total} of your contacts need attention`} className={`${inline ? 'inline-flex' : 'absolute -right-3 -top-1 flex'} h-4 min-w-4 items-center justify-center rounded-full bg-[#d92d20] px-1 text-[9px] font-extrabold leading-none text-white`}>{counts.total}</span>
 }
 
-export function MyContactAttentionSection() {
+export function MyContactAttentionSection({ category, target }: { category?: string; target?: string }) {
+  const validCategory = ['awaiting', 'stale', 'new-believers'].includes(category ?? '') ? category : undefined
+  const [selected, setSelected] = useState(validCategory ?? '')
   const { counts, error, retry } = useContext(AttentionContext)
   const needsAttention = !error && Boolean(counts?.total)
   return (
-    <details className={`mt-4 rounded-[18px] border ${needsAttention ? 'border-[#fedf89] bg-[#fff8eb]' : 'border-[#e4e7ec] bg-white'}`}>
+    <details open={Boolean(validCategory) || undefined} className={`mt-4 rounded-[18px] border ${needsAttention ? 'border-[#fedf89] bg-[#fff8eb]' : 'border-[#e4e7ec] bg-white'}`}>
       <summary className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-3.5 text-sm font-extrabold ${needsAttention ? 'text-[#b54708]' : 'text-[#15223a]'}`}>
         <span>Needs attention</span>
-        <span className={`text-xs ${needsAttention ? 'text-[#b54708]' : 'text-[#667085]'}`}>{error ? 'Unavailable' : counts ? `${counts.total} contacts` : 'Loading…'}</span>
+        <span className={`text-xs ${needsAttention ? 'text-[#b54708]' : 'text-[#667085]'}`}>{error ? 'Unavailable' : counts ? `${counts.total} ${counts.total === 1 ? 'contact' : 'contacts'}` : 'Loading…'}</span>
       </summary>
       <div className={`border-t p-4 ${needsAttention ? 'border-[#fedf89]' : 'border-[#e4e7ec]'}`}>
         <p className="mb-3 text-xs text-[#667085]">Contacts assigned to you, excluding Not Interested, regardless of your current filters. Each contact counts once in the total.</p>
@@ -70,13 +72,14 @@ export function MyContactAttentionSection() {
               { category: 'stale', label: 'Go Backs — no activity for 7+ days', count: counts.staleGoBacks, tone: 'border-[#b2ccff] bg-[#eef4ff] text-[#3538cd]' },
               { category: 'new-believers', label: 'New believers — no later interaction after 24 hours', count: counts.newBelievers, tone: 'border-[#abefc6] bg-[#ecfdf3] text-[#027a48]' },
             ].map(({ category, label, count, tone }) => (
-              <Link key={category} href={`/contacts/attention?category=${category}`} className={`flex flex-col rounded-[14px] border px-3 py-3 hover:brightness-95 focus-visible:outline-2 ${tone}`}>
+              <button type="button" key={category} aria-expanded={selected === category} onClick={() => setSelected(selected === category ? '' : category)} className={`flex flex-col rounded-[14px] border px-3 py-3 hover:brightness-95 focus-visible:outline-2 ${tone}`}>
                 <span className="mt-1.5 text-[11px] font-extrabold leading-4">{label}</span>
                 <span className="order-first text-[22px] font-black leading-none tracking-[-0.04em]">{count}</span>
-              </Link>
+              </button>
             ))}
           </div>
         ) : <p role="status" className="text-sm text-[#667085]">Loading attention counts…</p>}
+        {selected && <AttentionContactList key={selected} category={selected} target={selected === category ? target : undefined} />}
       </div>
     </details>
   )

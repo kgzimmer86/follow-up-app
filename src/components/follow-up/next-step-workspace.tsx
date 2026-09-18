@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { contactDisplayName } from '@/lib/contact-name'
 import { localDateTime, nextStepInputError, nextStepsChanged, nextStepsChangedEvent, plannedInstant, type NextStep } from '@/lib/next-steps'
 import { InteractionButton } from './interaction-button'
+import type { NextStepIdea } from '@/lib/next-step-ideas'
 
 const button = 'min-h-11 rounded-xl border border-[#d0d5dd] bg-white px-3 py-2 text-sm font-bold text-[#344054] disabled:opacity-50'
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-US', {
@@ -19,10 +20,25 @@ export function NextStepWorkspace({ contact }: { contact?: { id: string; name: s
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
+  const [ideas, setIdeas] = useState<NextStepIdea[]>([])
+  const [ideasLoading, setIdeasLoading] = useState(false)
+  const [ideasError, setIdeasError] = useState('')
+  const [selectedIdea, setSelectedIdea] = useState<NextStepIdea | null>(null)
   const [now, setNow] = useState(0)
   const generation = useRef(0)
   const invalidate = useCallback(() => { generation.current++ }, [])
   const contactId = contact?.id
+  async function getIdeas() {
+    if (!contactId || ideasLoading) return
+    setIdeasLoading(true); setIdeasError('')
+    try {
+      const response = await fetch('/api/next-step-ideas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactId }), signal: AbortSignal.timeout(50000) })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Couldn’t generate ideas.')
+      setIdeas(result.ideas)
+    } catch (error) { setIdeasError(error instanceof Error ? error.message : 'Couldn’t generate ideas. You can write your own step.') }
+    finally { setIdeasLoading(false) }
+  }
   const load = useCallback(async (after?: NextStep) => {
     const request = ++generation.current
     setLoading(true)
@@ -58,8 +74,16 @@ export function NextStepWorkspace({ contact }: { contact?: { id: string; name: s
     </p>}
     {more && <button type="button" disabled={loading} onClick={() => void load(rows.at(-1))} className={button}>Load more steps</button>}
     {contact && !loading && !error && rows.length === 0 && (creating
-      ? <NextStepEditor contactId={contact.id} onClose={() => setCreating(false)} />
-      : <button type="button" onClick={() => setCreating(true)} className={button}>+ Add my next step</button>)}
+      ? <NextStepEditor contactId={contact.id} initialIdea={selectedIdea ?? undefined} onClose={() => { setCreating(false); setSelectedIdea(null) }} />
+      : <div className="space-y-2">
+        {ideas.map((idea, index) => <button key={index} type="button" onClick={() => { setSelectedIdea(idea); setCreating(true) }} className={`${button} block w-full text-left`}>
+          <span className="block">{idea.action}</span><span className="mt-1 block text-xs font-normal text-[#667085]">{idea.timing}</span>
+        </button>)}
+        <div className="flex flex-wrap gap-2"><button type="button" disabled={ideasLoading} onClick={() => void getIdeas()} className={button}>{ideasLoading ? 'Considering the history…' : ideas.length ? 'Refresh AI ideas' : 'Suggest three next steps'}</button>
+          <button type="button" onClick={() => { setSelectedIdea(null); setCreating(true) }} className={button}>Write my own</button></div>
+        {ideas.length > 0 && <p className="text-xs text-[#667085]">AI ideas to consider. Choose one to edit and set a time.</p>}
+        {ideasError && <p role="alert" className="text-sm text-red-800">{ideasError}</p>}
+      </div>)}
     {contact && <Link href="/contacts/next-steps" className="inline-flex min-h-11 items-center text-sm font-bold text-[#175cd3]">View all my next steps →</Link>}
   </section>
 }
@@ -100,12 +124,12 @@ function NextStepCard({ step, due }: { step: NextStep; due: boolean }) {
   </article>
 }
 
-function NextStepEditor({ contactId, step, rescheduleOnly = false, onClose }: {
-  contactId: string; step?: NextStep; rescheduleOnly?: boolean; onClose: () => void
+function NextStepEditor({ contactId, step, initialIdea, rescheduleOnly = false, onClose }: {
+  contactId: string; step?: NextStep; initialIdea?: NextStepIdea; rescheduleOnly?: boolean; onClose: () => void
 }) {
   const router = useRouter()
   const id = useRef<string | null>(step?.id ?? null)
-  const [action, setAction] = useState(step?.action ?? '')
+  const [action, setAction] = useState(step?.action ?? initialIdea?.action ?? '')
   const [due, setDue] = useState(step ? localDateTime(step.due_at) : '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -127,6 +151,7 @@ function NextStepEditor({ contactId, step, rescheduleOnly = false, onClose }: {
     finally { setBusy(false) }
   }
   return <form onSubmit={save} className="mt-3 space-y-3 rounded-xl border border-[#d0d5dd] bg-white p-4">
+    {initialIdea && <p className="text-sm text-[#667085]">Suggested timing: {initialIdea.timing}. Choose the time that fits below.</p>}
     {!rescheduleOnly && <div><label htmlFor={`step-action-${suffix}`} className="text-sm font-bold text-[#344054]">My next step</label>
       <textarea autoFocus id={`step-action-${suffix}`} value={action} onChange={e => setAction(e.target.value)} required maxLength={500} rows={3} disabled={busy}
         className="mt-1 w-full rounded-xl border border-[#d0d5dd] p-3 text-sm" /></div>}

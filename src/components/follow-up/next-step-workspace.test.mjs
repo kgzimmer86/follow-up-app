@@ -18,6 +18,9 @@ async function browserBundle() {
   })) sources[name] = await readFile(new URL(`../../../node_modules/${path}`, import.meta.url), 'utf8')
   for (const [name, path] of Object.entries({
     workspace: './next-step-workspace.tsx',
+    './next-step-workspace': './next-step-workspace.tsx',
+    './attention-contact-list': './attention-contact-list.tsx',
+    attention: './my-contact-attention.tsx',
     './interaction-button': './interaction-button.tsx',
     '@/lib/next-steps': '../../lib/next-steps.ts',
     '@/lib/contact-name': '../../lib/contact-name.ts',
@@ -37,7 +40,7 @@ async function browserBundle() {
   return `const process={env:{NODE_ENV:'production',NEXT_PUBLIC_NEXT_STEPS_ENABLED:'true'}};
     const modules={${Object.entries(sources).map(([key,value])=>`${JSON.stringify(key)}:(module,exports,require)=>{${value}\n}`).join(',')}};
     const cache={};function require(name){if(cache[name])return cache[name].exports;const m={exports:{}};cache[name]=m;if(!modules[name])throw Error(name);modules[name](m,m.exports,require);return m.exports;}
-    const React=require('react');require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(require('workspace').NextStepWorkspace,{contact:{id:'00000000-0000-4000-8000-000000000001',name:'Invented Student'}}));`
+    const React=require('react');require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(require('attention').MyContactAttentionProvider,{refreshKey:{}},React.createElement(require('attention').MyContactAttentionSection,{category:'stale',target:'00000000-0000-4000-8000-000000000001'})));`
 }
 
 test('mobile next steps: create, edit, reschedule, record, clear, errors and empty states',async t=>{
@@ -57,6 +60,8 @@ test('mobile next steps: create, edit, reschedule, record, clear, errors and emp
     window.mockRpc=async(name,args)=>{
       window.calls.push({name,args})
       if(window.failNext){window.failNext=false;return {error:{message:'Invented connection failure',code:'TEST'}}}
+      if(name==='get_my_contact_attention')return {data:{unattempted:0,staleGoBacks:1,newBelievers:0,total:1}}
+      if(name==='get_my_contact_attention_list')return {data:{total:1,contacts:[{id:'00000000-0000-4000-8000-000000000001',display_name:'Invented Student',status:'go_back'}]}}
       if(name==='follow_up_next_steps_list')return {data:window.rows.slice()}
       if(name==='follow_up_next_step_save'){
         const step={id:args.p_id,contact_id:args.p_contact,action:args.p_action,due_at:args.p_due,version:args.p_version+1,display_name:'Invented Student',contact_status:'go_back',is_primary:true}
@@ -68,7 +73,11 @@ test('mobile next steps: create, edit, reschedule, record, clear, errors and emp
     }
   })
   await page.addScriptTag({content:await browserBundle()})
-  await page.getByRole('button',{name:'+ Add my next step'}).click()
+  assert.equal(await page.locator('details').evaluate(el=>el.open),true)
+  await page.route('**/api/next-step-ideas',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ideas:[{action:'Ask about the older commitment',timing:'This week'},{action:'Arrange a conversation',timing:'Next week'},{action:'Check in about their question',timing:'Soon'}]})}))
+  await page.getByRole('button',{name:'Suggest three next steps'}).click()
+  await page.getByRole('button',{name:'Ask about the older commitment This week'}).click()
+  assert.equal(await page.getByLabel('My next step',{exact:true}).inputValue(),'Ask about the older commitment')
   const date=new Date(Date.now()+7*86400000).toISOString().slice(0,10)+'T17:30'
   await page.getByLabel('My next step',{exact:true}).fill('Arrange a time to catch up')
   await page.getByLabel('When do you plan to take this step?').fill(date)
@@ -87,10 +96,10 @@ test('mobile next steps: create, edit, reschedule, record, clear, errors and emp
   await page.getByRole('button',{name:'Record an interaction',exact:true}).click()
   await page.getByLabel('Notes',{exact:true}).fill('We caught up. Invented fixture only.')
   await page.getByRole('button',{name:'Save Interaction',exact:true}).click()
-  await page.getByRole('button',{name:'+ Add my next step'}).waitFor()
+  await page.getByRole('button',{name:'Write my own'}).waitFor()
   assert.equal(await page.evaluate(()=>window.interactions.length),1)
   assert.equal(await page.evaluate(()=>window.interactions[0].p_payload.p_notes),'We caught up. Invented fixture only.')
-  await page.getByRole('button',{name:'+ Add my next step'}).click()
+  await page.getByRole('button',{name:'Write my own'}).click()
   await page.getByLabel('My next step',{exact:true}).fill('Another invented plan')
   await page.getByLabel('When do you plan to take this step?').fill(date)
   await page.evaluate(()=>{window.failNext=true})
@@ -99,7 +108,7 @@ test('mobile next steps: create, edit, reschedule, record, clear, errors and emp
   await page.getByRole('button',{name:'Save next step',exact:true}).click()
   await page.getByRole('button',{name:'Clear the step',exact:true}).click()
   await page.getByRole('button',{name:'Clear step',exact:true}).click()
-  await page.getByRole('button',{name:'+ Add my next step'}).waitFor()
+  await page.getByRole('button',{name:'Write my own'}).waitFor()
   assert.equal(await page.evaluate(()=>window.interactions.length),1,'clearing does not log an interaction')
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'fits mobile width')
   assert.deepEqual(errors,[])

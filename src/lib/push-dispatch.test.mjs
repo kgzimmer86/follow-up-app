@@ -69,3 +69,8 @@ test('feature flag controls named reminders and next-step deep links',async()=>{
   assert.equal(enabled.sent[0].payload.url,'/contacts/next-steps')
   assert.match(enabled.sent[0].payload.body,/How did it go with Invented Student\?/)
 })
+
+test('planned contacts do not receive duplicate generic attention prompts',async()=>{
+ const d=dispatcher({jobs:[{...job,snapshot:{...job.snapshot,suppressContactReminder:true}}],nextStepsEnabled:true});
+ const response=await d.post(); assert.equal(response.status,200);assert.equal(d.sent.length,0);assert.equal((await response.json()).suppressed,1);assert.equal(d.calls[1].args.p_result,'sent');
+})

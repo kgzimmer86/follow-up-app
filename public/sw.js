@@ -24,6 +24,7 @@ function stateStore(mode, operation) {
 const readState = () => stateStore('readonly', store => store.get('binding'))
 const writeState = state => stateStore('readwrite', store => store.put(state, 'binding'))
 function notificationDestination(value) {
+  if (typeof value === 'string' && /^\/contacts\?context=1&attention=(awaiting|stale|new-believers)&contact=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return value
   if (value === '/contacts/next-steps' || (typeof value === 'string' && /^\/contacts\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\?nextStep=1$/i.test(value))) return value
   return '/notifications'
 }

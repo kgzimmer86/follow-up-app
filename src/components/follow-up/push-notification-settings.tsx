@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { nextStepsEnabled } from '@/lib/next-steps'
 import { disablePushNotifications, messagePushWorker, writePushBinding } from '@/lib/push-client'
 
 export function PushNotificationSettings({ userId, publicKey }: { userId: string; publicKey: string }) {
@@ -79,10 +80,10 @@ export function PushNotificationSettings({ userId, publicKey }: { userId: string
 
   return <section className="rounded-[20px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_6px_rgba(16,24,40,0.04)]">
     <h3 className="text-sm font-extrabold text-[#15223a]">Phone notifications</h3>
-    <p className="mt-2 text-sm leading-6 text-[#667085]">Get one combined update for your contacts, your invitations, and attendance follow-ups in groups you lead. Groups you only oversee are not included.</p>
+    <p className="mt-2 text-sm leading-6 text-[#667085]">Get one combined update for your contacts, your invitations, and attendance follow-ups in groups you lead.{nextStepsEnabled && ' Planned next steps are included when their chosen time passes.'} Groups you only oversee are not included.</p>
     <p className="mt-2 text-xs leading-5 text-[#667085]">On iPhone or iPad, add Follow Up to your Home Screen, open it there, and allow notifications. Badge changes also require a notification, including when items are resolved. Android badge behavior depends on your phone and launcher.</p>
     {!publicKey && !enabled ? <p className="mt-3 text-sm text-[#667085]">Notifications are not available yet. Your in-app badges still work normally.</p> : !ready ? <p className="mt-3 text-sm text-[#667085]">Checking this device…</p> : !supported ? <p className="mt-3 text-sm text-[#667085]">This browser does not support notifications here. On iPhone or iPad, try from the installed Home Screen app.</p> : <button type="button" disabled={busy} onClick={toggle} className="mt-4 rounded-xl bg-[#00274c] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Updating…' : enabled ? 'Turn off on this device' : 'Enable on this device'}</button>}
-    <p className="mt-3 text-xs leading-5 text-[#667085]">Optional, per device. Checks run about every five minutes; unchanged items do not trigger repeated reminders. Notifications contain counts, not student names. You can also change alerts in your phone’s notification settings.</p>
+    <p className="mt-3 text-xs leading-5 text-[#667085]">Optional, per device. Checks run about every five minutes; unchanged items do not trigger repeated reminders. {nextStepsEnabled ? 'Contact and next-step reminders include the student’s name, but not conversation notes.' : 'Notifications contain counts, not student names.'} You can also change alerts in your phone’s notification settings.</p>
     {message && <p role="status" className="mt-3 text-sm text-[#027a48]">{message}</p>}
     {error && <p role="alert" className="mt-3 text-sm text-[#b42318]">{error}</p>}
   </section>

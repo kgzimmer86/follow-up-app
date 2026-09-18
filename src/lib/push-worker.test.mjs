@@ -78,3 +78,18 @@ test('malformed pushes still display a generic notice without arbitrary counts',
   await w.dispatch('push',{data:{json:()=>{throw new Error('bad JSON')}}})
   assert.equal(w.notices.length,2)
 })
+
+test('named reminders open only approved contact or next-step destinations',async()=>{
+  for(const url of ['/contacts/next-steps','/contacts/00000000-0000-4000-8000-000000000001?nextStep=1']){
+    const w=worker();await w.message({type:'BIND',id:'device-a'})
+    await w.push({subscriptionId:'device-a',sentAt:100,count:1,body:'What’s your next step with Invented Student?',url})
+    assert.equal(w.notices[0].data.url,url)
+    await w.dispatch('notificationclick',{notification:{data:w.notices[0].data,close:()=>{}}})
+    assert.equal(w.navigations[0],`https://follow-up-app-red.vercel.app${url}`)
+  }
+  const w=worker();await w.message({type:'BIND',id:'device-a'})
+  await w.push({subscriptionId:'wrong-account',sentAt:100,count:1,body:'Private name',url:'/contacts/next-steps'})
+  assert.equal(w.notices[0].data.url,'/notifications');assert.doesNotMatch(w.notices[0].body,/Private name/)
+  await w.dispatch('notificationclick',{notification:{data:{url:'//evil.test'},close:()=>{}}})
+  assert.equal(w.navigations[0],'https://follow-up-app-red.vercel.app/notifications')
+})

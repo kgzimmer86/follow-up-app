@@ -2,15 +2,20 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getAppAccess } from '@/lib/supabase/access'
+import { nextStepsEnabled } from '@/lib/next-steps'
+import { LoadRecovery } from '@/components/follow-up/load-recovery'
 
 export default async function NotificationsPage() {
   const access = await getAppAccess()
+  if (access.status === 'unavailable') return <LoadRecovery />
   if (!access.user || !access.profile?.is_active || access.profile.role === 'pending') redirect('/')
   const db = await createClient()
-  const [contacts, community] = await Promise.all([
+  const [contacts, community, steps] = await Promise.all([
     db.rpc('get_my_contact_attention'), db.rpc('community_workspace_counts'),
+    nextStepsEnabled ? db.rpc('follow_up_next_step_due_count') : null,
   ])
   const items = [
+    ...(nextStepsEnabled ? [{ title: 'My Next Steps — how did it go?', href: '/contacts/next-steps', count: steps?.error ? null : steps?.data }] : []),
     { title: 'My Contacts', href: '/contacts', count: contacts.error ? null : contacts.data?.total },
     { title: 'My Invitations', href: '/community/invites', count: community.error ? null : community.data?.initial },
     { title: 'Groups I lead', href: '/community', count: community.error ? null : community.data?.groups },

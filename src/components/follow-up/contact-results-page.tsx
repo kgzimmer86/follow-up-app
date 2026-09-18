@@ -42,6 +42,8 @@ import {
 } from '@/components/follow-up/contact-card-indicators'
 import { ContactAssignmentCell } from '@/components/follow-up/contact-assignment-cell'
 import { ContactNameSearch } from '@/components/follow-up/contact-name-search'
+import { MyContactsTabs } from '@/components/follow-up/my-contacts-tabs'
+import { nextStepsEnabled } from '@/lib/next-steps'
 
 export type ContactView =
   | 'mine'
@@ -1057,6 +1059,7 @@ export async function ContactResultsPage({
         ) : null}
       </section>
 
+      {view === 'mine' && nextStepsEnabled && <MyContactsTabs active="contacts" />}
       {view === 'mine' && <MyContactAttentionSection />}
 
       {view === 'area' && !communityScope && <ContactNameSearch

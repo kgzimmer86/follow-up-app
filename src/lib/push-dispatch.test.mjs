@@ -3,23 +3,22 @@ import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import vm from 'node:vm'
 import test from 'node:test'
-import { pushBody, pushDestination, validPushEndpoint } from './push.ts'
+import { pushBody, validPushEndpoint } from './push.ts'
 
 const require = createRequire(import.meta.url)
 const ts = require('typescript')
 const source = await readFile(new URL('../app/api/push/dispatch/route.ts',import.meta.url),'utf8')
 const compiled = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText
-function dispatcher({jobs=[],sendError=null,claimError=null,ackError=null,configured=true,nextStepsEnabled=false}={}) {
+function dispatcher({jobs=[],sendError=null,claimError=null,ackError=null,configured=true}={}) {
   const calls=[],sent=[]
   const db={rpc:async(name,args)=>{calls.push({name,args});return name==='follow_up_push_claim'?{data:jobs,error:claimError}:{error:ackError}}}
   const env={PUSH_CRON_SECRET:'a'.repeat(64),NEXT_PUBLIC_SUPABASE_URL:'https://test.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'server-only-test',NEXT_PUBLIC_VAPID_PUBLIC_KEY:'public-test',VAPID_PRIVATE_KEY:'private-test',VAPID_SUBJECT:'https://follow-up-app-red.vercel.app'}
-  env.NEXT_PUBLIC_NEXT_STEPS_ENABLED=String(nextStepsEnabled)
   if(!configured) delete env.VAPID_PRIVATE_KEY
   const testModule={exports:{}}
   vm.runInNewContext(compiled,{module:testModule,exports:testModule.exports,Buffer,Date,AbortSignal,Response,Promise,process:{env},require:name=>{
     if(name==='node:crypto')return require(name)
     if(name==='@supabase/supabase-js')return {createClient:()=>db}
-    if(name==='@/lib/push')return {pushBody,pushDestination,validPushEndpoint}
+    if(name==='@/lib/push')return {pushBody,validPushEndpoint}
     if(name==='web-push')return {sendNotification:async(sub,payload,options)=>{sent.push({sub,payload:JSON.parse(payload),options});if(sendError)throw sendError}}
     throw new Error(name)
   }})
@@ -56,21 +55,4 @@ test('transient failures retry without marking sent; missing setup and failed cl
   }
   const ack=dispatcher({jobs:[job],ackError:{message:'test'}})
   assert.equal((await ack.post()).status,503)
-})
-
-test('feature flag controls named reminders and next-step deep links',async()=>{
-  const named={...job,snapshot:{...job.snapshot,nextSteps:1,nextStepContactName:'Invented Student',total:6}}
-  const disabled=dispatcher({jobs:[named]});await disabled.post()
-  assert.equal(disabled.sent[0].payload.count,5)
-  assert.equal(disabled.sent[0].payload.url,'/notifications')
-  assert.doesNotMatch(disabled.sent[0].payload.body,/Invented Student/)
-  const enabled=dispatcher({jobs:[named],nextStepsEnabled:true});await enabled.post()
-  assert.equal(enabled.sent[0].payload.count,6)
-  assert.equal(enabled.sent[0].payload.url,'/contacts/next-steps')
-  assert.match(enabled.sent[0].payload.body,/How did it go with Invented Student\?/)
-})
-
-test('planned contacts do not receive duplicate generic attention prompts',async()=>{
- const d=dispatcher({jobs:[{...job,snapshot:{...job.snapshot,suppressContactReminder:true}}],nextStepsEnabled:true});
- const response=await d.post(); assert.equal(response.status,200);assert.equal(d.sent.length,0);assert.equal((await response.json()).suppressed,1);assert.equal(d.calls[1].args.p_result,'sent');
 })

@@ -166,3 +166,16 @@ test('time-only attention changes enter the next snapshot without changing owner
   await db.query("update follow_up_contacts set received_christ_at=now()-interval '25 hours' where id=$1",[a.id])
   await due();const next=(await claim())[0];assert.equal(next.snapshot.total,1)
 })
+
+ test('test rollback restores exact pre-next-steps reader, permissions and existing records',async t=>{
+ const f=await setup(t);await f.contact();await f.register();
+ const before=(await f.db.query('select private.follow_up_push_snapshot() value')).rows[0].value;
+ const definition=(await f.db.query("select pg_get_functiondef('private.follow_up_push_snapshot()'::regprocedure) value")).rows[0].value;
+ await f.db.exec(definition.replaceAll('private.follow_up_push_snapshot()', 'private.follow_up_push_snapshot_before_next_steps()'));
+ await f.db.exec(`create or replace function private.follow_up_push_snapshot() returns jsonb language sql security definer set search_path='' as $$select '{"total":99,"nextSteps":98}'::jsonb$$;`);
+ const rollback=await readFile(new URL('../ready-to-run/testing-restore-original-attention.sql',import.meta.url),'utf8');
+ for(let i=0;i<2;i++){const result=await f.db.exec(rollback);assert.ok(Object.values(result.at(-1).rows[0]).every(value=>value===true));}
+ assert.deepEqual((await f.db.query('select private.follow_up_push_snapshot() value')).rows[0].value,before);
+ assert.equal((await f.db.query('select count(*)::int count from follow_up_contacts')).rows[0].count,1);
+ assert.equal((await f.db.query('select count(*)::int count from private.follow_up_push_devices')).rows[0].count,1);
+});

@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
-import { pushBody, pushDestination, validPushEndpoint, type PushSnapshot } from '@/lib/push'
+import { pushBody, validPushEndpoint, type PushSnapshot } from '@/lib/push'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const { data, error } = await db.rpc('follow_up_push_claim')
   if (error) return new Response('Could not claim notifications', { status: 503 })
   const jobs = (data || []) as Job[]
-  let sent = 0, suppressed = 0, expired = 0, retry = 0, ackErrors = 0
+  let sent = 0, expired = 0, retry = 0, ackErrors = 0
   // Bounded concurrency and timeout fit within the route's duration. A lease
   // recovers interrupted runs; success is acknowledged only after push accepts.
   for (let offset = 0; offset < jobs.length; offset += 10) {
@@ -38,19 +38,10 @@ export async function POST(request: Request) {
     if (Date.now() - startedAt > 38000) { retry += jobs.length - offset; break }
     await Promise.all(jobs.slice(offset, offset + 10).map(async job => {
       let result: 'sent' | 'expired' | 'retry' = 'retry'
-      let skipped = false
       if (!validPushEndpoint(job.endpoint)) result = 'expired'
       else try {
-        const snapshot = process.env.NEXT_PUBLIC_NEXT_STEPS_ENABLED === 'true' ? job.snapshot : {
-          contacts: job.snapshot.contacts, invitations: job.snapshot.invitations, groups: job.snapshot.groups,
-          total: job.snapshot.contacts + job.snapshot.invitations + job.snapshot.groups, fingerprint: job.snapshot.fingerprint,
-        }
-        if (snapshot.suppressContactReminder) {
-          // A saved plan already addresses every remaining contact reminder.
-          // Acknowledge this fingerprint without sending a duplicate prompt.
-          skipped = true
-        } else await webpush.sendNotification({ endpoint: job.endpoint, keys: { p256dh: job.p256dh, auth: job.auth } },
-          JSON.stringify({ subscriptionId: job.id, sentAt: job.sentAt, count: snapshot.total, body: pushBody(snapshot), url: pushDestination(snapshot) }),
+        await webpush.sendNotification({ endpoint: job.endpoint, keys: { p256dh: job.p256dh, auth: job.auth } },
+          JSON.stringify({ subscriptionId: job.id, sentAt: job.sentAt, count: job.snapshot.total, body: pushBody(job.snapshot) }),
           { vapidDetails: { subject, publicKey, privateKey }, TTL: 3600, timeout: 5000, topic: 'follow-up-attention', urgency: 'normal' })
         result = 'sent'
       } catch (error) {
@@ -58,7 +49,7 @@ export async function POST(request: Request) {
         if (status === 404 || status === 410) result = 'expired'
         // Never log endpoint URLs, subscription keys, or provider response bodies.
       }
-      if (result === 'sent') { if (skipped) suppressed++; else sent++ }
+      if (result === 'sent') sent++
       else if (result === 'expired') expired++
       else retry++
       const { error: ackError } = await db.rpc('follow_up_push_finish', {
@@ -67,5 +58,5 @@ export async function POST(request: Request) {
       if (ackError) ackErrors++
     }))
   }
-  return Response.json({ checkedChanges: jobs.length, sent, suppressed, expired, retry, ackErrors }, { status: ackErrors || retry ? 503 : 200 })
+  return Response.json({ checkedChanges: jobs.length, sent, expired, retry, ackErrors }, { status: ackErrors || retry ? 503 : 200 })
 }

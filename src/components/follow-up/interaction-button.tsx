@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import { OutreachFields, type OutreachSelection } from '@/components/community/outreach-fields'
 import { celebrationSaved } from '@/components/community/celebration-listener'
 import { invitationsChanged } from '@/components/community/invite-attention'
-import { nextStepsChanged } from '@/lib/next-steps'
 import Image from 'next/image'
 import {
   usePathname,
@@ -26,8 +25,6 @@ type InteractionButtonProps = {
   isPrimary: boolean
   autoOpen?: boolean
   invitationEvent?: { id: string; name: string }
-  nextStep?: { id: string; version: number; action: string }
-  label?: string
 }
 
 export function InteractionButton({
@@ -37,8 +34,6 @@ export function InteractionButton({
   isPrimary,
   autoOpen = false,
   invitationEvent,
-  nextStep,
-  label = '+ Interaction',
 }: InteractionButtonProps) {
   const router = useRouter()
   const cleanupPhoto = usePhotoCleanup()
@@ -185,11 +180,7 @@ export function InteractionButton({
     let error: { message: string; code?: string } | null
     try {
       submission.current ??= crypto.randomUUID()
-      const response = await supabase.rpc(nextStep ? 'follow_up_next_step_record' : invitedToEvent ? 'community_log_outreach' : rpcName, nextStep ? {
-        p_id: nextStep.id, p_version: nextStep.version, p_submission: submission.current,
-        p_payload: rpcArgs, p_event: invitedToEvent ? campaignEvent!.id : null,
-        p_response: invitedToEvent ? campaignEvent!.response : null,
-      } : invitedToEvent ? {
+      const response = await supabase.rpc(invitedToEvent ? 'community_log_outreach' : rpcName, invitedToEvent ? {
         p_submission: submission.current, p_event: campaignEvent!.id, p_contact: contactId,
         p_response: campaignEvent!.response, p_method: 'interaction', p_payload: rpcArgs,
       } : rpcArgs)
@@ -202,7 +193,7 @@ export function InteractionButton({
       const cleanup = uploadedPath ? await cleanupPhoto(uploadedPath, !error.code) : null
       // A lost response may still have saved this unique attachment. Treat a
       // confirmed reference as success, rather than inviting a duplicate save.
-      if (cleanup !== 'in_use' || nextStep) {
+      if (cleanup !== 'in_use') {
         setErrorMessage(error.code ? error.message : 'Could not confirm whether the interaction saved. Check the contact history before trying again.')
         setSaving(false)
         return
@@ -211,10 +202,9 @@ export function InteractionButton({
 
     // A retried submission may return the earlier saved interaction. Remove only
     // an unreferenced new upload; the cleanup RPC protects referenced images.
-    if ((invitedToEvent || nextStep) && uploadedPath) await cleanupPhoto(uploadedPath, true)
+    if (invitedToEvent && uploadedPath) await cleanupPhoto(uploadedPath, true)
     form.reset()
     invitationsChanged()
-    if (nextStep) nextStepsChanged()
     submission.current = null
     setInvitedToEvent(Boolean(invitationEvent))
     setCampaignEvent(invitationEvent ? { ...invitationEvent, response: null } : null)
@@ -295,7 +285,7 @@ export function InteractionButton({
         }}
         className="interaction-launch w-full rounded-xl bg-blue-950 px-3 py-2.5 text-sm font-extrabold text-white hover:bg-blue-900"
       >
-        {label}
+        + Interaction
       </button>
 
       {open && (
@@ -331,7 +321,6 @@ export function InteractionButton({
 
             <form onSubmit={handleSubmit}>
               <div className="space-y-6 p-5">
-                {nextStep && <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-950">Planned step: {nextStep.action}<br />Saving this interaction will complete that step. Record what actually happened below.</p>}
                 <div>
                   <label
                     htmlFor={`notes-${contactId}`}

@@ -7,7 +7,6 @@ Production, mobile-first ministry follow-up app built with Next.js App Router, T
 - [Contact filters and verification](supabase/CONTACT_FILTER_DEPLOYMENT.md)
 - [Interaction photos and permissions](supabase/INTERACTION_PHOTOS_DEPLOYMENT.md)
 - [Text attempts and validation](supabase/TEXT_ATTEMPTS_DEPLOYMENT.md)
-- [Personal next steps: behavior, testing, and release handoff](docs/releases/personal-next-steps.md)
 
 SQL files in `supabase/migrations` record database changes. The product owner runs complete SQL manually in Supabase SQL Editor when required. A GitHub push does not apply SQL. Do not rerun historical migrations simply because they appear in these notes.
 

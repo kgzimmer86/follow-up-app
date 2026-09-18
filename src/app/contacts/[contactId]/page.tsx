@@ -1,7 +1,5 @@
 import { EditableSurveyField, EditableSurveyAffinities } from '@/components/follow-up/editable-survey'
 import { ContactCommunity } from '@/components/community/contact-community'
-import { NextStepWorkspace } from '@/components/follow-up/next-step-workspace'
-import { nextStepsEnabled } from '@/lib/next-steps'
 import { loadRoommateSources } from '@/lib/roommate-provenance'
 import { SelfUnassignContact } from '@/components/follow-up/self-unassign-contact'
 import { RoommateLabel } from '@/components/follow-up/roommate-label'
@@ -40,7 +38,6 @@ type PageProps = {
     tab?: string
     from?: string
     interaction?: string
-    nextStep?: string
   }>
 }
 
@@ -801,11 +798,6 @@ export default async function ContactDetailPage({
               }
             />
           </div>
-
-          {nextStepsEnabled && <details open={query.nextStep === '1'} className="mt-3 rounded-xl border border-[#e4e7ec] bg-white p-3">
-            <summary className="min-h-11 cursor-pointer content-center text-sm font-extrabold text-[#00274c]">My next step</summary>
-            <NextStepWorkspace key={`${userId}-${contact.id}`} contact={{ id: contact.id, name: student.display_name }} />
-          </details>}
 
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <AddTextAttemptButton contactId={contact.id} contactName={student.display_name} />

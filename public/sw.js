@@ -23,11 +23,6 @@ function stateStore(mode, operation) {
 }
 const readState = () => stateStore('readonly', store => store.get('binding'))
 const writeState = state => stateStore('readwrite', store => store.put(state, 'binding'))
-function notificationDestination(value) {
-  if (typeof value === 'string' && /^\/contacts\?context=1&attention=(awaiting|stale|new-believers)&contact=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return value
-  if (value === '/contacts/next-steps' || (typeof value === 'string' && /^\/contacts\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\?nextStep=1$/i.test(value))) return value
-  return '/notifications'
-}
 async function badge(count) {
   try {
     if (count > 0 && self.navigator.setAppBadge) await self.navigator.setAppBadge(count)
@@ -71,7 +66,6 @@ self.addEventListener('push', event => {
   event.waitUntil(serial(async () => {
     let body = 'Open Follow Up to see your current attention items.'
     let count = 0
-    let destination = '/notifications'
     try {
       const data = event.data?.json()
       const state = await readState()
@@ -82,7 +76,6 @@ self.addEventListener('push', event => {
         if (Number.isSafeInteger(data.count) && data.count >= 0 && Number.isFinite(data.sentAt) && data.sentAt >= state.updatedAt) {
           count = data.count
           if (typeof data.body === 'string') body = data.body.slice(0, 240)
-          destination = notificationDestination(data.url)
           await writeState({ ...state, count, updatedAt: data.sentAt })
         }
       }
@@ -92,14 +85,14 @@ self.addEventListener('push', event => {
     // an attention count. A shared tag coalesces entries in Notification Center.
     await self.registration.showNotification('Follow Up', {
       body, icon: '/icon-192(1).png', tag: 'follow-up-attention',
-      data: { url: destination },
+      data: { url: '/notifications' },
     })
   }))
 })
 self.addEventListener('notificationclick', event => {
   event.notification.close()
   event.waitUntil((async () => {
-    const url = new URL(notificationDestination(event.notification.data?.url), self.location.origin).href
+    const url = new URL('/notifications', self.location.origin).href
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     const client = windows.find(item => new URL(item.url).origin === self.location.origin)
     if (client) {

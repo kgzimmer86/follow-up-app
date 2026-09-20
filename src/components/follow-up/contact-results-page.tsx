@@ -42,6 +42,7 @@ import {
 } from '@/components/follow-up/contact-card-indicators'
 import { ContactAssignmentCell } from '@/components/follow-up/contact-assignment-cell'
 import { ContactNameSearch } from '@/components/follow-up/contact-name-search'
+import { SmartCardFilterCriteria } from '@/components/follow-up/smart-card-filter-criteria'
 
 export type ContactView =
   | 'mine'
@@ -377,6 +378,8 @@ export async function ContactResultsPage({
     : activeFilterCount
 
   const activePersonalFilterCount = activeFilterCount - activeSpreadsheetFilterCount
+  const narrowFilterCount = [filters.status, filters.jesus, filters.community, filters.interview,
+    filters.kgp, filters.interviewDone, filters.invitedCg, filters.affinity, filters.roomOnly].filter(Boolean).length
   const spreadsheetFilterBadgeClassName = 'inline-flex rounded-full border border-[#fecdca] bg-[#fef3f2] px-2.5 py-1 text-[11px] font-extrabold text-[#b42318]'
 
   const filterStateKey = [
@@ -1118,26 +1121,11 @@ export async function ContactResultsPage({
           {activeAdditionalFilters.map((option) => (
             <input key={option.param} type="hidden" name={option.param} value={filters[option.param]} />
           ))}
-          {cardCriteria.length > 0 && (
-            <div className="mb-4 rounded-[11px] border border-[#d8dee8] bg-[#f9fafb] p-3">
-              <div className="text-xs font-extrabold text-[#15223a]">{viewInfo.title} criteria · Fixed</div>
-              <p className="mt-1 text-xs leading-5 text-[#667085]">
-                These belong to this card and change when you choose a different card.
-              </p>
-              <div className="mt-2 grid gap-2">
-                {cardCriteria.map((criterion) => (
-                  <label key={criterion} className="flex items-start gap-2 text-xs font-bold text-[#475467]">
-                    <input type="checkbox" checked disabled readOnly className="mt-0.5 h-4 w-4 accent-[#175cd3]" />
-                    <span>{criterion}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
+          <SmartCardFilterCriteria criteria={cardCriteria} />
           <div className="mb-3">
-              <div className="text-xs font-extrabold text-[#15223a]">Your additional filters</div>
+              <div className="text-sm font-extrabold text-[#15223a]">Your filters</div>
               <p className="mt-1 text-xs leading-5 text-[#667085]">
-                Campus area, dorm/location, floor, wing/house #, gender and affinity travel between cards. Other personal filters reset when you switch cards. Any means no additional restriction.
+                {cardCriteria.length > 0 ? 'Narrow the smart-card results. ' : 'Narrow this list. '}Filters apply automatically. Any means no additional restriction.
                 {view === 'noaddress' && ' This list starts without geographic filters; your area choices are kept for the other lists.'}
               </p>
           </div>
@@ -1327,6 +1315,17 @@ export async function ContactResultsPage({
 
             {/* Keep card controls on phones, where this page shows cards even
                 for a spreadsheet URL. Their values still submit with the form. */}
+          </div>
+          <details className="mt-4 rounded-xl border border-[#e4e7ec] bg-[#f9fafb]" open={narrowFilterCount > 0}>
+            <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#15223a]">
+              Narrow further{narrowFilterCount > 0 ? ` · ${narrowFilterCount} filters applied` : ''}
+            </summary>
+            <div className="px-4 pb-4">
+              <p className="mb-3 text-xs leading-5 text-[#667085]">
+                More filters, added to the rules above. Area, dorm, floor, wing, gender and affinity travel between cards; other personal filters reset when you switch cards.
+              </p>
+              {/* Keep collapsed controls mounted so FormData preserves their values. */}
+              <div className="zoom-stack grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className={displayMode === 'sheet' ? 'contents md:hidden' : 'contents'}>
             <FilterSelect
               label="Status"
@@ -1474,6 +1473,8 @@ export async function ContactResultsPage({
             <input type="checkbox" name="roomOnly" value="1" defaultChecked={roomOnlyActive} className="h-4 w-4 rounded border-[#d0d5dd]" />
             Hide missing rooms (room or address contains a number)
           </label>
+            </div>
+          </details>
 
         </AutomaticFilterForm>
       </details>

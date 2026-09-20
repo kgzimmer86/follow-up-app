@@ -62,7 +62,9 @@ test('Disclosure keeps existing controls in the same automatic form', () => {
     assert.ok(form.indexOf(`name="${name}"`) > disclosure, name)
   }
   assert.match(form, /Narrow further/)
-  assert.match(form, /Narrow the smart-card results by area and gender\./)
+  assert.ok(form.includes('Narrow the ${criteriaTitle} results by area and gender.'))
+  assert.match(form, /SmartCardFilterCriteria title=\{criteriaTitle\}/)
+  assert.doesNotMatch(form, /Narrow the smart-card/)
   assert.doesNotMatch(page, /Narrow this list by location|More filters, added to the rules above|Filters apply automatically\. Any means/)
   assert.doesNotMatch(form, /Show contacts/)
 })

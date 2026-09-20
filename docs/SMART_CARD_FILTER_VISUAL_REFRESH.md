@@ -8,7 +8,8 @@ by the agent. Kyle reviews the preview before any production release.
 Copy refinement: the yellow heading uses the current card name (for example,
 “Go Back Criteria” or “Invite to CG Criteria”). Removed the explanatory text under
 Filters and Narrow further and the yellow-box footer. Your filters has only the
-short area/gender sentence. The Gospel OR explanation remains for clarity.
+short area/gender sentence, using the same card name as the yellow heading rather
+than “smart-card.” The Gospel OR explanation remains for clarity.
 
 Yellow, locked criteria replace the gray summary. Gospel explicitly displays its
 existing Jesus OR Interview rule, plus its existing status and KGP restrictions.

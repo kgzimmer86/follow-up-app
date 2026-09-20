@@ -993,6 +993,7 @@ export async function ContactResultsPage({
   }
 
   const cardCriteria = smartCardCriteria(view)
+  const criteriaTitle = view === 'cg' ? 'Invite to CG' : viewInfo.title
 
   const cardsFilters = contactFiltersForDisplay(filters, 'cards')
   const sheetFilters = contactFiltersForDisplay(filters, 'sheet')
@@ -1111,11 +1112,11 @@ export async function ContactResultsPage({
           {activeAdditionalFilters.map((option) => (
             <input key={option.param} type="hidden" name={option.param} value={filters[option.param]} />
           ))}
-          <SmartCardFilterCriteria title={view === 'cg' ? 'Invite to CG' : viewInfo.title} criteria={cardCriteria} />
+          <SmartCardFilterCriteria title={criteriaTitle} criteria={cardCriteria} />
           <div className="mb-3">
               <div className="text-sm font-extrabold text-[#15223a]">Your filters</div>
               <p className="mt-1 text-xs leading-5 text-[#667085]">
-                {cardCriteria.length > 0 ? 'Narrow the smart-card results by area and gender.' : 'Narrow the results by area and gender.'}
+                {cardCriteria.length > 0 ? `Narrow the ${criteriaTitle} results by area and gender.` : 'Narrow the results by area and gender.'}
               </p>
           </div>
           <input

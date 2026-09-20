@@ -1078,16 +1078,6 @@ export async function ContactResultsPage({
               Filters
             </div>
 
-            <div className="mt-0.5 text-xs text-[#667085]">
-              <span className={displayMode === 'sheet' ? 'md:hidden' : ''}>
-                Narrow this list by location, floor or wing, survey answers, progress, status or affinity.
-              </span>
-              {displayMode === 'sheet' && (
-                <span className="hidden md:inline">
-                  Narrow this list by area, dorm, floor, wing, gender or affinity. Use the column arrows for other filters.
-                </span>
-              )}
-            </div>
             {activeAdditionalFilters.length > 0 && (
               <div className={`mt-2 flex flex-wrap gap-1.5 ${displayMode === 'sheet' ? 'md:hidden' : ''}`}>
                 {activeAdditionalFilters.map((option) => {
@@ -1121,12 +1111,11 @@ export async function ContactResultsPage({
           {activeAdditionalFilters.map((option) => (
             <input key={option.param} type="hidden" name={option.param} value={filters[option.param]} />
           ))}
-          <SmartCardFilterCriteria criteria={cardCriteria} />
+          <SmartCardFilterCriteria title={view === 'cg' ? 'Invite to CG' : viewInfo.title} criteria={cardCriteria} />
           <div className="mb-3">
               <div className="text-sm font-extrabold text-[#15223a]">Your filters</div>
               <p className="mt-1 text-xs leading-5 text-[#667085]">
-                {cardCriteria.length > 0 ? 'Narrow the smart-card results. ' : 'Narrow this list. '}Filters apply automatically. Any means no additional restriction.
-                {view === 'noaddress' && ' This list starts without geographic filters; your area choices are kept for the other lists.'}
+                {cardCriteria.length > 0 ? 'Narrow the smart-card results by area and gender.' : 'Narrow the results by area and gender.'}
               </p>
           </div>
           <input
@@ -1321,9 +1310,6 @@ export async function ContactResultsPage({
               Narrow further{narrowFilterCount > 0 ? ` · ${narrowFilterCount} filters applied` : ''}
             </summary>
             <div className="px-4 pb-4">
-              <p className="mb-3 text-xs leading-5 text-[#667085]">
-                More filters, added to the rules above. Area, dorm, floor, wing, gender and affinity travel between cards; other personal filters reset when you switch cards.
-              </p>
               {/* Keep collapsed controls mounted so FormData preserves their values. */}
               <div className="zoom-stack grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className={displayMode === 'sheet' ? 'contents md:hidden' : 'contents'}>

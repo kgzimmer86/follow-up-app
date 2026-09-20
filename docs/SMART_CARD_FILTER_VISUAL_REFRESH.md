@@ -5,6 +5,11 @@ by the agent. Kyle reviews the preview before any production release.
 
 ## Scope
 
+Copy refinement: the yellow heading uses the current card name (for example,
+“Go Back Criteria” or “Invite to CG Criteria”). Removed the explanatory text under
+Filters and Narrow further and the yellow-box footer. Your filters has only the
+short area/gender sentence. The Gospel OR explanation remains for clarity.
+
 Yellow, locked criteria replace the gray summary. Gospel explicitly displays its
 existing Jesus OR Interview rule, plus its existing status and KGP restrictions.
 Other cards retain all their existing criteria. Fixed checks are display elements,
@@ -40,7 +45,8 @@ branch. Kyle controls production commits, merges, and pushes.
 
 ## Checks
 
-Local validation on 2026-09-20: all 40 focused tests passed; TypeScript
+Local validation on 2026-09-20: initial 40 focused tests passed; after copy refinement,
+all 41 focused tests, changed-file ESLint, and the webpack build passed. TypeScript
 (`tsc --noEmit --incremental false`) passed; ESLint on the three changed source/test
 files passed; `next build --webpack` passed. The standard Turbopack build was not
 run for this change. No authenticated browser/preview checks have been completed.

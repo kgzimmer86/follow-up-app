@@ -14,7 +14,15 @@ const { outputText } = ts.transpileModule(readFileSync(filename, 'utf8'), {
 })
 const compiled = { exports: {} }
 new Function('require', 'module', 'exports', outputText)(createRequire(import.meta.url), compiled, compiled.exports)
-const render = (view) => renderToStaticMarkup(createElement(compiled.exports.SmartCardFilterCriteria, { criteria: smartCardCriteria(view) }))
+const titles = { gospel: 'Share the Gospel', cg: 'Invite to CG', goback: 'Go Back' }
+const render = (view) => renderToStaticMarkup(createElement(compiled.exports.SmartCardFilterCriteria, { title: titles[view] ?? view, criteria: smartCardCriteria(view) }))
+
+test('Criteria use familiar card names instead of smart-card terminology', () => {
+  for (const [view, title] of Object.entries(titles)) {
+    assert.ok(render(view).includes(`${title} Criteria`))
+    assert.doesNotMatch(render(view), /Smart-card|smart card/)
+  }
+})
 
 test('Gospel displays every existing rule and explicit OR without submitting fixed values', () => {
   const html = render('gospel')
@@ -54,5 +62,7 @@ test('Disclosure keeps existing controls in the same automatic form', () => {
     assert.ok(form.indexOf(`name="${name}"`) > disclosure, name)
   }
   assert.match(form, /Narrow further/)
+  assert.match(form, /Narrow the smart-card results by area and gender\./)
+  assert.doesNotMatch(page, /Narrow this list by location|More filters, added to the rules above|Filters apply automatically\. Any means/)
   assert.doesNotMatch(form, /Show contacts/)
 })

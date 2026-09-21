@@ -278,6 +278,7 @@ export default async function ManageAreaPage({
                     <LeaderCard
                       key={leader.id}
                       leader={leader}
+                      returnTo={`/manage/areas/${areaId}`}
                     />
                   )
                 )}
@@ -419,12 +420,14 @@ function LocationCard({
 
 function LeaderCard({
   leader,
+  returnTo,
 }: {
   leader: LeaderRow
+  returnTo: string
 }) {
   return (
     <Link
-      href={`/disciples/${leader.id}`}
+      href={{ pathname: `/disciples/${leader.id}`, query: { from: returnTo } }}
       className="block rounded-[16px] border border-[#e4e7ec] bg-white p-4 transition hover:border-[#98a2b3] hover:shadow-[0_5px_14px_rgba(16,24,40,0.06)]"
     >
       <div className="flex items-start gap-3">

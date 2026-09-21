@@ -6,13 +6,13 @@ const page = readFileSync(new URL('./[discipleId]/page.tsx', import.meta.url), '
 const contact = readFileSync(new URL('../contacts/[contactId]/page.tsx', import.meta.url), 'utf8')
 
 test('both attention queues retain the disciple and attention section', () => {
-  assert.equal(page.match(/returnTo=\{`\/disciples\/\$\{discipleId\}#needs-attention`\}/g)?.length, 2)
+  assert.equal(page.match(/returnTo=\{`\$\{coachingHref\}#needs-attention`\}/g)?.length, 2)
   assert.ok(page.includes('query: { from: returnTo }'))
 })
 
 test('assigned contacts and activity retain their originating sections', () => {
   for (const section of ['assigned-contacts', 'recent-activity']) {
-    assert.ok(page.includes('query: { from: `/disciples/${discipleId}#' + section + '` }'))
+    assert.ok(page.includes('query: { from: `${coachingHref}#' + section + '` }'))
   }
   assert.doesNotMatch(page, /href=\{`\/contacts\//)
 })

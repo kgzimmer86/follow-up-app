@@ -864,7 +864,7 @@ export default async function ContactDetailPage({
             ownerName={ownerName}
             isPrimary={isPrimary}
             assignmentUserId={userId}
-            canAssign={['discipler', 'staff', 'admin'].includes(profile.role)}
+            canAssign={['student_leader', 'discipler', 'staff', 'admin'].includes(profile.role)}
             affinityNames={
               affinityNames
             }

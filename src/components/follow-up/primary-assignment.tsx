@@ -21,7 +21,7 @@ export function PrimaryAssignment({ contactId, userId, ownerId, ownerName }: {
     async function load() {
       try {
         const client = createClient()
-        const { data, error } = await client.rpc('get_contact_primary_choices', { p_contact_id: contactId })
+        const { data, error } = await client.rpc('get_contact_page_primary_choices', { p_contact_id: contactId })
         if (error) throw error
         if (!cancelled) setPeople((data ?? []) as Person[])
       } catch {
@@ -43,7 +43,7 @@ export function PrimaryAssignment({ contactId, userId, ownerId, ownerName }: {
         // Preserve the existing self-claim rules; delegating uses assignment rules.
         const result = id === userId
           ? await client.rpc('claim_follow_up_contact', { p_contact_id: contactId })
-          : await client.rpc('assign_contacts_to_follow_up_user', { p_contact_ids: [contactId], p_assignee_id: id })
+          : await client.rpc('assign_contact_page_primary', { p_contact_id: contactId, p_assignee_id: id })
         if (result.error) throw result.error
         router.refresh()
       } catch (error) {
@@ -66,7 +66,7 @@ export function PrimaryAssignment({ contactId, userId, ownerId, ownerName }: {
           </optgroup>
         ))}
       </select>
-      <p role="status" className="mt-1 text-xs text-[#667085]">{loading ? 'Loading assignment choices…' : pending ? 'Saving…' : people.some((person) => person.group === 'staff') ? 'You, your eligible direct disciples, and staff handoffs.' : 'You and your eligible direct disciples.'}</p>
+      <p role="status" className="mt-1 text-xs text-[#667085]">{loading ? 'Loading assignment choices…' : pending ? 'Saving…' : people.some((person) => person.group === 'disciples') ? 'You, your eligible direct disciples, and available Staff / Admin.' : people.some((person) => person.group === 'staff') ? 'You and available Staff / Admin.' : 'You can make yourself primary.'}</p>
       {error && <div role="alert" className="mt-1 text-xs text-red-700">{error} <button type="button" disabled={pending || loading} className="underline" onClick={() => { setLoading(true); setError(''); setAttempt((value) => value + 1) }}>Retry</button></div>}
     </div>
   )

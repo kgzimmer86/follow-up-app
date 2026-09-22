@@ -43,6 +43,8 @@ import {
 import { ContactAssignmentCell } from '@/components/follow-up/contact-assignment-cell'
 import { ContactNameSearch } from '@/components/follow-up/contact-name-search'
 import { SmartCardFilterCriteria } from '@/components/follow-up/smart-card-filter-criteria'
+import { CheckboxFilterDropdown } from '@/components/follow-up/checkbox-filter-dropdown'
+import { hasExtendedFilters, locksNotInterested, selectedStatuses, statusFilterValue, affinityFilterValue, statusOptions } from '@/lib/smart-card-filter-options'
 
 export type ContactView =
   | 'mine'
@@ -61,14 +63,14 @@ export type ContactResultsSearchParams = {
   campus?: string
   location?: string
   gender?: string
-  status?: string
+  status?: string | string[]
   jesus?: string | string[]
   community?: string | string[]
   interview?: string | string[]
   kgp?: string
   interviewDone?: string
   invitedCg?: string
-  affinity?: string
+  affinity?: string | string[]
   floor?: string
   wing?: string
   roomOnly?: string
@@ -300,7 +302,7 @@ export async function ContactResultsPage({
     campus: searchParams.campus ?? '',
     location: searchParams.location ?? '',
     gender: searchParams.gender ?? '',
-    status: searchParams.status ?? '',
+    status: normalizeMultiFilter(searchParams.status),
     jesus: normalizeMultiFilter(
       searchParams.jesus
     ),
@@ -316,7 +318,7 @@ export async function ContactResultsPage({
     invitedCg:
       searchParams.invitedCg ?? '',
     affinity:
-      searchParams.affinity ?? '',
+      normalizeMultiFilter(searchParams.affinity),
     floor:
       searchParams.floor ?? '',
     wing:
@@ -346,6 +348,13 @@ export async function ContactResultsPage({
     sheetInterview: readSpreadsheetChoice('survey', searchParams.sheetInterview),
     sheetStatus: readSpreadsheetChoice('status', searchParams.sheetStatus),
   })
+
+  const extendedFilters = hasExtendedFilters(view)
+  const statusLocked = locksNotInterested(view)
+  if (filters.status) filters.status = statusFilterValue(filters.status.split(','), statusLocked)
+  if (!extendedFilters && filters.display !== 'sheet') {
+    for (const key of ['jesus', 'community', 'interview', 'kgp', 'interviewDone', 'invitedCg', 'roomOnly'] as const) filters[key] = ''
+  }
 
   const displayMode =
     filters.display === 'sheet'
@@ -378,8 +387,8 @@ export async function ContactResultsPage({
     : activeFilterCount
 
   const activePersonalFilterCount = activeFilterCount - activeSpreadsheetFilterCount
-  const narrowFilterCount = [filters.status, filters.jesus, filters.community, filters.interview,
-    filters.kgp, filters.interviewDone, filters.invitedCg, filters.affinity, filters.roomOnly].filter(Boolean).length
+  const narrowFilterCount = [filters.jesus, filters.community, filters.interview,
+    filters.kgp, filters.interviewDone, filters.invitedCg, filters.roomOnly].filter(Boolean).length
   const spreadsheetFilterBadgeClassName = 'inline-flex rounded-full border border-[#fecdca] bg-[#fef3f2] px-2.5 py-1 text-[11px] font-extrabold text-[#b42318]'
 
   const filterStateKey = [
@@ -604,7 +613,7 @@ export async function ContactResultsPage({
       : null
 
   const assignedFilters = assignedAreaFilters(defaultArea)
-  if (!communityScope && shouldRestorePersonalFilters(view, searchParams) && view !== 'noaddress') {
+  if (!communityScope && shouldRestorePersonalFilters(view, searchParams) && (view !== 'noaddress' || defaultArea?.area_type === 'affinity')) {
     redirect(resultsHref({
       basePath, sort: sortBy, dir: sortDir,
       filters: { ...filters, ...assignedFilters }, page: requestedPage,
@@ -614,7 +623,7 @@ export async function ContactResultsPage({
   const selectedAreaName =
     selectedLocationArea?.name ||
     campusAreas.find((area) => area.id === filters.campus)?.name ||
-    affinityAreas.find((area) => area.id === filters.affinity)?.name ||
+    affinityAreas.filter((area) => filters.affinity.split(',').includes(area.id)).map(area => area.name).join(', ') ||
     (filters.location === 'no_address' ? 'No Address' :
       filters.location === 'needs_area_assignment' ? 'Needs Area Assignment' : 'All areas')
 
@@ -940,7 +949,9 @@ export async function ContactResultsPage({
     const nextFilters = { ...displayOnlyFilters }
     for (const key of personalFilterKeys) {
       const values = formData.getAll(key).filter((value): value is string => typeof value === 'string')
-      nextFilters[key] = ['jesus', 'community', 'interview'].includes(key)
+      nextFilters[key] = key === 'status' ? statusFilterValue(values, statusLocked)
+        : key === 'affinity' ? affinityFilterValue(values)
+        : ['jesus', 'community', 'interview'].includes(key)
         ? normalizeMultiFilter(values)
         : (values[0] ?? '').slice(0, 200)
     }
@@ -1112,11 +1123,15 @@ export async function ContactResultsPage({
           {activeAdditionalFilters.map((option) => (
             <input key={option.param} type="hidden" name={option.param} value={filters[option.param]} />
           ))}
+          {!extendedFilters && displayMode === 'sheet' &&
+            (['jesus', 'community', 'interview', 'kgp', 'interviewDone', 'invitedCg', 'roomOnly'] as const).map(name => (
+              <input key={name} type="hidden" name={name} value={filters[name]} />
+            ))}
           <SmartCardFilterCriteria title={criteriaTitle} criteria={cardCriteria} />
           <div className="mb-3">
               <div className="text-sm font-extrabold text-[#15223a]">Your filters</div>
               <p className="mt-1 text-xs leading-5 text-[#667085]">
-                {cardCriteria.length > 0 ? `Narrow the ${criteriaTitle} results by area and gender.` : 'Narrow the results by area and gender.'}
+                {cardCriteria.length > 0 ? `Narrow the ${criteriaTitle} results by area, gender, status and affinity.` : 'Narrow the results by area, gender, status and affinity.'}
               </p>
           </div>
           <input
@@ -1303,10 +1318,15 @@ export async function ContactResultsPage({
               </option>
             </FilterSelect>
 
+            <CheckboxFilterDropdown label="Status" name="status"
+              selected={selectedStatuses(filters.status, statusLocked)} emptyLabel="No statuses selected"
+              options={statusOptions.map(option => ({ ...option, locked: statusLocked && option.value === 'not_interested' }))} />
+            <CheckboxFilterDropdown label="Affinity" name="affinity" selected={filters.affinity.split(',')}
+              options={affinityAreas.map(area => ({ value: area.id, label: area.name }))} />
             {/* Keep card controls on phones, where this page shows cards even
                 for a spreadsheet URL. Their values still submit with the form. */}
           </div>
-          <details className="mt-4 rounded-xl border border-[#e4e7ec] bg-[#f9fafb]" open={narrowFilterCount > 0}>
+          {extendedFilters && <details className="mt-4 rounded-xl border border-[#e4e7ec] bg-[#f9fafb]" open={narrowFilterCount > 0}>
             <summary className="cursor-pointer px-4 py-3 text-sm font-extrabold text-[#15223a]">
               Narrow further{narrowFilterCount > 0 ? ` · ${narrowFilterCount} filters applied` : ''}
             </summary>
@@ -1314,33 +1334,6 @@ export async function ContactResultsPage({
               {/* Keep collapsed controls mounted so FormData preserves their values. */}
               <div className="zoom-stack grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className={displayMode === 'sheet' ? 'contents md:hidden' : 'contents'}>
-            <FilterSelect
-              label="Status"
-              name="status"
-              value={
-                filters.status
-              }
-            >
-              <option value="">
-                Any
-              </option>
-              <option value="uncontacted">
-                Uncontacted
-              </option>
-              <option value="attempted_contact">
-                Attempted contact
-              </option>
-              <option value="go_back">
-                Go back
-              </option>
-              <option value="involved">
-                Involved
-              </option>
-              <option value="not_interested">
-                Not interested
-              </option>
-            </FilterSelect>
-
             <MultiFilterGroup
               label="Jesus"
               name="jesus"
@@ -1432,28 +1425,6 @@ export async function ContactResultsPage({
             </FilterSelect>
 
             </div>
-            <FilterSelect
-              label="Affinity"
-              name="affinity"
-              value={
-                filters.affinity
-              }
-            >
-              <option value="">
-                Any
-              </option>
-
-              {affinityAreas.map(
-                (area) => (
-                  <option
-                    key={area.id}
-                    value={area.id}
-                  >
-                    {area.name}
-                  </option>
-                )
-              )}
-            </FilterSelect>
           </div>
 
           <label className={`mt-3 flex items-center gap-2 text-xs font-bold text-[#475467] ${displayMode === 'sheet' ? 'md:hidden' : ''}`}>
@@ -1461,7 +1432,7 @@ export async function ContactResultsPage({
             Hide missing rooms (room or address contains a number)
           </label>
             </div>
-          </details>
+          </details>}
 
         </AutomaticFilterForm>
       </details>

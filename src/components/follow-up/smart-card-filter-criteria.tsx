@@ -26,6 +26,7 @@ function InterestCriterion({ criterion }: { criterion: string }) {
 // Presentation only: these are descriptions, deliberately not named form inputs.
 // The existing RPC continues to own the fixed rules, including cross-field OR.
 export function SmartCardFilterCriteria({ title, criteria }: { title: string; criteria: string[] }) {
+  criteria = criteria.filter(criterion => criterion !== 'Status: excludes Not Interested')
   if (!criteria.length) return null
   return (
     <>

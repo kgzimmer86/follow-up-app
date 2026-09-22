@@ -359,6 +359,37 @@ test('spreadsheet progress filters preserve existing results and filter before p
     assert.deepEqual(await counts(),beforeCounts)
   })
 
+  await t.test('multi-status and multi-affinity are OR within a field, AND across fields, before pagination', async () => {
+    const multiSql = await readFile(new URL('../migrations/20260925_multi_status_affinity_filters.sql', import.meta.url), 'utf8')
+    const prior = await results()
+    await db.exec(multiSql)
+    await db.exec(multiSql)
+    assert.deepEqual(await results(),prior)
+    const a=randomUUID(), b=randomUUID()
+    await db.query("insert into ministry_areas values($1,'Example affinity A','affinity',null,true),($2,'Example affinity B','affinity',null,true)",[a,b])
+    for (let i=0;i<contacts.length;i++) {
+      await db.query('insert into follow_up_contact_affinities values($1,$2)',[contacts[i].id,i%2?a:b])
+      await db.query('update follow_up_contacts set status=$1 where id=$2',[i%2?'involved':'go_back',contacts[i].id])
+    }
+    // Overlapping affinity membership does not duplicate a contact.
+    await db.query('insert into follow_up_contact_affinities values($1,$2)',[contacts[0].id,a])
+    const both=await results({p_status:'go_back,involved',p_affinity:`${a},${b}`})
+    assert.equal(both.total_count,128)
+    assert.equal(both.rows.length,50)
+    const one=await results({p_status:'involved',p_affinity:a})
+    assert.equal(one.total_count,64)
+    assert.equal((await results({p_status:'__no_matches'})).total_count,0)
+    assert.equal((await results({p_affinity:'__no_matches'})).total_count,0)
+    const searchResult=(await db.query("select get_follow_up_contact_results_search(p_search=>'Example',p_view=>'area',p_status=>'go_back,involved',p_affinity=>$1) result",[`${a},${b}`])).rows[0].result
+    assert.equal(searchResult.total_count,128)
+    await db.query("update follow_up_contacts set status='not_interested' where id=$1",[contacts[0].id])
+    for(const view of ['mine','goback','gospel','new','cg','noaddress']) {
+      const data=await results({p_view:view,p_status:'not_interested,go_back,involved'})
+      assert(data.rows.every(contact=>contact.status!=='not_interested'))
+    }
+    assert.equal((await results({p_status:'not_interested'})).total_count,1)
+  })
+
   await t.test('execution privileges and access checks remain enforced', async () => {
     const definition = await db.query("select oid::regprocedure::text as signature from pg_proc where proname='get_follow_up_contact_results_v2'")
     const signature = definition.rows[0].signature

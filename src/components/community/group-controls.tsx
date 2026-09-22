@@ -68,7 +68,7 @@ export function GroupEditor({ group, areas, leaders, assignedArea }: { group?: C
   </div>
 }
 
-type SearchPerson = { id: string; display_name: string; uniqname: string | null; umich_email: string | null }
+type SearchPerson = { id: string; display_name: string; uniqname: string | null; umich_email: string | null; dorm: string | null }
 export function AddAttender({ groupId, date, onAdded }: { groupId: string; date: string; onAdded?: () => void }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -82,9 +82,9 @@ export function AddAttender({ groupId, date, onAdded }: { groupId: string; date:
   async function search(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(''); setSearched(false)
     try {
-      const q = query.trim().replace(/[%_(),.\\]/g, ' ').trim()
+      const q = query.trim()
       if (q.length < 2) throw new Error('Enter at least two characters.')
-      const { data, error } = await createClient().from('students').select('id,display_name,uniqname,umich_email').or(`display_name.ilike.%${q}%,uniqname.ilike.%${q}%,umich_email.ilike.%${q}%`).order('display_name').limit(30)
+      const { data, error } = await createClient().rpc('community_search_students', { p_group_id: groupId, p_search: q })
       if (error) throw new Error(error.message)
       setResults(data ?? []); setSearched(true)
     } catch (e) { setError(e instanceof Error ? e.message : 'Search failed. Try again.') }
@@ -105,7 +105,7 @@ export function AddAttender({ groupId, date, onAdded }: { groupId: string; date:
       <label className="block text-sm font-bold">On roster starting<input type="date" required value={started} onChange={(e) => setStarted(e.target.value)} className={inputClass}/></label>
       <form onSubmit={search}><label className="block text-sm font-bold">Find an existing student<input value={query} onChange={(e) => { setQuery(e.target.value); setSearched(false) }} placeholder="Name, uniqname, or U-M email" minLength={2} className={inputClass}/></label><button disabled={busy} className={`${buttonClass} mt-2`}>{busy ? 'Working…' : 'Search people'}</button></form>
       {searched && <><p className="text-xs text-[#667085]">{results.length ? 'Select the existing person. If there are many matches, narrow your search.' : 'No matches found.'}</p>
-        {results.map((p) => <button key={p.id} disabled={busy} onClick={() => selectStudent(p.id)} className="block w-full rounded-xl border border-[#e4e7ec] bg-white p-3 text-left transition hover:bg-[#f9fafb]"><span className="font-bold">{p.display_name}</span><span className="ml-2 text-xs text-[#667085]">{p.uniqname ?? p.umich_email}</span></button>)}
+        {results.map((p) => <button key={p.id} disabled={busy} onClick={() => selectStudent(p.id)} className="block w-full rounded-xl border border-[#e4e7ec] bg-white p-3 text-left transition hover:bg-[#f9fafb]"><span className="block font-bold">{p.display_name}</span><span className="block break-words text-xs text-[#667085]">{p.uniqname || p.umich_email || 'No U-M identity recorded'} · {p.dorm || 'Dorm/location not recorded'}</span></button>)}
         <button disabled={busy} onClick={() => setNewPerson(true)} className="text-sm font-bold text-[#175cd3]">Person not listed? Create a new contact</button></>}
       {error && <p role="alert" className="rounded-2xl border border-[#fedf89] bg-[#fff8eb] px-4 py-3 text-sm font-semibold text-[#b54708]">{error}</p>}
     </section>}

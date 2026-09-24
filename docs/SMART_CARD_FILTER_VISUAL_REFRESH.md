@@ -20,6 +20,19 @@ navigation, assignment, Community search, copy cleanup and startup fixes are pre
   between cards and appear in the Home context.
 - Narrow further is removed from Go Back, Gospel, Meet Someone New and Invite to CG;
   No Address, View All, My Contacts and Community lists retain extended options.
+
+### Follow-up adjustment — September 23
+
+Supersedes the Narrow further rule above: Go Back and Meet Someone New now retain
+extended filters too; only Share the Gospel and Invite to CG hide them. Status and
+Affinity use matching light borders/padding and right-side up/down chevrons with
+the native left disclosure marker hidden, while retaining checkbox behavior and locks.
+No SQL required; the previously applied multi-selection SQL is unchanged.
+Kyle commits/pushes only the five files for this adjustment:
+`smart-card-filter-options.ts`, `smart-card-filter-options.test.mjs`,
+`checkbox-filter-dropdown.tsx`, `smart-card-filter-criteria.test.mjs`, and this document.
+Verify expanded filters on Go Back/New, absence on Gospel/CG, and both checkbox
+dropdowns on iPhone. Rollback is reverting this code-only adjustment; no data rollback.
 - Removed advanced card-view choices are cleared to avoid invisible restrictions;
   spreadsheet choices remain preserved. Existing automatic delays stay 750ms for
   multiple choices and 250ms otherwise. One assigned-area button remains below.

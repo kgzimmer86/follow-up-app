@@ -7,7 +7,7 @@ export const statusOptions = [
 ]
 
 export function hasExtendedFilters(view: string) {
-  return !['goback', 'gospel', 'new', 'cg'].includes(view)
+  return !['gospel', 'cg'].includes(view)
 }
 
 export function locksNotInterested(view: string) {

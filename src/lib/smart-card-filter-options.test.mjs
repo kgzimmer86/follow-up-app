@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hasExtendedFilters, locksNotInterested, selectedStatuses, statusFilterValue, affinityFilterValue } from './smart-card-filter-options.ts'
 
-test('step-of-faith cards simplify controls; No Address and All Contacts retain options', () => {
-  for (const view of ['goback','gospel','new','cg']) assert.equal(hasExtendedFilters(view), false)
-  for (const view of ['noaddress','area','mine']) assert.equal(hasExtendedFilters(view), true)
+test('only Gospel and Invite to CG hide Narrow further', () => {
+  for (const view of ['gospel','cg']) assert.equal(hasExtendedFilters(view), false)
+  for (const view of ['goback','new','noaddress','area','mine']) assert.equal(hasExtendedFilters(view), true)
 })
 test('Not Interested stays locked on existing excluding views, not All Contacts', () => {
   for (const view of ['mine','goback','gospel','new','cg','noaddress']) {

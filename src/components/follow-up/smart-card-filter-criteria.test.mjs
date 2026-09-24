@@ -81,6 +81,10 @@ test('checkbox dropdown renders locked status disabled and unchecked', () => {
   }))
   assert.match(html, /disabled=""[^>]*name="status"[^>]*value="not_interested"|name="status"[^>]*disabled=""[^>]*value="not_interested"/)
   assert.match(html, /Locked: excluded from this list/)
+  assert.match(html, /list-none/)
+  assert.match(html, /webkit-details-marker/)
+  assert.match(html, /justify-between/)
+  assert.match(html, /<svg aria-hidden="true"/)
   assert.doesNotMatch(html, /checked=""[^>]*value="not_interested"/)
 })
 

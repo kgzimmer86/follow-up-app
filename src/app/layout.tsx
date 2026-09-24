@@ -14,7 +14,7 @@ import { CelebrationListener } from '@/components/community/celebration-listener
 import { AppShell } from '@/components/follow-up/app-shell'
 import { PushBadgeSync } from '@/components/follow-up/push-badge-sync'
 import { LoadRecovery } from '@/components/follow-up/load-recovery'
-import { AppLoading } from '@/components/follow-up/app-loading'
+import { AppStartup, AppStartupFallback, AppStartupReady } from '@/components/follow-up/app-startup'
 import { InteractionFeedback } from '@/components/interaction-feedback'
 import { appleStartupImages } from '@/lib/startup-images'
 
@@ -70,9 +70,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <InteractionFeedback />
-        <Suspense fallback={<AppLoading />}>
+        <AppStartup>
           <AppRuntime>{children}</AppRuntime>
-        </Suspense>
+        </AppStartup>
       </body>
     </html>
   )
@@ -82,7 +82,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
   const access = await getAppAccess()
 
   if (access.status === 'unavailable') {
-    return <LoadRecovery fullScreen />
+    return <AppStartupReady><LoadRecovery fullScreen /></AppStartupReady>
   }
 
   const { user, profile } = access
@@ -92,7 +92,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
    * screens should remain standalone.
    */
   if (!user) {
-    return children
+    return <AppStartupReady>{children}</AppStartupReady>
   }
 
   if (
@@ -100,7 +100,7 @@ async function AppRuntime({ children }: { children: ReactNode }) {
     profile.role === 'pending' ||
     !profile.is_active
   ) {
-    return children
+    return <AppStartupReady>{children}</AppStartupReady>
   }
 
   /*
@@ -150,13 +150,8 @@ async function AppRuntime({ children }: { children: ReactNode }) {
           role={profile.role}
           areaLabel={areaLabel}
         >
-          <Suspense fallback={
-            <div role="status" aria-label="Loading page" className="min-h-[60vh]">
-              <div aria-hidden="true" className="app-navigation-indicator app-navigation-indicator-visible" />
-              <span className="sr-only">Loading page…</span>
-            </div>
-          }>
-            {children}
+          <Suspense fallback={<AppStartupFallback />}>
+            <AppStartupReady>{children}</AppStartupReady>
           </Suspense>
         </AppShell>
         </InviteAttentionProvider>

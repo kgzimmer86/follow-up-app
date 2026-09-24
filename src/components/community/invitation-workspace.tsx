@@ -190,7 +190,7 @@ export function InvitationWorkspace({ mine, events, userId, role, people, areas,
         <label className="block text-sm font-bold">Search students<input className={inputClass} value={query} onChange={e => { setQuery(e.target.value); setPage(1); setLoading(true) }} placeholder="Name or uniqname"/></label>
     </fieldset>
     {!mine && <div className="rounded-2xl border border-[#dbe8f8] bg-white p-4 space-y-3">
-      <p className="text-sm text-[#667085]">Choose students who still need an invitation. They do not need to be on a group roster. This leaves Follow Up contact ownership unchanged.</p>
+      <p className="text-sm text-[#667085]">This leaves follow-up contact ownership unchanged.</p>
       {role !== 'student_leader' && <label className="block text-sm font-bold">Assign to<select disabled={saving || review} className={inputClass} value={recipient} onChange={e => setRecipient(e.target.value)}><option value="">Choose a person</option>{people.map(p => <option key={p.id} value={p.id}>{p.display_name ?? 'Unnamed account'}</option>)}</select></label>}
       <button type="button" className={buttonClass} disabled={!selected.length || !recipient || saving || review || loading} onClick={() => setReview(true)}>Review {selected.length} {role === 'student_leader' ? 'claims' : 'assignments'}</button>
       {!!selected.length && !review && <button type="button" className={`${secondaryButtonClass} ml-2`} onClick={() => setSelected([])}>Clear selection</button>}
@@ -242,7 +242,6 @@ export function InvitationWorkspace({ mine, events, userId, role, people, areas,
             <InteractionButton contactId={r.contact_id} contactName={r.display_name} currentStatus={r.contact_status} isPrimary={r.primary_owner_id === userId} invitationEvent={{ id: r.event_id, name: r.event_name }}/>
             <AddTextAttemptButton className="w-full rounded-[11px] border border-[#e4e7ec] bg-white px-2 py-2.5 text-center text-sm font-extrabold text-[#15223a]" contactId={r.contact_id} contactName={r.display_name} invitationEvent={{ id: r.event_id, name: r.event_name }}/>
           </div>
-          <p className="text-xs text-[#667085]">Log a sent text or interaction to record an invitation or reminder. Changing only the response does not restart the reminder clock.</p>
         </>}
       </article>)}
       <div className="flex items-center justify-between"><button disabled={page === 1} className={secondaryButtonClass} onClick={() => { setPage(page - 1); setLoading(true) }}>Previous</button><span className="text-sm">Page {page}</span><button disabled={page * 50 >= result.total} className={secondaryButtonClass} onClick={() => { setPage(page + 1); setLoading(true) }}>Next</button></div>

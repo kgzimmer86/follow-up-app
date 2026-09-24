@@ -66,7 +66,7 @@ export function PrimaryAssignment({ contactId, userId, ownerId, ownerName }: {
           </optgroup>
         ))}
       </select>
-      <p role="status" className="mt-1 text-xs text-[#667085]">{loading ? 'Loading assignment choices…' : pending ? 'Saving…' : people.some((person) => person.group === 'disciples') ? 'You, your eligible direct disciples, and available Staff / Admin.' : people.some((person) => person.group === 'staff') ? 'You and available Staff / Admin.' : 'You can make yourself primary.'}</p>
+      <p role="status" className="mt-1 text-xs text-[#667085]">{loading ? 'Loading assignment choices…' : pending ? 'Saving…' : ''}</p>
       {error && <div role="alert" className="mt-1 text-xs text-red-700">{error} <button type="button" disabled={pending || loading} className="underline" onClick={() => { setLoading(true); setError(''); setAttempt((value) => value + 1) }}>Retry</button></div>}
     </div>
   )

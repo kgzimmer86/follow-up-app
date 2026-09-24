@@ -42,8 +42,7 @@ export default async function AttentionPage({ searchParams }: {
       <Link href="/contacts" className="text-sm font-bold text-[#175cd3]">← My Contacts</Link>
       <div className="mt-4 rounded-[18px] border border-[#fedf89] bg-[#fff8eb] p-4">
         <h1 className="text-lg font-extrabold text-[#b54708]">{categories[category as keyof typeof categories]}</h1>
-        <p className="mt-2 text-sm text-[#667085]">{total} contacts assigned to you. This list includes all areas, regardless of your saved filters.</p>
-        {category === 'awaiting' && <p className="mt-2 text-xs leading-5 text-[#667085]">These contacts are waiting for your interaction after assignment. Knocks and text attempts do not clear this reminder. For older assignments without a recorded assignment date, it clears if you have already logged an interaction.</p>}
+        <p className="mt-2 text-sm text-[#667085]">{total} contacts assigned to you.</p>
       </div>
       <div className="mt-4 grid gap-3">
         {contacts.map((contact) => (

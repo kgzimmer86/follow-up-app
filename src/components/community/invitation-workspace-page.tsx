@@ -36,7 +36,7 @@ export async function InvitationWorkspacePage({ mine }: { mine: boolean }) {
       { href: '/community/invites', label: 'My Invitations', active: mine },
       { href: '/community/invites/assign', label: access.profile.role === 'student_leader' ? 'Claim Invitations' : 'Assign Invitations', active: !mine },
     ]}/>
-    <p className="mt-2 text-sm text-[#667085]">{mine ? 'Your event invitations and reminders. Reminders clear after the event date or when invitations close.' : 'Invite students from anywhere in the campaign, including people outside group rosters.'}</p>
+    {!mine && <p className="mt-2 text-sm text-[#667085]">Invite students from anywhere in the campaign, including people outside group rosters.</p>}
     <InvitationWorkspace key={`${mine}:${campaign.data?.id ?? 'none'}`} mine={mine} userId={access.user.id} role={access.profile.role} events={events} people={people.data ?? []} areas={areas.data ?? []} defaultArea={assignment.data?.ministry_area_id ?? null} groups={groups}/>
   </main>
 }

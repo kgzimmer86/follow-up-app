@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useTransition, type React
 import { useRouter } from 'next/navigation'
 import { personalFilterKeys } from '@/lib/contact-filters'
 
-const surveyFields = new Set(['jesus', 'community', 'interview'])
+const surveyFields = new Set(['jesus', 'community', 'interview', 'status', 'affinity'])
 
 export function AutomaticFilterForm({
   applyFilters,
@@ -176,16 +176,6 @@ export function AutomaticFilterForm({
       }}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        {showAssignedArea && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => { surveyDraft.current = null; scheduleUpdate(0, 'assigned') }}
-            className="rounded-[11px] border border-[#e4e7ec] bg-white px-4 py-2.5 text-sm font-extrabold text-[#15223a] disabled:opacity-60"
-          >
-            Use my assigned area
-          </button>
-        )}
         <span role="status" aria-live="polite" className="text-xs text-[#667085]">
           {scheduled || pending ? 'Updating…' : ''}
         </span>

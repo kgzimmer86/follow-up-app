@@ -3,6 +3,7 @@ import { NoActiveCampaign } from '@/components/follow-up/no-active-campaign'
 import { isNoActiveCampaignError } from '@/lib/campaign-state'
 import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
+import { MobileResultsPaginator } from './mobile-results-paginator'
 import { cookies } from 'next/headers'
 import {
   personalFilterKeys,
@@ -2179,6 +2180,9 @@ export async function ContactResultsPage({
       )}
 
       {totalPages > 1 && (
+        <MobileResultsPaginator key={`${basePath}:${currentPage}:${filterStateKey}`} page={currentPage} pages={totalPages}
+          previous={currentPage > 1 ? `${resultsHref({ basePath, sort: sortBy, dir: sortDir, filters, page: currentPage - 1 })}#results` : null}
+          next={currentPage < totalPages ? `${resultsHref({ basePath, sort: sortBy, dir: sortDir, filters, page: currentPage + 1 })}#results` : null}>
         <nav
           aria-label="Contact results pages"
           className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3"
@@ -2243,6 +2247,7 @@ export async function ContactResultsPage({
             )}
           </div>
         </nav>
+        </MobileResultsPaginator>
       )}
       </SpreadsheetFilterProvider>
     </main>

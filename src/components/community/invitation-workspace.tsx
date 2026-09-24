@@ -190,13 +190,13 @@ export function InvitationWorkspace({ mine, events, userId, role, people, areas,
         <label className="block text-sm font-bold">Search students<input className={inputClass} value={query} onChange={e => { setQuery(e.target.value); setPage(1); setLoading(true) }} placeholder="Name or uniqname"/></label>
     </fieldset>
     {!mine && <div className="rounded-2xl border border-[#dbe8f8] bg-white p-4 space-y-3">
-      <p className="text-sm text-[#667085]">This leaves follow-up contact ownership unchanged.</p>
       {role !== 'student_leader' && <label className="block text-sm font-bold">Assign to<select disabled={saving || review} className={inputClass} value={recipient} onChange={e => setRecipient(e.target.value)}><option value="">Choose a person</option>{people.map(p => <option key={p.id} value={p.id}>{p.display_name ?? 'Unnamed account'}</option>)}</select></label>}
       <button type="button" className={buttonClass} disabled={!selected.length || !recipient || saving || review || loading} onClick={() => setReview(true)}>Review {selected.length} {role === 'student_leader' ? 'claims' : 'assignments'}</button>
       {!!selected.length && !review && <button type="button" className={`${secondaryButtonClass} ml-2`} onClick={() => setSelected([])}>Clear selection</button>}
     </div>}
     {review && <section ref={reviewPanel} role="region" aria-label="Review invitation assignments" className="rounded-2xl border border-[#fedf89] bg-[#fff8eb] p-4 space-y-3">
       <h3 className="font-extrabold">Confirm {selected.length} invitations</h3>
+      <p className="text-sm text-[#667085]">This leaves follow-up contact ownership unchanged.</p>
       <p className="text-sm">{event?.name} → {people.find(p => p.id === recipient)?.display_name ?? 'You'}</p>
       <ul className="max-h-48 overflow-auto text-sm list-disc pl-5">{selected.map(r => <li key={r.contact_id}>{r.display_name}{r.assigned_to ? ` (reassign from ${r.assignee_name ?? 'current assignee'})` : ''}</li>)}</ul>
       <div className="flex gap-2"><button type="button" disabled={saving} className={buttonClass} onClick={assign}>{saving ? 'Saving…' : 'Confirm assignment'}</button><button type="button" disabled={saving} className={secondaryButtonClass} onClick={() => setReview(false)}>Cancel</button></div>

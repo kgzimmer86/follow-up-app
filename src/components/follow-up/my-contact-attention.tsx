@@ -62,7 +62,6 @@ export function MyContactAttentionSection() {
         <span className={`text-xs ${needsAttention ? 'text-[#b54708]' : 'text-[#667085]'}`}>{error ? 'Unavailable' : counts ? `${counts.total} contacts` : 'Loading…'}</span>
       </summary>
       <div className={`border-t p-4 ${needsAttention ? 'border-[#fedf89]' : 'border-[#e4e7ec]'}`}>
-        <p className="mb-3 text-xs text-[#667085]">Contacts assigned to you, excluding Not Interested, regardless of your current filters. Each contact counts once in the total.</p>
         {error ? <p role="alert" className="text-sm text-[#b42318]">Couldn’t load attention counts. <button onClick={retry} type="button" className="font-bold underline">Try again</button></p> : counts ? (
           <div className="grid gap-2.5 sm:grid-cols-3">
             {[

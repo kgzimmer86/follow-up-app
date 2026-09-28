@@ -3,6 +3,8 @@
 import type { ReactNode } from 'react'
 import { assignedAreaFilters, resetChangedCampusFilters, resetChangedDormFilters } from '@/lib/contact-filters'
 import type { CommunityArea } from '@/lib/community'
+import { CheckboxFilterDropdown } from '@/components/follow-up/checkbox-filter-dropdown'
+import { selectedStatuses, statusFilterValue, affinityFilterValue, statusOptions } from '@/lib/smart-card-filter-options'
 
 export type InvitationFilters = {
   campus: string; location: string; gender: string; status: string; jesus: string; community: string;
@@ -46,21 +48,23 @@ export function InvitationContactFilters({ value, onChange, areas, groups, floor
     </fieldset>
   }
   return <details className="overflow-hidden rounded-[18px] border border-[#e4e7ec] bg-white">
-    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5"><div><div className="text-sm font-extrabold text-[#15223a]">Filters</div><p className="mt-0.5 text-xs text-[#667085]">Narrow by location, survey answers, progress, status, affinity or group roster.</p></div><span className="shrink-0 rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#3538cd]">{count ? `${count} active` : 'Open'}</span></summary>
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5"><div className="text-sm font-extrabold text-[#15223a]">Filters</div><span className="shrink-0 rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-extrabold text-[#3538cd]">{count ? `${count} active` : 'Open'}</span></summary>
     <div aria-busy={updating} className="border-t border-[#e4e7ec] p-4">
-      <p className="mb-3 text-xs text-[#667085]">Filters work together. Selecting Yes and Maybe includes either answer. These choices apply only to Assign invitations.</p>
       <div className="zoom-stack grid grid-cols-2 gap-3 md:grid-cols-4">
         {select('Campus area', 'campus', <><option value="">All areas</option>{campuses.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</>)}
         {select('Dorm / location', 'location', <><option value="">Any</option>{campuses.filter(a => !value.campus || a.id === value.campus).map(a => <optgroup key={a.id} label={a.name}>{areas.filter(l => l.parent_id === a.id && l.area_type !== 'affinity').map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</optgroup>)}{!value.campus && <optgroup label="Other"><option value="no_address">No Address</option><option value="needs_area_assignment">Needs Area Assignment</option></optgroup>}</>)}
         {select('Floor', 'floor', <><option value="">{!specificDorm ? 'Choose dorm first' : 'Any'}</option>{[...new Set([...floors, ...(value.floor ? [value.floor] : [])])].map(f => <option key={f}>{f}</option>)}</>, !specificDorm || (!floors.length && !value.floor))}
         {select('Wing / house #', 'wing', <><option value="">{!specificDorm ? 'Choose dorm first' : 'Any'}</option>{[...new Set([...wings, ...(value.wing ? [value.wing] : [])])].map(w => <option key={w}>{w}</option>)}</>, !specificDorm || (!wings.length && !value.wing))}
         {select('Gender', 'gender', <><option value="">Any</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other / unspecified</option></>)}
-        {select('Status', 'status', <><option value="">Any</option>{[['uncontacted', 'Uncontacted'], ['attempted_contact', 'Attempted contact'], ['go_back', 'Go back'], ['involved', 'Involved'], ['not_interested', 'Not interested']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</>)}
+        <CheckboxFilterDropdown label="Status" name="status" selected={selectedStatuses(value.status, false)}
+          options={statusOptions} emptyLabel="No statuses selected" onSelectionChange={values => update('status', statusFilterValue(values, false))} />
         {survey('Jesus', 'jesus')}{survey('Community', 'community')}{survey('Interview', 'interview')}
         {select('KGP shared', 'kgp', <><option value="">Any</option><option value="shared">Yes</option><option value="not_shared">No</option></>)}
         {select('Interview done', 'interviewDone', <><option value="">Any</option><option value="completed">Yes</option><option value="not_completed">No</option></>)}
         {select('Invited to CG', 'invitedCg', <><option value="">Any</option><option value="invited">Yes</option><option value="not_invited">No</option></>)}
-        {select('Affinity', 'affinity', <><option value="">Any</option>{areas.filter(a => a.area_type === 'affinity').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</>)}
+        <CheckboxFilterDropdown label="Affinity" name="affinity" selected={value.affinity.split(',').filter(Boolean)}
+          options={areas.filter(a => a.area_type === 'affinity').map(a => ({ value: a.id, label: a.name }))}
+          onSelectionChange={values => update('affinity', affinityFilterValue(values))} />
         <div className="col-span-2">{select('Community group roster', 'group', <><option value="">All contacts — no roster restriction</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</>)}<p className="mt-1 text-xs text-[#667085]">Current roster members only; other filters still apply.</p></div>
       </div>
       <label className="mt-3 flex min-h-9 items-center gap-2 text-xs font-bold text-[#475467]"><input type="checkbox" disabled={updating} checked={value.roomOnly === '1'} onChange={e => update('roomOnly', e.target.checked ? '1' : '')} className="h-4 w-4"/>Hide missing rooms (room or address contains a number)</label>

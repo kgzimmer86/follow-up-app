@@ -103,6 +103,91 @@ test('staff handoffs, personal coaching, and owner-specific attention', async (t
     assert.equal((await row(local)).primary_owner_id,staff)
   })
 
+  await t.test('contact page adds student/discipler staff handoffs without changing existing assignment RPCs', async () => {
+    // Audited live self-claim body. Existing behavior deliberately remains unchanged.
+    await db.exec(`create function public.claim_follow_up_contact(p_contact_id uuid) returns void
+      language plpgsql security definer set search_path = '' as $$begin
+      if auth.uid() is null then raise exception 'You must be signed in'; end if;
+      if not exists(select 1 from public.profiles where id=auth.uid() and is_active=true and role<>'pending')
+        then raise exception 'Active Follow Up access required'; end if;
+      if not exists(select 1 from public.follow_up_contacts c join public.follow_up_campaigns f on f.id=c.campaign_id
+        where c.id=p_contact_id and f.status='active') then raise exception 'Contact is not part of the active Follow Up campaign'; end if;
+      update public.follow_up_contacts set primary_owner_id=auth.uid(),updated_at=now() where id=p_contact_id;
+      end; $$;`)
+    const existing = async () => (await db.query(`select pg_get_functiondef(oid) def from pg_proc
+      where proname in ('claim_follow_up_contact','get_contact_primary_choices','assign_contacts_to_follow_up_user') order by proname`)).rows
+    const before = await existing()
+    const migration = await readFile(new URL('../migrations/20260924_contact_page_staff_handoffs.sql', import.meta.url), 'utf8')
+    await db.exec(migration)
+    await db.exec(migration)
+    assert.deepEqual(await existing(), before)
+    const choices = id => rpc('get_contact_page_primary_choices', [id])
+    const assign = (id, target) => rpc('assign_contact_page_primary', [id, target])
+    const local = await makeContact({status:'go_back'})
+    const remote = await makeContact({area:central,owner:outsider})
+    const old = await makeContact({camp:closed})
+    const uninterested = await makeContact({status:'not_interested'})
+    await event(local, student)
+    const grandchild = randomUUID()
+    await db.query("insert into profiles(id,role,display_name) values($1,'student_leader','Example grandchild')", [grandchild])
+    await db.query('insert into discipleship_relationships(discipler_id,disciple_id,campaign_id) values($1,$2,$3)', [student,grandchild,campaign])
+    await asUser(discipler)
+    let available = await choices(local)
+    assert(available.some(p=>p.id===student && p.group==='disciples'))
+    assert(!available.some(p=>p.id===grandchild || p.id===outsider))
+    assert(available.some(p=>p.id===recipient && p.group==='staff'))
+    await assert.rejects(assign(local,grandchild), /not available/)
+    await assign(local,student)
+    await asUser(student)
+    available = await choices(local)
+    assert(available.length>0 && available.every(p=>p.group==='staff'))
+    assert(!available.some(p=>p.id===inactive || p.id===pending))
+    await assert.rejects(assign(local,grandchild), /not available/)
+    await assign(local,recipient)
+    assert.equal((await row(local)).primary_owner_id,recipient)
+    assert.equal((await row(local)).primary_assigned_by,student)
+    assert.equal((await row(local)).status,'go_back')
+    assert.equal((await db.query('select count(*)::int n from follow_up_events where contact_id=$1',[local])).rows[0].n,1)
+    // Movement-wide contact visibility remains the audited baseline; recipient may be across areas.
+    for (const actor of [student,discipler]) {
+      await asUser(actor)
+      await assign(remote,recipient)
+      await assign(local,actor) // existing self-claim
+      assert.equal((await row(local)).primary_owner_id,actor)
+      for (const id of [old,uninterested]) {
+        assert.deepEqual(await choices(id),[])
+        await assert.rejects(assign(id,recipient), /not available/)
+      }
+      for (const target of [inactive,pending]) await assert.rejects(assign(local,target), /active assignee/)
+      await assert.rejects(assign(local,null), /Choose a contact/)
+      await assert.rejects(assign(randomUUID(),recipient), /unavailable/)
+      await assert.rejects(rpc('assign_contacts_to_follow_up_user', [[local],recipient])) // Bulk unchanged.
+    }
+    for (const actor of [inactive,pending,null]) {
+      await asUser(actor)
+      await assert.rejects(choices(local), /access required/)
+      await assert.rejects(assign(local,recipient), /access required/)
+    }
+    for (const actor of [staff,admin]) {
+      await asUser(actor)
+      assert.deepEqual(await choices(local),await rpc('get_contact_primary_choices',[local]))
+      await assign(remote,recipient)
+    }
+    await asUser(student)
+    await db.query('update profiles set is_active=false where id=$1',[recipient])
+    await assert.rejects(assign(local,recipient), /active assignee/)
+    await db.query('update profiles set is_active=true where id=$1',[recipient])
+    const rights = (await db.query(`select
+      has_function_privilege('anon','get_contact_page_primary_choices(uuid)','execute') a,
+      has_function_privilege('anon','assign_contact_page_primary(uuid,uuid)','execute') b,
+      has_function_privilege('authenticated','assign_contact_page_primary(uuid,uuid)','execute') c`)).rows[0]
+    assert.deepEqual(rights,{a:false,b:false,c:true})
+    // Remove this subtest's synthetic rows so existing attention assertions remain isolated.
+    await db.query('delete from follow_up_events where contact_id=any($1::uuid[])',[[local,remote,old,uninterested]])
+    await db.query('delete from follow_up_contacts where id=any($1::uuid[])',[[local,remote,old,uninterested]])
+    await db.query('delete from discipleship_relationships where disciple_id=$1',[grandchild])
+  })
+
   await t.test('attention tracks the new owner after assignment, with legacy fallback and matching lists',async()=>{
     await asUser(recipient)
     const list=()=>rpc('get_my_contact_attention_list',['awaiting'])

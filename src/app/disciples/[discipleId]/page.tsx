@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { coachingPageHref, coachingReturnTo } from '@/lib/coaching-navigation'
 import { followUpActivityLabel } from '@/lib/text-attempts'
 import {
   notFound,
@@ -12,6 +13,7 @@ import { createClient } from '@/lib/supabase/server'
 import { contactDisplayName } from '@/lib/contact-name'
 
 type PageProps = {
+  searchParams: Promise<{ from?: string | string[] }>
   params: Promise<{
     discipleId: string
   }>
@@ -113,8 +115,11 @@ type TargetAssignmentCandidates = {
 
 export default async function DiscipleDetailPage({
   params,
+  searchParams,
 }: PageProps) {
   const { discipleId } = await params
+  const returnTo = coachingReturnTo((await searchParams).from)
+  const coachingHref = coachingPageHref(discipleId, returnTo)
   const supabase = await createClient()
 
   const {
@@ -231,7 +236,7 @@ export default async function DiscipleDetailPage({
   return (
     <main className="mx-auto max-w-[980px] px-[18px] py-[18px] md:px-7 md:pb-12 md:pt-6">
       <div className="mb-3">
-        <DiscipleBackButton />
+        <DiscipleBackButton href={returnTo} />
       </div>
 
       <section className="overflow-hidden rounded-[24px] border border-[#dbe8f8] bg-[#fbfdff] shadow-[0_2px_12px_rgba(16,24,40,0.05)]">
@@ -344,7 +349,7 @@ export default async function DiscipleDetailPage({
                   (disciple) => (
                     <Link
                       key={disciple.id}
-                      href={`/disciples/${disciple.id}`}
+                      href={coachingPageHref(disciple.id, coachingHref)}
                       className="rounded-[16px] border border-[#e4e7ec] bg-white p-4 transition hover:border-[#b2ccff] hover:bg-[#f8fbff]"
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -401,7 +406,7 @@ export default async function DiscipleDetailPage({
           )}
 
 
-          <Panel title="Needs attention">
+          <Panel title="Needs attention" id="needs-attention">
             <p className="mb-4 text-xs leading-5 text-[#667085]">
               These are the exact contacts in
               this discipleship branch that may
@@ -413,6 +418,7 @@ export default async function DiscipleDetailPage({
                 title="Assigned, never attempted"
                 count={unattempted.length}
                 contacts={unattempted}
+                returnTo={`${coachingHref}#needs-attention`}
                 emptyText="Nothing in this queue right now."
               />
 
@@ -420,12 +426,13 @@ export default async function DiscipleDetailPage({
                 title="Go Backs quiet 7+ days"
                 count={staleGoBacks.length}
                 contacts={staleGoBacks}
+                returnTo={`${coachingHref}#needs-attention`}
                 emptyText="No stale Go Backs right now."
               />
             </div>
           </Panel>
 
-          <Panel title="Assigned Contacts">
+          <Panel title="Assigned Contacts" id="assigned-contacts">
             {canAssignToPerson && (
               <DiscipleContactAssignment
                 targetId={person.id}
@@ -455,7 +462,7 @@ export default async function DiscipleDetailPage({
                       className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
                     >
                       <Link
-                        href={`/contacts/${contact.id}`}
+                        href={{ pathname: `/contacts/${contact.id}`, query: { from: `${coachingHref}#assigned-contacts` } }}
                         className="flex min-w-0 flex-1 items-center justify-between gap-3"
                       >
                         <div className="min-w-0">
@@ -500,7 +507,7 @@ export default async function DiscipleDetailPage({
             )}
           </Panel>
 
-          <Panel title="Recent Activity">
+          <Panel title="Recent Activity" id="recent-activity">
             {detail.recent_activity.length ===
             0 ? (
               <EmptyState>
@@ -535,7 +542,7 @@ export default async function DiscipleDetailPage({
                                 {followUpActivityLabel(activity.event_type)}{' '}
                                 with{' '}
                                 <Link
-                                  href={`/contacts/${activity.contact_id}`}
+                                  href={{ pathname: `/contacts/${activity.contact_id}`, query: { from: `${coachingHref}#recent-activity` } }}
                                   className="text-[#175cd3] hover:underline"
                                 >
                                   {contactDisplayName(activity.contact_name)}
@@ -589,12 +596,14 @@ export default async function DiscipleDetailPage({
 function Panel({
   title,
   children,
+  id,
 }: {
   title: string
   children: React.ReactNode
+  id?: string
 }) {
   return (
-    <section className="rounded-[20px] border border-[#e4e7ec] bg-white p-4 md:p-5">
+    <section id={id} className="scroll-mt-28 rounded-[20px] border border-[#e4e7ec] bg-white p-4 md:p-5">
       <h2 className="text-base font-extrabold tracking-[-0.02em] text-[#15223a]">
         {title}
       </h2>
@@ -647,11 +656,13 @@ function AttentionQueue({
   count,
   contacts,
   emptyText,
+  returnTo,
 }: {
   title: string
   count: number
   contacts: AttentionContact[]
   emptyText: string
+  returnTo: string
 }) {
   return (
     <div className="rounded-[16px] border border-[#fedf89] bg-[#fffdf7] p-3.5">
@@ -675,7 +686,7 @@ function AttentionQueue({
             (contact) => (
               <Link
                 key={contact.id}
-                href={`/contacts/${contact.id}`}
+                href={{ pathname: `/contacts/${contact.id}`, query: { from: returnTo } }}
                 className="block py-2.5 first:pt-0 last:pb-0"
               >
                 <div className="text-xs font-extrabold text-[#15223a]">

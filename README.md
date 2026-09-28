@@ -4,6 +4,8 @@ Production, mobile-first ministry follow-up app built with Next.js App Router, T
 
 ## Maintenance references
 
+- [Contributor and Codex workflow](docs/DEVELOPMENT_WORKFLOW.md)
+- [Required release handoff template](docs/RELEASE_TEMPLATE.md)
 - [Contact filters and verification](supabase/CONTACT_FILTER_DEPLOYMENT.md)
 - [Interaction photos and permissions](supabase/INTERACTION_PHOTOS_DEPLOYMENT.md)
 - [Text attempts and validation](supabase/TEXT_ATTEMPTS_DEPLOYMENT.md)

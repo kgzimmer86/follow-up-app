@@ -864,7 +864,7 @@ export default async function ContactDetailPage({
             ownerName={ownerName}
             isPrimary={isPrimary}
             assignmentUserId={userId}
-            canAssign={['discipler', 'staff', 'admin'].includes(profile.role)}
+            canAssign={['student_leader', 'discipler', 'staff', 'admin'].includes(profile.role)}
             affinityNames={
               affinityNames
             }
@@ -1505,18 +1505,6 @@ function ScheduleTab({
   return (
     <div className="grid min-w-0 gap-4">
       <Panel title="Observed schedule" className="min-w-0">
-        <p className="mb-4 text-xs leading-5 text-[#667085]">
-          Green means someone was found
-          home. Red means someone knocked
-          and they were not home. The
-          number shows how many
-          observations were recorded in
-          that time block. A split dot
-          means the observations were
-          mixed; hover over it or tap it
-          for the breakdown.
-        </p>
-
         <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
           <div className="grid min-w-[760px] grid-cols-[90px_repeat(7,1fr)] gap-1.5">
             <div />

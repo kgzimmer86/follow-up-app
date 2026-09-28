@@ -72,15 +72,19 @@ test('Disclosure keeps existing controls in the same automatic form', () => {
 test('checkbox dropdown renders locked status disabled and unchecked', () => {
   const source = readFileSync(new URL('./checkbox-filter-dropdown.tsx', import.meta.url), 'utf8')
   const result = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS } })
-  const module = { exports: {} }
-  new Function('require','module','exports',result.outputText)(createRequire(import.meta.url),module,module.exports)
-  const html = renderToStaticMarkup(createElement(module.exports.CheckboxFilterDropdown, {
+  const loaded = { exports: {} }
+  new Function('require','module','exports',result.outputText)(createRequire(import.meta.url),loaded,loaded.exports)
+  const html = renderToStaticMarkup(createElement(loaded.exports.CheckboxFilterDropdown, {
     label:'Status',name:'status',selected:['go_back','not_interested'],options:[
       {value:'go_back',label:'Go back'}, {value:'not_interested',label:'Not interested',locked:true},
     ],
   }))
   assert.match(html, /disabled=""[^>]*name="status"[^>]*value="not_interested"|name="status"[^>]*disabled=""[^>]*value="not_interested"/)
   assert.match(html, /Locked: excluded from this list/)
+  assert.match(html, /list-none/)
+  assert.match(html, /webkit-details-marker/)
+  assert.match(html, /justify-between/)
+  assert.match(html, /<svg aria-hidden="true"/)
   assert.doesNotMatch(html, /checked=""[^>]*value="not_interested"/)
 })
 

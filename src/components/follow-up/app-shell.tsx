@@ -327,7 +327,7 @@ export function AppShell({
       </div>
 
       {/* MOBILE BOTTOM NAV */}
-      <nav aria-label={inCommunity ? 'Community navigation' : 'Follow Up navigation'} className="fixed inset-x-0 bottom-0 z-30 grid grid-flow-col auto-cols-fr border-t border-[#e4e7ec] bg-white px-1.5 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(16,24,40,0.06)] md:hidden">
+      <nav data-mobile-bottom-nav aria-label={inCommunity ? 'Community navigation' : 'Follow Up navigation'} className="fixed inset-x-0 bottom-0 z-30 grid grid-flow-col auto-cols-fr border-t border-[#e4e7ec] bg-white px-1.5 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(16,24,40,0.06)] md:hidden">
         {(inCommunity ? communityNavItems : navItems).map((item) => (
           <Link
             key={item.href}

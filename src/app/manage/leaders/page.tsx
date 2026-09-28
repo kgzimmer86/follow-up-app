@@ -512,6 +512,7 @@ export default async function ManageLeadersPage({
                 <LeaderCard
                   key={leader.id}
                   leader={leader}
+                  returnTo={`/manage/leaders?${new URLSearchParams(Object.entries(params).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))}`}
                 />
               ))}
             </div>
@@ -525,8 +526,10 @@ export default async function ManageLeadersPage({
 
 function LeaderCard({
   leader,
+  returnTo,
 }: {
   leader: LeaderRow
+  returnTo: string
 }) {
   const assigned =
     toNumber(leader.assigned_contacts)
@@ -565,7 +568,7 @@ function LeaderCard({
 
   return (
     <Link
-      href={`/disciples/${leader.id}`}
+      href={{ pathname: `/disciples/${leader.id}`, query: { from: returnTo } }}
       className="block rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_5px_rgba(16,24,40,0.03)] transition hover:border-[#98a2b3] hover:shadow-[0_4px_14px_rgba(16,24,40,0.06)] md:p-5"
     >
       <div className="flex items-start justify-between gap-3">

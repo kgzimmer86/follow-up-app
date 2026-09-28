@@ -6,13 +6,13 @@
 2. In Supabase, open **SQL Editor**, create a new query, paste the SQL, and click **Run**. The expected result is success. This is the update to run; `inspect_text_attempt_support.sql` was only the earlier read-only inspection.
 3. Commit and push the app changes, then wait for Vercel to finish deploying. Suggested commit name: **Add text attempt tracking**.
 
-The update adds a text-attempt history type and fields for its purposes and event name. It keeps existing knock and interaction routines intact, extends deletion to handle text attempts, and includes the latest text in contact-card results. It does not add Home count queries or change spreadsheet columns.
+The update adds a text-attempt history type and fields for its purposes and event name. It keeps existing knock and interaction routines intact, extends deletion to handle text attempts, and includes the latest text in contact results. The contact card compares it with the latest interaction and shows which activity is newest and who logged it. It does not add Home count queries or change spreadsheet columns.
 
 ## Test in the app
 
 Use a contact appropriate for testing.
 
-1. Open the contact and choose **+ Text Attempt**, near **+ Add roommate**. Select **Invite to CG**, add an optional note, and save. The latest text should appear on the contact card, in the contact's Overview, and in History. The green **Invited to CG** indicator should stay unchanged.
+1. Open the contact and choose **+ Text Attempt**, near **+ Add roommate**. Select **Invite to CG**, add an optional note, and save. The contact card should show it as the latest interaction, with its date and logger, when it is newer than the last interaction. The latest text should also appear in the contact's Overview, History, and the spreadsheet's **Latest text** column. The green **Invited to CG** indicator should stay unchanged.
 2. For a previously Uncontacted student, confirm the status becomes **Attempted Contact**. Provided they meet the smart card's other criteria, they should remain in **Meet Someone New** and should not enter **Go Back** solely because of the text.
 3. Choose **Text** on a contact card or contact page, then return from Messages. Choosing **No** should record nothing. Choosing **Yes, log text** should show the same purpose-and-note form. Opening the form and canceling should also record nothing.
 4. Try selecting more than one purpose and **Invite to another event** with an event name, such as Barn Bash.

@@ -3,6 +3,7 @@ import { NoActiveCampaign } from '@/components/follow-up/no-active-campaign'
 import { isNoActiveCampaignError } from '@/lib/campaign-state'
 import { RoommateLabel } from '@/components/follow-up/roommate-label'
 import Link from 'next/link'
+import { MobileResultsPaginator } from './mobile-results-paginator'
 import { cookies } from 'next/headers'
 import {
   personalFilterKeys,
@@ -194,6 +195,17 @@ type SpreadsheetEventRow = {
   text_event_name: string | null
   invited_to_community_group: boolean | null
   occurred_at: string
+}
+
+type LatestInteractionRow = {
+  contact_id: string
+  event_type: 'interaction' | 'text_attempt'
+  occurred_at: string
+  created_at: string
+  notes: string | null
+  performed_by_name: string | null
+  text_purposes: string[] | null
+  text_event_name: string | null
 }
 
 type SpreadsheetTextActivity = {
@@ -691,7 +703,7 @@ export async function ContactResultsPage({
   const needsSpreadsheetEventHistory = selectedSpreadsheetColumns.some((column) => [
     'text_cg', 'text_acg', 'text_appointment', 'text_event', 'text_follow_up', 'invited_cg',
   ].includes(column))
-  const [assignmentRead, preferencesRead, roommateSources, spreadsheetEventsRead] = await Promise.all([
+  const [assignmentRead, preferencesRead, roommateSources, spreadsheetEventsRead, latestInteractionsRead] = await Promise.all([
     displayMode === 'sheet' && ['discipler', 'staff', 'admin'].includes(profile.role)
       ? (async () => {
         const result = await supabase.rpc('get_contact_assignment_page', { p_contact_ids: pageContactIds })
@@ -706,6 +718,15 @@ export async function ContactResultsPage({
       ? supabase.from('follow_up_events')
         .select('contact_id, event_type, text_purposes, text_event_name, invited_to_community_group, occurred_at')
         .in('contact_id', pageContactIds) : null,
+    pageContactIds.length
+      ? supabase.from('follow_up_events')
+        .select('contact_id, event_type, occurred_at, created_at, notes, performed_by_name, text_purposes, text_event_name')
+        .in('contact_id', pageContactIds)
+        .in('event_type', ['interaction', 'text_attempt'])
+        .order('occurred_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+      : null,
   ])
 
   let assignmentAssignees:
@@ -769,6 +790,17 @@ export async function ContactResultsPage({
       throw new Error('Couldn’t load Community Group invitation preferences. Please retry.')
     }
     for (const preference of preferences) if (preference.cg_text_invite_only) cgTextOnlyIds.add(preference.id)
+  }
+
+  const latestInteractionByContact = new Map<string, LatestInteractionRow>()
+  if (pageContactIds.length > 0) {
+    const { data: latestInteractionData, error: latestInteractionError } = latestInteractionsRead!
+    if (latestInteractionError) throw new Error(latestInteractionError.message)
+    for (const event of (latestInteractionData ?? []) as LatestInteractionRow[]) {
+      if (!latestInteractionByContact.has(event.contact_id)) {
+        latestInteractionByContact.set(event.contact_id, event)
+      }
+    }
   }
 
   const spreadsheetTextHistory: SpreadsheetTextHistory = new Map()
@@ -1612,6 +1644,8 @@ export async function ContactResultsPage({
 
             const recentNotes =
               contact.interaction_notes ?? []
+            const latestActivity =
+              latestInteractionByContact.get(contact.id) ?? null
 
             return (
               <article
@@ -1788,11 +1822,14 @@ export async function ContactResultsPage({
                     )}
                   </div>
 
-                  {contact.latest_text_attempt && (
+                  {latestActivity && (
                     <div className="mt-2 text-[11px] text-[#667085]">
-                      Latest text:{' '}
-                      {textPurposeSummary(contact.latest_text_attempt.text_purposes, contact.latest_text_attempt.text_event_name)}
-                      {' • '}{shortDate(contact.latest_text_attempt.occurred_at)}
+                      Latest interaction:{' '}
+                      {latestActivity.event_type === 'text_attempt'
+                        ? `Text: ${textPurposeSummary(latestActivity.text_purposes, latestActivity.text_event_name)}`
+                        : latestActivity.notes?.trim() || 'Interaction'}
+                      {' • '}{shortDate(latestActivity.occurred_at)}
+                      {' • '}{latestActivity.performed_by_name || 'Former user'}
                     </div>
                   )}
 
@@ -2179,6 +2216,9 @@ export async function ContactResultsPage({
       )}
 
       {totalPages > 1 && (
+        <MobileResultsPaginator key={`${basePath}:${currentPage}:${filterStateKey}`} page={currentPage} pages={totalPages}
+          previous={currentPage > 1 ? `${resultsHref({ basePath, sort: sortBy, dir: sortDir, filters, page: currentPage - 1 })}#results` : null}
+          next={currentPage < totalPages ? `${resultsHref({ basePath, sort: sortBy, dir: sortDir, filters, page: currentPage + 1 })}#results` : null}>
         <nav
           aria-label="Contact results pages"
           className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[#e4e7ec] bg-white px-4 py-3"
@@ -2243,6 +2283,7 @@ export async function ContactResultsPage({
             )}
           </div>
         </nav>
+        </MobileResultsPaginator>
       )}
       </SpreadsheetFilterProvider>
     </main>

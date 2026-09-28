@@ -27,6 +27,9 @@ commits and pushes; no remote changes were made by the agent.
   their selections are preserved when changing another filter in spreadsheet mode.
 - Checkbox changes use the existing 750ms multi-choice delay; other controls retain
   250ms. Fixed survey OR rules, contact permissions, and data remain unchanged.
+- Contact cards show the newest interaction or text attempt with its date and the
+  name of the person who logged it. The spreadsheet's separate Latest text column
+  remains unchanged.
 
 ### Testing-only release order
 
@@ -50,8 +53,10 @@ commits and pushes; no remote changes were made by the agent.
    - `supabase/tests/spreadsheet-progress-filters.test.mjs`
    - `docs/SMART_CARD_FILTER_VISUAL_REFRESH.md`
 4. After Preview Ready, check mobile/desktop, multi-status and multi-affinity,
-   none/all selections, locked status, affinity-default users, rapid checkbox changes,
-   Clear Filters, assigned-area reset, card switching, and All Contacts name search.
+  none/all selections, locked status, affinity-default users, rapid checkbox changes,
+  Clear Filters, assigned-area reset, card switching, and All Contacts name search.
+   Also confirm a newer interaction and a newer text attempt each appear as the
+   contact card's latest interaction with the correct logger.
 
 Tests: 64 focused render/filter/database tests passed using invented in-memory data.
 Full ESLint: zero errors, one existing app-loading image warning. Webpack production

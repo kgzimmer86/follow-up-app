@@ -199,6 +199,7 @@ type SpreadsheetEventRow = {
 
 type LatestInteractionRow = {
   contact_id: string
+  performed_by: string | null
   event_type: 'interaction' | 'text_attempt'
   occurred_at: string
   created_at: string
@@ -709,7 +710,7 @@ export async function ContactResultsPage({
         .in('contact_id', pageContactIds) : null,
     pageContactIds.length
       ? supabase.from('follow_up_events')
-        .select('contact_id, event_type, occurred_at, created_at, notes, performed_by_name, text_purposes, text_event_name')
+        .select('contact_id, performed_by, event_type, occurred_at, created_at, notes, performed_by_name, text_purposes, text_event_name')
         .in('contact_id', pageContactIds)
         .in('event_type', ['interaction', 'text_attempt'])
         .order('occurred_at', { ascending: false })
@@ -791,6 +792,12 @@ export async function ContactResultsPage({
       }
     }
   }
+  const performerIds = [...new Set([...latestInteractionByContact.values()].map((event) => event.performed_by).filter((id): id is string => Boolean(id)))]
+  const { data: performers, error: performersError } = performerIds.length
+    ? await supabase.from('profiles').select('id,display_name').in('id', performerIds)
+    : { data: [], error: null }
+  if (performersError) throw new Error(performersError.message)
+  const performerNames = new Map((performers ?? []).map((person) => [person.id, person.display_name]))
 
   const spreadsheetTextHistory: SpreadsheetTextHistory = new Map()
   const spreadsheetInvitedHistory: SpreadsheetInvitedHistory = new Map()
@@ -1818,7 +1825,7 @@ export async function ContactResultsPage({
                         ? `Text: ${textPurposeSummary(latestActivity.text_purposes, latestActivity.text_event_name)}`
                         : latestActivity.notes?.trim() || 'Interaction'}
                       {' • '}{shortDate(latestActivity.occurred_at)}
-                      {' • '}{latestActivity.performed_by_name || 'Former user'}
+                      {' • '}{(latestActivity.performed_by && performerNames.get(latestActivity.performed_by)) || latestActivity.performed_by_name || 'Former user'}
                     </div>
                   )}
 
@@ -2166,9 +2173,15 @@ export async function ContactResultsPage({
                         {contact.interaction_count ?? 0}
                       </td>
                       <td className="px-3 py-2.5 text-[#475467]">
-                        {contact.last_interaction_at
-                          ? shortDate(contact.last_interaction_at)
-                          : '—'}
+                        {(() => {
+                          const activity = latestInteractionByContact.get(contact.id)
+                          if (!activity) return '—'
+                          return <>
+                            {activity.event_type === 'text_attempt' ? `Text: ${textPurposeSummary(activity.text_purposes, activity.text_event_name)}` : 'Interaction'}
+                            {' • '}{shortDate(activity.occurred_at)}
+                            {' • '}{(activity.performed_by && performerNames.get(activity.performed_by)) || activity.performed_by_name || 'Former user'}
+                          </>
+                        })()}
                       </td>
                       <td className="px-3 py-2.5">
                         <StatusBadge status={contact.status} />

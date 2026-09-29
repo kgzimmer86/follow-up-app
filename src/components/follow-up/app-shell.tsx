@@ -41,6 +41,21 @@ export function AppShell({
     useState(false)
   const [addPersonOpen, setAddPersonOpen] =
     useState(false)
+  const [lastContactsList, setLastContactsList] = useState('/contacts/area')
+  const onMyContacts = pathname === '/contacts' || pathname === '/contacts/attention'
+  const onOtherContacts = pathname === '/contacts/area' || pathname.startsWith('/opportunities/')
+  useEffect(() => {
+    if (onOtherContacts) {
+      window.localStorage.setItem('lastContactsList', pathname)
+      return
+    } else {
+      const saved = window.localStorage.getItem('lastContactsList')
+      if (saved && (saved === '/contacts/area' || saved.startsWith('/opportunities/'))) {
+        const timer = window.setTimeout(() => setLastContactsList(saved), 0)
+        return () => window.clearTimeout(timer)
+      }
+    }
+  }, [pathname, onOtherContacts])
   const profileMenuRef =
     useRef<HTMLDivElement | null>(null)
 
@@ -93,9 +108,13 @@ export function AppShell({
       href: '/contacts',
       label: 'My Contacts',
       icon: '☷',
-      active:
-        pathname === '/contacts' ||
-        pathname.startsWith('/contacts/'),
+      active: onMyContacts,
+    },
+    {
+      href: onOtherContacts ? pathname : lastContactsList,
+      label: 'Contacts',
+      icon: '◎',
+      active: onOtherContacts || (pathname.startsWith('/contacts/') && !onMyContacts),
     },
   ]
 

@@ -240,10 +240,10 @@ export function AppShell({
                 }
                 aria-expanded={profileMenuOpen}
                 aria-haspopup="menu"
-                aria-label="Open profile menu"
+                aria-label="Open menu"
                 className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[#00274c] text-xs font-extrabold text-white transition hover:bg-[#113a67]"
               >
-                {initials(displayName)}
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
 
               {profileMenuOpen && (
@@ -448,16 +448,6 @@ function CommunityIcon() {
       <path d="M6 5a2.5 2.5 0 1 0 0 5M18 5a2.5 2.5 0 1 1 0 5M5 13a4 4 0 0 0-4 4v1h3M19 13a4 4 0 0 1 4 4v1h-3" />
     </svg>
   )
-}
-
-function initials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
 }
 
 function formatRole(role: string) {

@@ -76,6 +76,7 @@ export type ContactResultsSearchParams = {
   floor?: string
   wing?: string
   roomOnly?: string
+  addRoommate?: string
   display?: string
   columns?: string
   sheetEmail?: string
@@ -846,7 +847,7 @@ export async function ContactResultsPage({
       dir: sortDir,
       filters,
       page: currentPage,
-    })
+    }) + (view === 'area' && searchParams.addRoommate === '1' ? '&addRoommate=1' : '')
 
   async function logKnock(
     formData: FormData
@@ -1103,10 +1104,11 @@ export async function ContactResultsPage({
 
       {view === 'mine' && <MyContactAttentionSection />}
 
+      {view === 'area' && searchParams.addRoommate === '1' && <p className="mt-5 rounded-xl border border-[#dbe8f8] bg-[#eff8ff] p-4 text-sm font-semibold text-[#175cd3]">Find the contact who already lives in the room, then select their name to add their roommate.</p>}
       {view === 'area' && !communityScope && <ContactNameSearch
         key={filters.q}
         query={filters.q}
-        href={resultsHref({ basePath, sort: sortBy, dir: sortDir, filters })}
+        href={resultsHref({ basePath, sort: sortBy, dir: sortDir, filters }) + (searchParams.addRoommate === '1' ? '&addRoommate=1' : '')}
       />}
 
       <details
@@ -1667,7 +1669,7 @@ export async function ContactResultsPage({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
-                          href={`/contacts/${contact.id}?from=${encodeURIComponent(
+                          href={`/contacts/${contact.id}?${searchParams.addRoommate === '1' && view === 'area' ? 'addRoommate=1&' : ''}from=${encodeURIComponent(
                             `${returnToResults}#contact-${contact.id}`
                           )}`}
                           className="block zoom-wrap truncate text-[19px] font-extrabold tracking-[-0.02em] text-[#15223a] hover:text-[#175cd3]"
@@ -2037,7 +2039,7 @@ export async function ContactResultsPage({
                     >
                       <td className="sticky left-0 z-10 bg-white px-3 py-2.5 font-extrabold text-[#15223a] group-hover:bg-[#f8fbff]">
                         <Link
-                          href={`/contacts/${contact.id}?from=${encodeURIComponent(
+                          href={`/contacts/${contact.id}?${searchParams.addRoommate === '1' && view === 'area' ? 'addRoommate=1&' : ''}from=${encodeURIComponent(
                             `${returnToResults}#contact-${contact.id}`
                           )}`}
                           className="hover:text-[#175cd3] hover:underline"

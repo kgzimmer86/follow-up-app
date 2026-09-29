@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 type AddRoommateButtonProps = {
+  autoOpen?: boolean
   sourceContactId: string
   locationName?: string | null
   roomOrAddress?: string | null
@@ -50,6 +51,7 @@ type PendingRoommate = {
 }
 
 export function AddRoommateButton({
+  autoOpen = false,
   sourceContactId,
   locationName,
   roomOrAddress,
@@ -57,7 +59,7 @@ export function AddRoommateButton({
 }: AddRoommateButtonProps) {
   const router = useRouter()
 
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(autoOpen)
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null)

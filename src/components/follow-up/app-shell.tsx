@@ -299,6 +299,15 @@ export function AppShell({
                       + Add person
                     </button>
 
+                    <Link
+                      href="/contacts/area?context=1&addRoommate=1"
+                      role="menuitem"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className="flex w-full items-center rounded-[10px] px-3 py-2.5 text-left text-sm font-extrabold text-[#175cd3] transition hover:bg-[#eff8ff]"
+                    >
+                      + Add roommate
+                    </Link>
+
                     <div className="my-1.5 border-t border-[#eef0f3]" />
 
                     <div className="px-3 pb-1 pt-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#98a2b3]">

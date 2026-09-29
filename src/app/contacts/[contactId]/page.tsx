@@ -38,6 +38,7 @@ type PageProps = {
     tab?: string
     from?: string
     interaction?: string
+    addRoommate?: string
   }>
 }
 
@@ -802,6 +803,8 @@ export default async function ContactDetailPage({
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <AddTextAttemptButton contactId={contact.id} contactName={student.display_name} />
             <AddRoommateButton
+              key={contact.id}
+              autoOpen={query.addRoommate === '1'}
               sourceContactId={
                 contact.id
               }

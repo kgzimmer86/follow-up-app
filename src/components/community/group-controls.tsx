@@ -58,8 +58,8 @@ export function GroupEditor({ group, areas, leaders, assignedArea }: { group?: C
           </select>
         </label>
         <label className="block text-sm font-bold">Usual meeting day<select name="day" defaultValue={group?.meeting_day ?? ''} className={inputClass}><option value="">Not set</option>{['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((d) => <option key={d}>{d}</option>)}</select></label>
-        <fieldset><legend className="text-sm font-bold">Group leaders</legend><p className="my-2 text-xs text-[#667085]">Choose at least one leader assigned to this area or a parent area.</p>
-          {area && leaders.filter((p) => withinArea(area, p.area, areas)).map((p) => <label key={`${area}-${p.id}`} className="flex min-h-11 items-center gap-3"><input type="checkbox" name="leader" value={p.id} defaultChecked={p.selected} className="h-5 w-5"/>{p.display_name}</label>)}
+        <fieldset><legend className="text-sm font-bold">Group leaders</legend><p className="my-2 text-xs text-[#667085]">Choose at least one leader from any campus area.</p>
+          {area && leaders.filter((p) => p.area).sort((a, b) => Number(b.area === assignedArea) - Number(a.area === assignedArea) || a.display_name.localeCompare(b.display_name)).map((p) => <label key={`${area}-${p.id}`} className="flex min-h-11 items-center gap-3"><input type="checkbox" name="leader" value={p.id} defaultChecked={p.selected} className="h-5 w-5"/>{p.display_name}</label>)}
         </fieldset>
         <button className={buttonClass}>{busy ? 'Saving…' : 'Save group'}</button>
       </fieldset>

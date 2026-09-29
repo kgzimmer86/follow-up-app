@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+
 import {
   personalFilterCookie,
   personalFilterKeys,
@@ -8,6 +9,7 @@ import {
   filtersForContactView,
   rememberContactFilterView,
   shouldRestorePersonalFilters,
+  defaultRoomOnly,
   smartCardCriteria,
   resetChangedDormFilters,
   assignedAreaFilters,
@@ -23,6 +25,14 @@ import {
   normalizeSharedContactFilters,
   updateSpreadsheetColumnFilter,
 } from './spreadsheet-filter-options.ts'
+
+test('missing rooms are hidden by default only on the three outreach lists', () => {
+  for (const view of ['gospel', 'new', 'cg']) assert.equal(defaultRoomOnly(view, {}), true)
+  for (const view of ['mine', 'goback', 'noaddress', 'area']) assert.equal(defaultRoomOnly(view, {}), false)
+  assert.equal(defaultRoomOnly('gospel', { context: '1' }), false)
+  assert.equal(defaultRoomOnly('gospel', { roomOnly: '0' }), false)
+  assert.equal(defaultRoomOnly('mine', { roomOnly: '1' }), true)
+})
 
 test('changing or removing a dorm clears its floor and wing without dropping other choices', () => {
   for (const location of ['bursley', '', 'no_address', 'needs_area_assignment']) {

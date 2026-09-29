@@ -97,7 +97,7 @@ export function AppShell({
     router.refresh()
   }
 
-  const navItems = [
+  const navItems: { href: string; label: string; icon: ReactNode; active: boolean }[] = [
     {
       href: '/',
       label: 'Home',
@@ -105,16 +105,16 @@ export function AppShell({
       active: pathname === '/',
     },
     {
-      href: '/contacts',
-      label: 'My Contacts',
-      icon: '☷',
-      active: onMyContacts,
-    },
-    {
       href: onOtherContacts ? pathname : lastContactsList,
       label: 'Contacts',
-      icon: '◎',
+      icon: '☷',
       active: onOtherContacts || (pathname.startsWith('/contacts/') && !onMyContacts),
+    },
+    {
+      href: '/contacts',
+      label: 'My Contacts',
+      icon: '◎',
+      active: onMyContacts,
     },
   ]
 
@@ -126,7 +126,7 @@ export function AppShell({
     navItems.push({
       href: '/disciples',
       label: 'My Disciples',
-      icon: '♙',
+      icon: <svg aria-hidden="true" viewBox="0 0 24 24" className="inline-block h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3" /><path d="M5 20v-2a7 7 0 0 1 14 0v2H5Z" /></svg>,
       active:
         pathname === '/disciples' ||
         pathname.startsWith('/disciples/'),

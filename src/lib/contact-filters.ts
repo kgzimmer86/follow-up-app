@@ -76,6 +76,11 @@ export function shouldRestorePersonalFilters(
     !personalFilterKeys.some((key) => params[key] !== undefined)
 }
 
+export function defaultRoomOnly(view: string, params: { context?: string; roomOnly?: string }) {
+  return params.roomOnly === '1' ||
+    (params.context !== '1' && params.roomOnly === undefined && ['gospel', 'new', 'cg'].includes(view))
+}
+
 // These describe the existing get_follow_up_contact_results rules. Do not send
 // these as personal RPC parameters: survey rules across fields use OR, not AND.
 export function smartCardCriteria(view: string) {

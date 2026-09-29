@@ -12,6 +12,7 @@ import {
   readPersonalFilterView,
   filtersForContactView,
   shouldRestorePersonalFilters,
+  defaultRoomOnly,
   smartCardCriteria,
   resetChangedDormFilters,
   assignedAreaFilters,
@@ -337,7 +338,7 @@ export async function ContactResultsPage({
     wing:
       searchParams.wing ?? '',
     roomOnly:
-      searchParams.roomOnly === '1'
+      defaultRoomOnly(view, searchParams)
         ? '1'
         : '',
     display:
@@ -366,7 +367,7 @@ export async function ContactResultsPage({
   const statusLocked = locksNotInterested(view)
   if (filters.status) filters.status = statusFilterValue(filters.status.split(','), statusLocked)
   if (!extendedFilters && filters.display !== 'sheet') {
-    for (const key of ['jesus', 'community', 'interview', 'kgp', 'interviewDone', 'invitedCg', 'roomOnly'] as const) filters[key] = ''
+    for (const key of ['jesus', 'community', 'interview', 'kgp', 'interviewDone', 'invitedCg'] as const) filters[key] = ''
   }
 
   const displayMode =
@@ -1152,7 +1153,7 @@ export async function ContactResultsPage({
             <input key={option.param} type="hidden" name={option.param} value={filters[option.param]} />
           ))}
           {!extendedFilters && displayMode === 'sheet' &&
-            (['jesus', 'community', 'interview', 'kgp', 'interviewDone', 'invitedCg', 'roomOnly'] as const).map(name => (
+            (['jesus', 'community', 'interview', 'kgp', 'interviewDone', 'invitedCg'] as const).map(name => (
               <input key={name} type="hidden" name={name} value={filters[name]} />
             ))}
           <SmartCardFilterCriteria title={criteriaTitle} criteria={cardCriteria} />

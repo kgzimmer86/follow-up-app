@@ -1527,12 +1527,7 @@ export async function ContactResultsPage({
               <form action={toggleRoomFilter}>
                 <button
                   type="submit"
-                  className={[
-                    'rounded-[10px] border px-3 py-2 text-xs font-extrabold',
-                    roomOnlyActive
-                      ? 'border-[#13795b] bg-[#ecfdf3] text-[#027a48]'
-                      : 'border-[#e4e7ec] bg-white text-[#475467]',
-                  ].join(' ')}
+                  className="rounded-[10px] border border-[#e4e7ec] bg-white px-3 py-2 text-xs font-extrabold text-[#475467]"
                 >
                   {roomOnlyActive
                     ? 'Show missing rooms'

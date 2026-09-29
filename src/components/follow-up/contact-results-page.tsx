@@ -639,18 +639,7 @@ export async function ContactResultsPage({
     (filters.location === 'no_address' ? 'No Address' :
       filters.location === 'needs_area_assignment' ? 'Needs Area Assignment' : 'All areas')
 
-  const isDormContactContext =
-    view !== 'noaddress' &&
-    (
-      view === 'mine' ||
-      (
-        filters.location
-          ? isDormLocation(
-              selectedLocationArea
-            )
-          : false
-      )
-    )
+  const canFilterMissingRooms = view !== 'noaddress'
 
   const roomOnlyActive =
     filters.roomOnly === '1'
@@ -1526,7 +1515,7 @@ export async function ContactResultsPage({
               />
             )}
 
-            {isDormContactContext && (
+            {canFilterMissingRooms && (
               <form action={toggleRoomFilter}>
                 <button
                   type="submit"
@@ -2656,23 +2645,6 @@ function DisabledButton({
       {label}
     </button>
   )
-}
-
-function isDormLocation(
-  area: AreaRow | null
-) {
-  if (
-    !area ||
-    area.parent_id === null ||
-    area.area_type === 'affinity'
-  ) {
-    return false
-  }
-
-  return !area.name
-    .trim()
-    .toLowerCase()
-    .startsWith('off campus')
 }
 
 function genderCategory(
